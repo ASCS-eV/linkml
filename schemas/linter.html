@@ -270,6 +270,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generators/typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/prefixmap.html">Prefix Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sssom.html">SSSOM</a></li>
@@ -569,13 +570,13 @@ every YAML file found in the directory (recursively) will be linted.</p>
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-lint-validate">
 <span class="sig-name descname"><span class="pre">--validate</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-lint-validate" title="Link to this definition">¶</a></dt>
-<dd><p>Validate the schema against the LinkML Metamodel before linting.</p>
+<dd><p>Metamodel validation now always runs. This flag has no effect.(DEPRECATED)</p>
 </dd></dl>
 
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-lint-validate-only">
 <span class="sig-name descname"><span class="pre">--validate-only</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-lint-validate-only" title="Link to this definition">¶</a></dt>
-<dd><p>Validate the schema against the LinkML Metamodel and then exit without checking linter rules.</p>
+<dd><p>Use ‘linkml validate schema.yaml’ instead.(DEPRECATED)</p>
 </dd></dl>
 
 <dl class="std option">
@@ -657,7 +658,7 @@ every YAML file found in the directory (recursively) will be linted.</p>
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2021-2024, LinkML Authors
+                Copyright &#169; 2021-2026, LinkML Authors
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             

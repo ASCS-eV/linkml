@@ -269,6 +269,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../generators/typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/prefixmap.html">Prefix Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sssom.html">SSSOM</a></li>
@@ -589,15 +590,17 @@
         <span class="n">detect_cycles</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">[</span><span class="n">x</span><span class="p">])</span>
 
     <span class="n">rv</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="k">if</span> <span class="n">reflexive</span> <span class="k">else</span> <span class="p">[]</span>
-    <span class="n">visited</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">rv_set</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="p">{</span><span class="n">x</span><span class="p">}</span> <span class="k">if</span> <span class="n">reflexive</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">visited</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="n">todo</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">]</span>
     <span class="k">while</span> <span class="n">todo</span><span class="p">:</span>
         <span class="n">i</span> <span class="o">=</span> <span class="n">todo</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="k">if</span> <span class="n">depth_first</span> <span class="k">else</span> <span class="n">todo</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-        <span class="n">visited</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">visited</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">f</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
-            <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">visited</span> <span class="ow">and</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rv</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">visited</span> <span class="ow">and</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">rv_set</span><span class="p">:</span>
                 <span class="n">todo</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
                 <span class="n">rv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">rv_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">rv</span>
 
 
@@ -2244,6 +2247,19 @@
             <span class="n">slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot_name</span><span class="p">,</span> <span class="n">imports</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">slot</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Callers (e.g. JSON/Python generators) may often normalise slot</span>
+            <span class="c1"># names with underscore() before using as property/attribute names.</span>
+            <span class="c1"># If above literal lookup failed, try to resolve name back to the</span>
+            <span class="c1"># canonical (hyphenated / space-containing) slot name via</span>
+            <span class="c1"># slot_name_mappings(). Recurse once with that name.</span>
+            <span class="n">canonical</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slot_name_mappings</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">slot_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">canonical</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">canonical</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="n">slot_name</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">induced_slot</span><span class="p">(</span>
+                    <span class="n">canonical</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">class_name</span><span class="o">=</span><span class="n">class_name</span><span class="p">,</span>
+                    <span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">,</span>
+                    <span class="n">mangle_name</span><span class="o">=</span><span class="n">mangle_name</span><span class="p">,</span>
+                <span class="p">)</span>
             <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;No such slot </span><span class="si">{</span><span class="n">slot_name</span><span class="si">}</span><span class="s2"> as an attribute of </span><span class="si">{</span><span class="n">class_name</span><span class="si">}</span><span class="s2"> ancestors &quot;</span>
                 <span class="s2">&quot;or as a slot definition in the schema&quot;</span>
@@ -2294,10 +2310,10 @@
                 <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">default_range</span>
             <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="nb">setattr</span><span class="p">(</span><span class="n">induced_slot</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">inlined_as_list</span><span class="p">:</span>
-            <span class="n">slot</span><span class="o">.</span><span class="n">inlined</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">identifier</span> <span class="ow">or</span> <span class="n">slot</span><span class="o">.</span><span class="n">key</span><span class="p">:</span>
-            <span class="n">slot</span><span class="o">.</span><span class="n">required</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">induced_slot</span><span class="o">.</span><span class="n">inlined_as_list</span><span class="p">:</span>
+            <span class="n">induced_slot</span><span class="o">.</span><span class="n">inlined</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">induced_slot</span><span class="o">.</span><span class="n">identifier</span> <span class="ow">or</span> <span class="n">induced_slot</span><span class="o">.</span><span class="n">key</span><span class="p">:</span>
+            <span class="n">induced_slot</span><span class="o">.</span><span class="n">required</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">if</span> <span class="n">mangle_name</span><span class="p">:</span>
             <span class="n">mangled_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">camelcase</span><span class="p">(</span><span class="n">class_name</span><span class="p">)</span><span class="si">}</span><span class="s2">__</span><span class="si">{</span><span class="n">underscore</span><span class="p">(</span><span class="n">slot_name</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="n">induced_slot</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">mangled_name</span>
@@ -2305,11 +2321,13 @@
             <span class="n">underscored</span> <span class="o">=</span> <span class="n">underscore</span><span class="p">(</span><span class="n">slot_name</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">underscored</span> <span class="o">!=</span> <span class="n">induced_slot</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
                 <span class="n">induced_slot</span><span class="o">.</span><span class="n">alias</span> <span class="o">=</span> <span class="n">underscored</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_classes</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="k">if</span> <span class="p">(</span>
-                <span class="n">induced_slot</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">slots</span> <span class="ow">or</span> <span class="n">induced_slot</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">attributes</span>
-            <span class="p">)</span> <span class="ow">and</span> <span class="n">c</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">induced_slot</span><span class="o">.</span><span class="n">domain_of</span><span class="p">:</span>
-                <span class="n">induced_slot</span><span class="o">.</span><span class="n">domain_of</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="c1"># set() handles edge case, slot name in both c.slots and c.attributes.</span>
+        <span class="n">existing_domain_of</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">induced_slot</span><span class="o">.</span><span class="n">domain_of</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">class_name_candidate</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slot_class_map</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">induced_slot</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="k">if</span> <span class="n">class_name_candidate</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing_domain_of</span><span class="p">:</span>
+                <span class="n">induced_slot</span><span class="o">.</span><span class="n">domain_of</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">class_name_candidate</span><span class="p">)</span>
+                <span class="n">existing_domain_of</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">class_name_candidate</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">induced_slot</span></div>
 
 
@@ -2317,6 +2335,21 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_metaslots_for_slot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">fake_slot</span> <span class="o">=</span> <span class="n">SlotDefinition</span><span class="p">(</span><span class="s2">&quot;__FAKE&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">vars</span><span class="p">(</span><span class="n">fake_slot</span><span class="p">)</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+
+    <span class="nd">@lru_cache</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_slot_class_map</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build a reverse map: slot/attribute name → list of class names that declare it.</span>
+
+<span class="sd">        Computed once and cached; automatically invalidated when set_modified() is called</span>
+<span class="sd">        (because SchemaView&#39;s hash changes with each modification).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_classes</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">sname</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">slots</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">sname</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">aname</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">attributes</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">aname</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
 
 <div class="viewcode-block" id="SchemaView.class_slots">
 <a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.class_slots">[docs]</a>
@@ -2568,7 +2601,10 @@
             <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;A SlotDefinition must be provided to generate the slot range as union.&quot;</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="nb">list</span><span class="p">({</span><span class="n">y</span><span class="o">.</span><span class="n">range</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="p">[</span><span class="n">slot</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">[</span><span class="o">*</span><span class="n">slot</span><span class="o">.</span><span class="n">exactly_one_of</span><span class="p">,</span> <span class="o">*</span><span class="n">slot</span><span class="o">.</span><span class="n">any_of</span><span class="p">]</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">range</span><span class="p">]]})</span></div>
+        <span class="c1"># Using dict with None as value to mimic ordered set behavior</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span>
+            <span class="p">{</span><span class="n">y</span><span class="o">.</span><span class="n">range</span><span class="p">:</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="p">[</span><span class="n">slot</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">[</span><span class="o">*</span><span class="n">slot</span><span class="o">.</span><span class="n">exactly_one_of</span><span class="p">,</span> <span class="o">*</span><span class="n">slot</span><span class="o">.</span><span class="n">any_of</span><span class="p">]</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">range</span><span class="p">]]}</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+        <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SchemaView.induced_slot_range">
@@ -2640,20 +2676,20 @@
 <span class="sd">        :param include_induced: supplement all direct slots with induced slots, defaults to False</span>
 <span class="sd">        :return: list of slots, either direct, or both direct and induced</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">classes_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># use set to avoid duplicates</span>
+        <span class="n">classes_ordered_set</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1">#  To avoid duplicates. Using dict with None as value to mimic ordered set</span>
         <span class="n">all_classes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_classes</span><span class="p">()</span>
 
         <span class="k">for</span> <span class="n">c_name</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">all_classes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">slots</span><span class="p">:</span>
-                <span class="n">classes_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">c_name</span><span class="p">)</span>
+                <span class="n">classes_ordered_set</span><span class="p">[</span><span class="n">c_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="k">if</span> <span class="n">include_induced</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">c_name</span> <span class="ow">in</span> <span class="n">all_classes</span><span class="p">:</span>
                 <span class="n">induced_slot_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">ind_slot</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">ind_slot</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_induced_slots</span><span class="p">(</span><span class="n">c_name</span><span class="p">)]</span>
                 <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">induced_slot_names</span><span class="p">:</span>
-                    <span class="n">classes_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">c_name</span><span class="p">)</span>
+                    <span class="n">classes_ordered_set</span><span class="p">[</span><span class="n">c_name</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
-        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">classes_set</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">classes_ordered_set</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span></div>
 
 
 <div class="viewcode-block" id="SchemaView.get_slots_by_enum">
@@ -2979,7 +3015,7 @@
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2021-2024, LinkML Authors
+                Copyright &#169; 2021-2026, LinkML Authors
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             

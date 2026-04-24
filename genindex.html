@@ -268,6 +268,7 @@
 <li class="toctree-l2"><a class="reference internal" href="generators/sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generators/typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/prefixmap.html">Prefix Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/sssom.html">SSSOM</a></li>
@@ -847,6 +848,15 @@
 </li>
         </ul></li>
         <li>
+    --exclude-external-imports
+
+        <ul>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-exclude-external-imports">gen-jsonld-context command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-exclude-external-imports">linkml-generate-(full)-jsonld-context command line option</a>
+</li>
+        </ul></li>
+        <li>
     --exclude-imports
 
         <ul>
@@ -910,6 +920,8 @@
 
         <ul>
           <li><a href="cli/lint.html#cmdoption-linkml-lint-fix">linkml-lint command line option</a>, <a href="schemas/linter.html#cmdoption-linkml-lint-fix">[1]</a>
+</li>
+          <li><a href="cli/validate.html#cmdoption-linkml-validate-fix">linkml-validate command line option</a>, <a href="code/validator.html#cmdoption-linkml-validate-fix">[1]</a>, <a href="data/validating-data.html#cmdoption-linkml-validate-fix">[2]</a>
 </li>
         </ul></li>
         <li>
@@ -1001,6 +1013,8 @@
           <li><a href="generators/sssom.html#cmdoption-gen-sssom-f">gen-sssom command line option</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-f">gen-terminusdb command line option</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-f">gen-typedb command line option</a>
 </li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-f">gen-typescript command line option</a>
 </li>
@@ -1238,6 +1252,8 @@
           <li><a href="generators/sssom.html#cmdoption-gen-sssom-im">gen-sssom command line option</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-im">gen-terminusdb command line option</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-im">gen-typedb command line option</a>
 </li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-im">gen-typescript command line option</a>
 </li>
@@ -1560,6 +1576,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-log_level">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-log_level">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-log_level">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-log_level">gen-yarrrml command line option</a>
@@ -1745,6 +1763,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-mergeimports">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-mergeimports">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-mergeimports">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-mergeimports">gen-yarrrml command line option</a>
@@ -1892,6 +1912,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-metadata">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-metadata">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-metadata">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-metadata">gen-yarrrml command line option</a>
@@ -2027,6 +2049,8 @@
           <li><a href="generators/sssom.html#cmdoption-gen-sssom-useuris">gen-sssom command line option</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-useuris">gen-terminusdb command line option</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-useuris">gen-typedb command line option</a>
 </li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-useuris">gen-typescript command line option</a>
 </li>
@@ -2294,6 +2318,15 @@
 </li>
         </ul></li>
         <li>
+    --no-exclude-external-imports
+
+        <ul>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-exclude-external-imports">gen-jsonld-context command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-exclude-external-imports">linkml-generate-(full)-jsonld-context command line option</a>
+</li>
+        </ul></li>
+        <li>
     --no-expand-subproperty-of
 
         <ul>
@@ -2546,6 +2579,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-mergeimports">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-mergeimports">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-mergeimports">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-mergeimports">gen-yarrrml command line option</a>
@@ -2684,6 +2719,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-metadata">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-metadata">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-metadata">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-metadata">gen-yarrrml command line option</a>
@@ -2789,6 +2826,8 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-nullable-primitives">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     --no-prefixes
 
@@ -2798,8 +2837,6 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-prefixes">linkml-generate-(full)-jsonld-context command line option</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     --no-pydantic
 
@@ -2930,6 +2967,8 @@
           <li><a href="generators/sssom.html#cmdoption-gen-sssom-stacktrace">gen-sssom command line option</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-stacktrace">gen-terminusdb command line option</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-stacktrace">gen-typedb command line option</a>
 </li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-stacktrace">gen-typescript command line option</a>
 </li>
@@ -3454,6 +3493,15 @@
 </li>
         </ul></li>
         <li>
+    --sqla-style
+
+        <ul>
+          <li><a href="generators/sqlalchemy.html#cmdoption-gen-sqla-sqla-style">gen-sqla command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqla-sqla-style">linkml-generate-(full)-sqla command line option</a>
+</li>
+        </ul></li>
+        <li>
     --stacktrace
 
         <ul>
@@ -3506,6 +3554,8 @@
           <li><a href="generators/sssom.html#cmdoption-gen-sssom-stacktrace">gen-sssom command line option</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-stacktrace">gen-terminusdb command line option</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-stacktrace">gen-typedb command line option</a>
 </li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-stacktrace">gen-typescript command line option</a>
 </li>
@@ -3853,6 +3903,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-useuris">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-useuris">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-useuris">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-useuris">gen-yarrrml command line option</a>
@@ -4007,6 +4059,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-v">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-v">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-v">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-v">gen-yarrrml command line option</a>
@@ -4141,6 +4195,8 @@
           <li><a href="generators/sssom.html#cmdoption-gen-sssom-V">gen-sssom command line option</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-V">gen-terminusdb command line option</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-V">gen-typedb command line option</a>
 </li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-V">gen-typescript command line option</a>
 </li>
@@ -4378,6 +4434,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-f">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-f">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-f">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-f">gen-yarrrml command line option</a>
@@ -4533,6 +4591,8 @@
           <li><a href="generators/sssom.html#cmdoption-gen-sssom-im">gen-sssom command line option</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-im">gen-terminusdb command line option</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-im">gen-typedb command line option</a>
 </li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-im">gen-typescript command line option</a>
 </li>
@@ -4823,6 +4883,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-V">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-V">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-V">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-V">gen-yarrrml command line option</a>
@@ -4968,6 +5030,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-v">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-v">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-v">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-v">gen-yarrrml command line option</a>
@@ -5064,15 +5128,15 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="code/utils.html#linkml.utils.schemasynopsis.SchemaSynopsis.abstracts">abstracts (linkml.utils.schemasynopsis.SchemaSynopsis attribute)</a>
 </li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.add_class">add_class() (linkml.utils.schema_builder.SchemaBuilder method)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.add_class">add_class() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 
         <ul>
           <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.add_class">(linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
         </ul></li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.add_defaults">add_defaults() (linkml.utils.schema_builder.SchemaBuilder method)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.add_defaults">add_defaults() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 </li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.add_enum">add_enum() (linkml.utils.schema_builder.SchemaBuilder method)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.add_enum">add_enum() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 
         <ul>
           <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.add_enum">(linkml_runtime.utils.schemaview.SchemaView method)</a>
@@ -5080,17 +5144,19 @@
         </ul></li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.add_id_prefixes">add_id_prefixes() (linkml.utils.generator.Generator method)</a>
 </li>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.add_imports">add_imports() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
+</li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.add_mappings">add_mappings() (linkml.utils.generator.Generator method)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.add_prefix">add_prefix() (linkml.utils.generator.Generator method)</a>
 
         <ul>
-          <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.add_prefix">(linkml.utils.schema_builder.SchemaBuilder method)</a>
+          <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.add_prefix">(linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 </li>
         </ul></li>
         <li><a href="code/utils.html#linkml.utils.schemasynopsis.SchemaSynopsis.add_ref">add_ref() (linkml.utils.schemasynopsis.SchemaSynopsis method)</a>
 </li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.add_slot">add_slot() (linkml.utils.schema_builder.SchemaBuilder method)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.add_slot">add_slot() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 
         <ul>
           <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.add_slot">(linkml_runtime.utils.schemaview.SchemaView method)</a>
@@ -5098,7 +5164,7 @@
         </ul></li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.add_subset">add_subset() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.add_type">add_type() (linkml.utils.schema_builder.SchemaBuilder method)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.add_type">add_type() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 
         <ul>
           <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.add_type">(linkml_runtime.utils.schemaview.SchemaView method)</a>
@@ -5154,6 +5220,8 @@
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.all_members">all_members (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ClassDefinition.all_of">all_of (linkml_runtime.linkml_model.meta.ClassDefinition attribute)</a>
 
         <ul>
@@ -5162,8 +5230,6 @@
           <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.TypeDefinition.all_of">(linkml_runtime.linkml_model.meta.TypeDefinition attribute)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.all_schema">all_schema() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.all_slot">all_slot() (linkml_runtime.utils.schemaview.SchemaView method)</a>
@@ -5242,7 +5308,7 @@
 </li>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator">ArrayValidator (class in linkml.generators.pydanticgen.array)</a>
 </li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.as_dict">as_dict() (linkml.utils.schema_builder.SchemaBuilder method)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.as_dict">as_dict() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.asymmetric">asymmetric (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
@@ -6364,6 +6430,8 @@
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-emit-frame">--emit-frame</a>
 </li>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-exclude-external-imports">--exclude-external-imports</a>
+</li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-exclude-imports">--exclude-imports</a>
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-fix-multivalue-containers">--fix-multivalue-containers</a>
@@ -6389,6 +6457,8 @@
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-embed-context-in-frame">--no-embed-context-in-frame</a>
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-emit-frame">--no-emit-frame</a>
+</li>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-exclude-external-imports">--no-exclude-external-imports</a>
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-fix-multivalue-containers">--no-fix-multivalue-containers</a>
 </li>
@@ -7156,6 +7226,8 @@
 </li>
           <li><a href="generators/sqlalchemy.html#cmdoption-gen-sqla-pydantic">--pydantic</a>
 </li>
+          <li><a href="generators/sqlalchemy.html#cmdoption-gen-sqla-sqla-style">--sqla-style</a>
+</li>
           <li><a href="generators/sqlalchemy.html#cmdoption-gen-sqla-stacktrace">--stacktrace</a>
 </li>
           <li><a href="generators/sqlalchemy.html#cmdoption-gen-sqla-use-foreign-keys">--use-foreign-keys</a>
@@ -7387,6 +7459,47 @@
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-v">-v</a>
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-arg-YAMLFILE">YAMLFILE</a>
+</li>
+        </ul></li>
+        <li>
+    gen-typedb command line option
+
+        <ul>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-f">--format</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-im">--importmap</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-log_level">--log_level</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-mergeimports">--mergeimports</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-metadata">--metadata</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-useuris">--metauris</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-mergeimports">--no-mergeimports</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-metadata">--no-metadata</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-stacktrace">--no-stacktrace</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-stacktrace">--stacktrace</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-useuris">--useuris</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-v">--verbose</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-V">--version</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-f">-f</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-im">-im</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-V">-V</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-v">-v</a>
+</li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-arg-YAMLFILE">YAMLFILE</a>
 </li>
         </ul></li>
         <li>
@@ -7633,10 +7746,10 @@
   <h2>I</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.id">id (linkml.utils.schema_builder.SchemaBuilder attribute)</a>
+        <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition.id">id (linkml_runtime.linkml_model.meta.SchemaDefinition attribute)</a>
 
         <ul>
-          <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition.id">(linkml_runtime.linkml_model.meta.SchemaDefinition attribute)</a>
+          <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.id">(linkml_runtime.utils.schema_builder.SchemaBuilder attribute)</a>
 </li>
         </ul></li>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.PydanticAttribute.identifier">identifier (linkml.generators.pydanticgen.template.PydanticAttribute attribute)</a>
@@ -8705,6 +8818,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-emit-frame">--emit-frame</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-exclude-external-imports">--exclude-external-imports</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-exclude-imports">--exclude-imports</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-fix-multivalue-containers">--fix-multivalue-containers</a>
@@ -8730,6 +8845,8 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-embed-context-in-frame">--no-embed-context-in-frame</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-emit-frame">--no-emit-frame</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-exclude-external-imports">--no-exclude-external-imports</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-fix-multivalue-containers">--no-fix-multivalue-containers</a>
 </li>
@@ -9590,6 +9707,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqla-pydantic">--pydantic</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqla-sqla-style">--sqla-style</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqla-stacktrace">--stacktrace</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqla-use-foreign-keys">--use-foreign-keys</a>
@@ -10031,6 +10150,8 @@
           <li><a href="cli/validate.html#cmdoption-linkml-validate-config">--config</a>, <a href="code/validator.html#cmdoption-linkml-validate-config">[1]</a>, <a href="data/validating-data.html#cmdoption-linkml-validate-config">[2]</a>
 </li>
           <li><a href="cli/validate.html#cmdoption-linkml-validate-exit-on-first-failure">--exit-on-first-failure</a>, <a href="code/validator.html#cmdoption-linkml-validate-exit-on-first-failure">[1]</a>, <a href="data/validating-data.html#cmdoption-linkml-validate-exit-on-first-failure">[2]</a>
+</li>
+          <li><a href="cli/validate.html#cmdoption-linkml-validate-fix">--fix</a>, <a href="code/validator.html#cmdoption-linkml-validate-fix">[1]</a>, <a href="data/validating-data.html#cmdoption-linkml-validate-fix">[2]</a>
 </li>
           <li><a href="cli/validate.html#cmdoption-linkml-validate-D">--include-context</a>, <a href="code/validator.html#cmdoption-linkml-validate-D">[1]</a>, <a href="data/validating-data.html#cmdoption-linkml-validate-D">[2]</a>
 </li>
@@ -10585,8 +10706,6 @@
 </li>
           <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.Deprecation.name">(linkml.utils.deprecation.Deprecation attribute)</a>
 </li>
-          <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.name">(linkml.utils.schema_builder.SchemaBuilder attribute)</a>
-</li>
           <li><a href="code/utils.html#linkml.utils.typereferences.RefType.name">(linkml.utils.typereferences.RefType attribute)</a>
 </li>
           <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ClassDefinition.name">(linkml_runtime.linkml_model.meta.ClassDefinition attribute)</a>
@@ -10598,6 +10717,8 @@
           <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.name">(linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
           <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.TypeDefinition.name">(linkml_runtime.linkml_model.meta.TypeDefinition attribute)</a>
+</li>
+          <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.name">(linkml_runtime.utils.schema_builder.SchemaBuilder attribute)</a>
 </li>
         </ul></li>
     </ul></td>
@@ -10898,14 +11019,14 @@
         <ul>
           <li><a href="code/utils.html#linkml.utils.generator.Generator.schema">(linkml.utils.generator.Generator attribute)</a>
 </li>
-          <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.schema">(linkml.utils.schema_builder.SchemaBuilder attribute)</a>
-</li>
           <li><a href="code/utils.html#linkml.utils.schemasynopsis.SchemaSynopsis.schema">(linkml.utils.schemasynopsis.SchemaSynopsis attribute)</a>
+</li>
+          <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.schema">(linkml_runtime.utils.schema_builder.SchemaBuilder attribute)</a>
 </li>
         </ul></li>
         <li><a href="code/utils.html#linkml.utils.schemaloader.SchemaLoader.schema_errors">schema_errors() (linkml.utils.schemaloader.SchemaLoader method)</a>
 </li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder">SchemaBuilder (class in linkml.utils.schema_builder)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder">SchemaBuilder (class in linkml_runtime.utils.schema_builder)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition">SchemaDefinition (class in linkml_runtime.linkml_model.meta)</a>
 </li>
@@ -10972,6 +11093,8 @@
 </li>
           <li><a href="generators/terminusdb.html#linkml.generators.terminusdbgen.TerminusdbGenerator.serialize">(linkml.generators.terminusdbgen.TerminusdbGenerator method)</a>
 </li>
+          <li><a href="generators/typedb.html#linkml.generators.typedbgen.TypeDBGenerator.serialize">(linkml.generators.typedbgen.TypeDBGenerator method)</a>
+</li>
           <li><a href="generators/typescript.html#linkml.generators.typescriptgen.TypescriptGenerator.serialize">(linkml.generators.typescriptgen.TypescriptGenerator method)</a>
 </li>
           <li><a href="generators/yaml.html#linkml.generators.yamlgen.YAMLGenerator.serialize">(linkml.generators.yamlgen.YAMLGenerator method)</a>
@@ -10987,7 +11110,7 @@
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.set_modified">set_modified() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
-        <li><a href="developers/schemabuilder.html#linkml.utils.schema_builder.SchemaBuilder.set_slot">set_slot() (linkml.utils.schema_builder.SchemaBuilder method)</a>
+        <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.set_slot">set_slot() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition.settings">settings (linkml_runtime.linkml_model.meta.SchemaDefinition attribute)</a>
 </li>
@@ -11248,6 +11371,8 @@
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.type_roots">type_roots() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.schemasynopsis.SchemaSynopsis.typebases">typebases (linkml.utils.schemasynopsis.SchemaSynopsis attribute)</a>
+</li>
+        <li><a href="generators/typedb.html#linkml.generators.typedbgen.TypeDBGenerator">TypeDBGenerator (class in linkml.generators.typedbgen)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.TypeDefinition">TypeDefinition (class in linkml_runtime.linkml_model.meta)</a>
 </li>
@@ -11513,6 +11638,8 @@
 </li>
           <li><a href="generators/terminusdb.html#cmdoption-gen-terminusdb-arg-YAMLFILE">gen-terminusdb command line option</a>
 </li>
+          <li><a href="generators/typedb.html#cmdoption-gen-typedb-arg-YAMLFILE">gen-typedb command line option</a>
+</li>
           <li><a href="generators/typescript.html#cmdoption-gen-typescript-arg-YAMLFILE">gen-typescript command line option</a>
 </li>
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-arg-YAMLFILE">gen-yarrrml command line option</a>
@@ -11616,7 +11743,7 @@
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2021-2024, LinkML Authors
+                Copyright &#169; 2021-2026, LinkML Authors
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             

@@ -270,6 +270,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generators/typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/prefixmap.html">Prefix Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sssom.html">SSSOM</a></li>
@@ -594,13 +595,14 @@ leave the <a class="reference internal" href="#linkml.utils.deprecation.Deprecat
 <li><p>Tracking deprecated and removed in versions</p></li>
 <li><p>Fail tests when something marked as removed_in is still present in the specified version</p></li>
 </ul>
-<p>Initial draft for deprecating Pydantic 1, to make more general, needs
-- function wrapper version
-- …</p>
 <p>To deprecate something:</p>
 <ul class="simple">
 <li><p>Create a <a class="reference internal" href="#linkml.utils.deprecation.Deprecation" title="linkml.utils.deprecation.Deprecation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Deprecation</span></code></a> object within the <cite>DEPRECATIONS</cite> tuple</p></li>
 <li><p>Use the <a class="reference internal" href="#linkml.utils.deprecation.deprecation_warning" title="linkml.utils.deprecation.deprecation_warning"><code class="xref py py-func docutils literal notranslate"><span class="pre">deprecation_warning()</span></code></a> function wherever the deprecated feature would be used to emit the warning</p></li>
+</ul>
+<p>See also</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://linkml.io/linkml/maintainers/deprecation.html">https://linkml.io/linkml/maintainers/deprecation.html</a></p></li>
 </ul>
 <dl class="py class">
 <dt class="sig sig-object py" id="linkml.utils.deprecation.Deprecation">
@@ -829,7 +831,7 @@ syntax.</p>
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2021-2024, LinkML Authors
+                Copyright &#169; 2021-2026, LinkML Authors
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             

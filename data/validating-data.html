@@ -270,6 +270,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generators/typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/prefixmap.html">Prefix Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sssom.html">SSSOM</a></li>
@@ -583,7 +584,11 @@ specify the full dotted name (e.g.
 </div>
 <section id="linkml-validate">
 <h4>linkml-validate<a class="headerlink" href="#linkml-validate" title="Link to this heading">¶</a></h4>
-<p>Validate data according to a LinkML Schema</p>
+<p>Validate data against a LinkML schema, or validate a schema against the metamodel.</p>
+<p>When -s/–schema is provided, positional arguments are data files to validate
+against that schema.</p>
+<p>When -s/–schema is omitted, positional arguments are treated as schema files
+and validated against the LinkML metamodel.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>linkml-validate<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span><span class="o">[</span>DATA_SOURCES<span class="o">]</span>...
 </pre></div>
 </div>
@@ -591,7 +596,7 @@ specify the full dotted name (e.g.
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-validate-s">
 <span id="cmdoption-linkml-validate-schema"></span><span class="sig-name descname"><span class="pre">-s</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--schema</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;schema&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-validate-s" title="Link to this definition">¶</a></dt>
-<dd><p>Schema file to validate data against</p>
+<dd><p>Schema file to validate data against. When omitted, positional arguments are treated as schemas and validated against the LinkML metamodel.</p>
 </dd></dl>
 
 <dl class="std option">
@@ -627,6 +632,12 @@ specify the full dotted name (e.g.
 <dt class="sig sig-object std" id="cmdoption-linkml-validate-allow-null-for-optional-enums">
 <span class="sig-name descname"><span class="pre">--allow-null-for-optional-enums</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-validate-allow-null-for-optional-enums" title="Link to this definition">¶</a></dt>
 <dd><p>Downgrade enum validation errors to warnings when the value is null/empty and the slot is not required. Prevents ‘None is not one of […]’ and “’’ is not one of […]” errors for optional enum slots.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-validate-fix">
+<span class="sig-name descname"><span class="pre">--fix</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-validate-fix" title="Link to this definition">¶</a></dt>
+<dd><p>Normalize a YAML/JSON data file to conform to the schema (type coercion, collection form restructuring) and write the corrected data to stdout. Diagnostics go to stderr. The normalized output is then validated to report any remaining issues.</p>
 </dd></dl>
 
 <dl class="std option">
@@ -733,7 +744,7 @@ $<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><sp
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2021-2024, LinkML Authors
+                Copyright &#169; 2021-2026, LinkML Authors
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             

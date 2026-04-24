@@ -270,6 +270,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generators/typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/prefixmap.html">Prefix Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sssom.html">SSSOM</a></li>
@@ -2558,6 +2559,17 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
 </dd></dl>
 
 <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-jsonld-context-exclude-external-imports">
+<span id="cmdoption-linkml-generate-full-jsonld-context-no-exclude-external-imports"></span><span class="sig-name descname"><span class="pre">--exclude-external-imports</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-exclude-external-imports</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-jsonld-context-exclude-external-imports" title="Link to this definition">¶</a></dt>
+<dd><p>Exclude elements from URL-based external vocabulary imports while keeping local file imports. Useful when extending ontologies (e.g. W3C VC v2) whose terms are &#64;protected in their own JSON-LD context.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Default<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-jsonld-context-V">
 <span id="cmdoption-linkml-generate-full-jsonld-context-version"></span><span class="sig-name descname"><span class="pre">-V</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--version</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-jsonld-context-V" title="Link to this definition">¶</a></dt>
 <dd><p>Show the version and exit.</p>
@@ -4623,6 +4635,17 @@ is conformant to the same LinkML schema.</p>
 </dd></dl>
 
 <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-sqla-sqla-style">
+<span class="sig-name descname"><span class="pre">--sqla-style</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;sqla_style&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-sqla-sqla-style" title="Link to this definition">¶</a></dt>
+<dd><p>SQLAlchemy style to generate (1 or 2). Defaults to 1. Only applies in declarative mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Options<span class="colon">:</span></dt>
+<dd class="field-odd"><p>1 | 2</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-sqla-use-foreign-keys">
 <span id="cmdoption-linkml-generate-full-sqla-no-use-foreign-keys"></span><span class="sig-name descname"><span class="pre">--use-foreign-keys</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-use-foreign-keys</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-sqla-use-foreign-keys" title="Link to this definition">¶</a></dt>
 <dd><p>Emit FK declarations</p>
@@ -5547,7 +5570,7 @@ is conformant to the same LinkML schema.</p>
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-yarrrml-iterator-template">
 <span class="sig-name descname"><span class="pre">--iterator-template</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;iterator_template&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-yarrrml-iterator-template" title="Link to this definition">¶</a></dt>
-<dd><p>JSONPath iterator template; supports {Class}, default: “$.items[*]”</p>
+<dd><p>JSONPath iterator template; supports {Class}, default: “$[*]”</p>
 </dd></dl>
 
 <dl class="std option">
@@ -5676,7 +5699,7 @@ is conformant to the same LinkML schema.</p>
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2021-2024, LinkML Authors
+                Copyright &#169; 2021-2026, LinkML Authors
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             

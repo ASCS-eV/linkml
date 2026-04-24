@@ -269,6 +269,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../generators/typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/prefixmap.html">Prefix Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sssom.html">SSSOM</a></li>
@@ -444,6 +445,13 @@
     <span class="s2">&quot;xsddate&quot;</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">),</span>
     <span class="s2">&quot;xsddatetime&quot;</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;date-time&quot;</span><span class="p">),</span>
     <span class="s2">&quot;xsdtime&quot;</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">),</span>
+    <span class="s2">&quot;uri&quot;</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;uri&quot;</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="c1"># Patterns implied by the Python base type in linkml-runtime.</span>
+<span class="c1"># These are used as fallbacks when the type definition itself has no ``pattern``.</span>
+<span class="n">_base_implied_patterns</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;ncname&quot;</span><span class="p">:</span> <span class="sa">r</span><span class="s2">&quot;^[a-zA-Z_][\w.-]*$&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 
 
@@ -934,7 +942,10 @@
         <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">all_types</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="c1"># types take lower priority</span>
             <span class="n">schema_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">induced_type</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">range</span><span class="p">)</span>
-            <span class="n">constraints</span><span class="o">.</span><span class="n">add_keyword</span><span class="p">(</span><span class="s2">&quot;pattern&quot;</span><span class="p">,</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">pattern</span><span class="p">)</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">pattern</span>
+            <span class="k">if</span> <span class="n">pattern</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">base</span><span class="p">:</span>
+                <span class="n">pattern</span> <span class="o">=</span> <span class="n">_base_implied_patterns</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">schema_type</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+            <span class="n">constraints</span><span class="o">.</span><span class="n">add_keyword</span><span class="p">(</span><span class="s2">&quot;pattern&quot;</span><span class="p">,</span> <span class="n">pattern</span><span class="p">)</span>
             <span class="n">constraints</span><span class="o">.</span><span class="n">add_keyword</span><span class="p">(</span><span class="s2">&quot;minimum&quot;</span><span class="p">,</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">minimum_value</span><span class="p">)</span>
             <span class="n">constraints</span><span class="o">.</span><span class="n">add_keyword</span><span class="p">(</span><span class="s2">&quot;maximum&quot;</span><span class="p">,</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">maximum_value</span><span class="p">)</span>
             <span class="n">constraints</span><span class="o">.</span><span class="n">add_keyword</span><span class="p">(</span><span class="s2">&quot;const&quot;</span><span class="p">,</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">equals_string</span><span class="p">)</span>
@@ -1245,7 +1256,7 @@
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2021-2024, LinkML Authors
+                Copyright &#169; 2021-2026, LinkML Authors
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             
