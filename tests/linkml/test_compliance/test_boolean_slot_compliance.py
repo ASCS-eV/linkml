@@ -2039,7 +2039,7 @@ def test_preconditions(framework, s1, s2, is_valid):
     :return:
     """
     if framework == SHACL:
-        pytest.skip("shaclgen does not support rules yet")
+        pytest.skip("shaclgen only supports boolean-guard rule patterns (not any_of/equals_number)")
     if framework == PANDERA_POLARS_CLASS:
         pytest.skip("panderagen does not support rules yet")
 
@@ -2255,7 +2255,7 @@ def test_preconditions_combos(
     :return:
     """
     if framework == SHACL:
-        pytest.skip("shaclgen does not support rules yet")
+        pytest.skip("shaclgen only supports boolean-guard rule patterns (not any_of/equals_number)")
     rule = {}
     if preconditions:
         rule["preconditions"] = {

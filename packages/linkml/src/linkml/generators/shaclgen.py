@@ -14,7 +14,7 @@ from linkml.generators.common.subproperty import get_subproperty_values, is_uri_
 from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
 from linkml.utils.generator import Generator, shared_arguments
-from linkml_runtime.linkml_model.meta import ClassDefinition, ElementName
+from linkml_runtime.linkml_model.meta import ClassDefinition, ElementName, PresenceEnum
 from linkml_runtime.utils.formatutils import underscore
 from linkml_runtime.utils.yamlutils import TypedNode, extended_float, extended_int, extended_str
 
@@ -74,6 +74,19 @@ class ShaclGenerator(Generator):
     """
     expand_subproperty_of: bool = True
     """If True, expand subproperty_of to sh:in constraints with slot descendants"""
+
+    emit_rules: bool = True
+    """Emit ``sh:sparql`` constraints from LinkML ``rules:`` blocks.
+
+    When ``True`` (default), recognised rule patterns are translated into
+    SHACL-SPARQL constraints (``sh:SPARQLConstraint``) on the corresponding
+    ``sh:NodeShape``.  Currently the *boolean-guard* pattern is recognised:
+    a precondition with ``value_presence: PRESENT`` on a value slot and a
+    postcondition with ``equals_string: "true"`` on a boolean flag slot.
+
+    See `W3C SHACL §5 <https://www.w3.org/TR/shacl/#sparql-constraints>`_
+    and `linkml/linkml#2464 <https://github.com/linkml/linkml/issues/2464>`_.
+    """
     generatorname = os.path.basename(__file__)
     generatorversion = "0.0.1"
     valid_formats = ["ttl"]
@@ -283,9 +296,163 @@ class ShaclGenerator(Generator):
                 if default_value:
                     prop_pv(SH.defaultValue, default_value)
 
+            if self.emit_rules:
+                self._add_rules(g, class_uri_with_suffix, c)
+
         return g
 
     LINKML_ANY_URI = "https://w3id.org/linkml/Any"
+
+    # -------------------------------------------------------------------
+    # Rules → sh:sparql
+    # -------------------------------------------------------------------
+
+    def _add_rules(self, g: Graph, shape_uri: URIRef, cls: ClassDefinition) -> None:
+        """Emit ``sh:sparql`` constraints from LinkML ``rules:`` blocks.
+
+        Each recognised rule is converted into an ``sh:SPARQLConstraint``
+        attached to *shape_uri*.  Unrecognised patterns are logged at
+        ``DEBUG`` level and silently skipped.
+
+        Currently recognised patterns:
+
+        * **Boolean guard** — a *precondition* with
+          ``value_presence: PRESENT`` on a value slot and a *postcondition*
+          with ``equals_string: "true"`` on a boolean flag slot.
+
+        See `W3C SHACL §5 <https://www.w3.org/TR/shacl/#sparql-constraints>`_.
+        """
+        if not cls.rules:
+            return
+
+        sv = self.schemaview
+        for rule in cls.rules:
+            if getattr(rule, "deactivated", False):
+                continue
+
+            if getattr(rule, "bidirectional", False):
+                logger.warning(
+                    "Rule in class %r has bidirectional=true; "
+                    "SHACL-SPARQL generation does not yet support bidirectional rules. "
+                    "Only the forward direction is emitted.",
+                    cls.name,
+                )
+
+            if getattr(rule, "open_world", False):
+                logger.warning(
+                    "Rule in class %r has open_world=true; "
+                    "SHACL operates under closed-world assumption. "
+                    "The constraint is emitted but may not match open-world semantics.",
+                    cls.name,
+                )
+
+            sparql_query = self._rule_to_sparql(sv, cls, rule)
+            if sparql_query is None:
+                logger.debug(
+                    "Skipping unsupported rule pattern in class %r: %s",
+                    cls.name,
+                    getattr(rule, "description", "(no description)"),
+                )
+                continue
+
+            constraint = BNode()
+            g.add((shape_uri, SH.sparql, constraint))
+            g.add((constraint, RDF.type, SH.SPARQLConstraint))
+
+            message = getattr(rule, "description", None)
+            if message:
+                g.add((constraint, SH.message, Literal(message)))
+
+            g.add((constraint, SH.select, Literal(sparql_query)))
+
+    def _rule_to_sparql(self, sv, cls: ClassDefinition, rule) -> str | None:
+        """Convert a ``ClassRule`` to a SPARQL SELECT query string.
+
+        Returns ``None`` when the rule does not match any supported pattern.
+        Rules with ``elseconditions`` are always skipped because emitting
+        only the forward (if/then) branch would be semantically incomplete.
+        """
+        pre = getattr(rule, "preconditions", None)
+        post = getattr(rule, "postconditions", None)
+        if not pre or not post:
+            return None
+
+        if getattr(rule, "elseconditions", None):
+            logger.warning(
+                "Skipping rule with elseconditions in class %r (SHACL-SPARQL does not yet support else branches): %s",
+                cls.name,
+                getattr(rule, "description", "(no description)"),
+            )
+            return None
+
+        pre_slots = getattr(pre, "slot_conditions", None) or {}
+        post_slots = getattr(post, "slot_conditions", None) or {}
+
+        # Pattern: boolean guard
+        # preconditions: exactly one slot with value_presence PRESENT
+        # postconditions: exactly one slot with equals_string "true"
+        if len(pre_slots) == 1 and len(post_slots) == 1:
+            value_slot_name = next(iter(pre_slots))
+            flag_slot_name = next(iter(post_slots))
+
+            value_cond = pre_slots[value_slot_name]
+            flag_cond = post_slots[flag_slot_name]
+
+            is_value_present = getattr(value_cond, "value_presence", None) == PresenceEnum(PresenceEnum.PRESENT)
+            is_flag_true = getattr(flag_cond, "equals_string", None) == "true"
+
+            if is_value_present and is_flag_true:
+                return self._build_boolean_guard_sparql(sv, cls, flag_slot_name, value_slot_name)
+
+        return None
+
+    def _build_boolean_guard_sparql(self, sv, cls: ClassDefinition, flag_slot_name: str, value_slot_name: str) -> str:
+        """Build a SPARQL SELECT query for the boolean-guard pattern.
+
+        The query detects violations where the value property is present
+        but the boolean flag is absent or not ``true``.
+
+        Conforms to `SHACL §5.3.1
+        <https://www.w3.org/TR/shacl/#sparql-constraints-prebound>`_:
+        ``$this`` is pre-bound to each focus node.
+        """
+        flag_uri = self._slot_uri(sv, flag_slot_name, cls)
+        value_uri = self._slot_uri(sv, value_slot_name, cls)
+
+        # `true` is the SPARQL boolean keyword, equivalent to
+        # "true"^^xsd:boolean.  This is correct for slots declared with
+        # `range: boolean` whose RDF serialisation uses xsd:boolean.
+        return (
+            f"SELECT $this WHERE {{\n"
+            f"    OPTIONAL {{ $this <{flag_uri}> ?flag . }}\n"
+            f"    OPTIONAL {{ $this <{value_uri}> ?value . }}\n"
+            f"    FILTER (\n"
+            f"        ( !BOUND(?flag) || ?flag != true ) &&\n"
+            f"        BOUND(?value)\n"
+            f"    )\n"
+            f"}}"
+        )
+
+    def _slot_uri(self, sv, slot_name: str, cls: ClassDefinition) -> str:
+        """Resolve a slot name to a full IRI string for use in SPARQL queries.
+
+        Uses the *induced* slot (class-aware, including ``slot_usage``
+        overrides) so that the URI matches the ``sh:path`` emitted in the
+        main property-shape loop.  Falls back to the base slot definition
+        when inducing fails (e.g. dynamically-added conditions).
+        """
+        try:
+            slot = sv.induced_slot(slot_name, cls.name)
+        except (ValueError, KeyError):
+            slot = sv.get_slot(slot_name)
+        if slot and slot.name in sv.element_by_schema_map():
+            return sv.get_uri(slot, expand=True)
+        pfx = sv.schema.default_prefix
+        if not pfx:
+            raise ValueError(
+                f"Cannot resolve URI for slot {slot_name!r} in class {cls.name!r}: schema has no default_prefix"
+            )
+        return sv.expand_curie(f"{pfx}:{underscore(slot_name)}")
 
     def _add_class(self, func: Callable, r: ElementName) -> None:
         """Add an sh:class constraint for range class *r*.
@@ -525,6 +692,17 @@ def add_simple_data_type(func: Callable, r: ElementName) -> None:
     show_default=True,
     help="If --expand-subproperty-of (default), slots with subproperty_of will generate sh:in constraints "
     "containing all slot descendants. Use --no-expand-subproperty-of to disable this behavior.",
+)
+@click.option(
+    "--emit-rules/--no-emit-rules",
+    default=True,
+    show_default=True,
+    help=(
+        "Emit sh:sparql constraints from LinkML rules: blocks. "
+        "When enabled (default), recognised rule patterns (e.g. boolean-guard) "
+        "are translated into SHACL-SPARQL constraints on the corresponding "
+        "sh:NodeShape. Use --no-emit-rules to suppress rule generation."
+    ),
 )
 @click.version_option(__version__, "-V", "--version")
 def cli(yamlfile, **args):
