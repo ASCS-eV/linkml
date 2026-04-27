@@ -1160,3 +1160,274 @@ classes:
     uri_ref = props["https://example.org/uriRef"]
     uri_kinds = list(g.objects(uri_ref, SH.nodeKind))
     assert SH.IRI in uri_kinds, f"Expected sh:IRI for uri, got {uri_kinds}"
+
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+
+def _parse_shacl(schema, **kwargs):
+    shacl = ShaclGenerator(schema, mergeimports=False, **kwargs).serialize()
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+    return g
+
+
+# ---------------------------------------------------------------------------
+# --emit-rules / sh:sparql tests
+# ---------------------------------------------------------------------------
+
+_RULES_SCHEMA_YAML = """
+id: https://example.org/boolean-guards
+name: boolean_guard_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/boolean-guards/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  WeatherWind:
+    range: boolean
+    slot_uri: ex:WeatherWind
+  weatherWindValue:
+    description: Wind speed value.
+    range: decimal
+    slot_uri: ex:weatherWindValue
+  WeatherRain:
+    range: boolean
+    slot_uri: ex:WeatherRain
+  weatherRainValue:
+    description: Rain intensity value.
+    range: decimal
+    slot_uri: ex:weatherRainValue
+  Temperature:
+    range: decimal
+    slot_uri: ex:Temperature
+classes:
+  Environment:
+    class_uri: ex:Environment
+    slots:
+      - WeatherWind
+      - weatherWindValue
+      - WeatherRain
+      - weatherRainValue
+      - Temperature
+    rules:
+      - description: If weatherWindValue is provided, WeatherWind must be true.
+        preconditions:
+          slot_conditions:
+            weatherWindValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            WeatherWind:
+              equals_string: "true"
+      - description: If weatherRainValue is provided, WeatherRain must be true.
+        preconditions:
+          slot_conditions:
+            weatherRainValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            WeatherRain:
+              equals_string: "true"
+"""
+
+EX_RULES = rdflib.Namespace("https://example.org/boolean-guards/")
+
+
+def test_rule_boolean_guard_generates_sparql():
+    """Boolean-guard rules produce sh:sparql constraints on the NodeShape."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 2, f"Expected 2 sh:sparql constraints, got {len(sparql_nodes)}"
+
+    for node in sparql_nodes:
+        assert (node, RDF.type, SH.SPARQLConstraint) in g
+        selects = list(g.objects(node, SH.select))
+        assert len(selects) == 1, "Each constraint must have exactly one sh:select"
+        query = str(selects[0])
+        assert "$this" in query, "SPARQL must use $this pre-bound variable"
+        assert "OPTIONAL" in query, "SPARQL must use OPTIONAL for flag/value"
+        assert "FILTER" in query, "SPARQL must have a FILTER clause"
+        assert "BOUND" in query, "SPARQL must use BOUND()"
+
+
+def test_rule_with_description_generates_message():
+    """Rule description is emitted as sh:message on the SPARQLConstraint."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+
+    messages = set()
+    for node in sparql_nodes:
+        for msg in g.objects(node, SH.message):
+            messages.add(str(msg))
+
+    assert "If weatherWindValue is provided, WeatherWind must be true." in messages
+    assert "If weatherRainValue is provided, WeatherRain must be true." in messages
+
+
+def test_rule_sparql_contains_correct_uris():
+    """SPARQL queries reference the correct slot URIs."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+
+    queries = [str(list(g.objects(n, SH.select))[0]) for n in sparql_nodes]
+    all_sparql = "\n".join(queries)
+
+    assert str(EX_RULES.WeatherWind) in all_sparql
+    assert str(EX_RULES.weatherWindValue) in all_sparql
+    assert str(EX_RULES.WeatherRain) in all_sparql
+    assert str(EX_RULES.weatherRainValue) in all_sparql
+
+
+_DEACTIVATED_RULE_SCHEMA_YAML = """
+id: https://example.org/deactivated-test
+name: deactivated_rule_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/deactivated-test/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  Flag:
+    range: boolean
+    slot_uri: ex:Flag
+  flagValue:
+    range: decimal
+    slot_uri: ex:flagValue
+classes:
+  TestClass:
+    class_uri: ex:TestClass
+    slots:
+      - Flag
+      - flagValue
+    rules:
+      - description: This rule is deactivated.
+        deactivated: true
+        preconditions:
+          slot_conditions:
+            flagValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            Flag:
+              equals_string: "true"
+"""
+
+
+def test_rule_deactivated_skipped():
+    """Deactivated rules do not produce sh:sparql constraints."""
+    g = _parse_shacl(_DEACTIVATED_RULE_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/deactivated-test/TestClass")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0, f"Deactivated rule should not emit sh:sparql, got {len(sparql_nodes)}"
+
+
+_UNSUPPORTED_RULE_SCHEMA_YAML = """
+id: https://example.org/unsupported-test
+name: unsupported_rule_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/unsupported-test/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  slotA:
+    range: string
+    slot_uri: ex:slotA
+  slotB:
+    range: string
+    slot_uri: ex:slotB
+classes:
+  TestClass:
+    class_uri: ex:TestClass
+    slots:
+      - slotA
+      - slotB
+    rules:
+      - description: Rule with no postconditions.
+        preconditions:
+          slot_conditions:
+            slotA:
+              value_presence: PRESENT
+"""
+
+
+def test_rule_unsupported_pattern_skipped():
+    """Unrecognised rule patterns are silently skipped (no sh:sparql emitted)."""
+    g = _parse_shacl(_UNSUPPORTED_RULE_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/unsupported-test/TestClass")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0
+
+
+def test_rule_no_emit_rules_flag():
+    """--no-emit-rules suppresses sh:sparql constraint generation."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML, emit_rules=False)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0, f"emit_rules=False should suppress rules, got {len(sparql_nodes)}"
+
+
+_NO_RULES_SCHEMA_YAML = """
+id: https://example.org/no-rules
+name: no_rules_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/no-rules/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  name:
+    range: string
+    slot_uri: ex:name
+classes:
+  SimpleClass:
+    class_uri: ex:SimpleClass
+    slots:
+      - name
+"""
+
+
+def test_rule_no_rules_no_sparql():
+    """Classes without rules: blocks produce no sh:sparql constraints."""
+    g = _parse_shacl(_NO_RULES_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/no-rules/SimpleClass")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0
+
+
+def test_rule_multiple_rules_per_class():
+    """Multiple boolean-guard rules on one class produce multiple sh:sparql constraints."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 2
+
+    # Each constraint should reference different slot pairs
+    queries = [str(list(g.objects(n, SH.select))[0]) for n in sparql_nodes]
+    wind_query = [q for q in queries if "weatherWindValue" in q]
+    rain_query = [q for q in queries if "weatherRainValue" in q]
+    assert len(wind_query) == 1, "Expected exactly one wind query"
+    assert len(rain_query) == 1, "Expected exactly one rain query"
