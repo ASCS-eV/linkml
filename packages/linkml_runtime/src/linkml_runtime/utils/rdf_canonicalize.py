@@ -164,10 +164,7 @@ def canonicalize_rdf_graph(
         # fragment-like characters such as double '#').  Retry without
         # the offending prefixes by falling back to no prefixes, which
         # still produces valid (if verbose) Turtle.
-        logger.warning(
-            "pyoxigraph rejected one or more prefix IRIs; "
-            "serializing without prefix declarations"
-        )
+        logger.warning("pyoxigraph rejected one or more prefix IRIs; serializing without prefix declarations")
         result_bytes = ox.serialize(
             sorted_triples,
             format=ox_format,
