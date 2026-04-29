@@ -120,6 +120,27 @@ def test_xsd_string_normalized():
     assert str(obj) == "hello"
 
 
+def test_iri_with_trailing_dot_round_trips():
+    """IRIs whose local part ends in '.' are emitted as full <IRI> form so rdflib can parse them.
+
+    pyoxigraph emits ``prefix:local\\.`` per the Turtle PN_LOCAL_ESC rule,
+    but rdflib's notation3 parser rejects an escaped dot at the end of a
+    PN_LOCAL.  The serializer rewrites such CURIEs to full IRI form to
+    preserve round-trip parseability.
+    """
+    g = Graph()
+    g.bind("ex", "http://example.com/vocab/")
+    iri = URIRef("http://example.com/vocab/Strand#.")
+    g.add((iri, RDF.type, URIRef("http://example.com/vocab/Thing")))
+    ttl = canonicalize_rdf_graph(g, output_format="turtle")
+    # CURIE form with trailing escaped dot must not appear; full IRI must
+    assert "ex:Strand\\#\\." not in ttl
+    assert "<http://example.com/vocab/Strand#.>" in ttl
+    g2 = Graph()
+    g2.parse(data=ttl, format="turtle")
+    assert rdflib.compare.isomorphic(g, g2)
+
+
 def test_fallback_on_invalid_rdf():
     """Graphs with literal predicates fall back to rdflib serializer."""
     g = Graph()
