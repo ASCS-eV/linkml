@@ -55,6 +55,27 @@ _FORMAT_MAP: dict[str, ox.RdfFormat] = {
 _PREFIX_FORMATS = frozenset({ox.RdfFormat.TURTLE, ox.RdfFormat.TRIG, ox.RdfFormat.N3, ox.RdfFormat.RDF_XML})
 
 
+def _is_safe_prefix_iri(iri: str) -> bool:
+    """Check whether a namespace IRI is safe for prefix serialization.
+
+    pyoxigraph rejects IRIs with invalid code-points (e.g. double ``#``),
+    and rdflib's Turtle parser cannot round-trip CURIEs whose namespace
+    contains query parameters or fragments in unexpected positions.  This
+    function returns ``False`` for such IRIs so they can be skipped during
+    prefix collection.
+    """
+    # A namespace IRI should end with '/' or '#'.  If '#' appears
+    # *before* the final character, the IRI contains an embedded
+    # fragment which produces unusable CURIEs.
+    if "#" in iri[:-1]:
+        return False
+    # Query parameters in namespace IRIs produce CURIEs that rdflib
+    # cannot parse back.
+    if "?" in iri:
+        return False
+    return True
+
+
 def canonicalize_rdf_graph(
     graph: rdflib.Graph,
     output_format: str = "turtle",
@@ -124,11 +145,31 @@ def canonicalize_rdf_graph(
             # with the @base directive.
             if base_iri and ns_str == base_iri:
                 continue
+            # Skip namespace IRIs that pyoxigraph rejects or that produce
+            # CURIEs rdflib cannot round-trip.  Valid namespace IRIs for
+            # prefix use should end with '/' or '#' and contain no query
+            # parameters or fragment-like characters in the middle.
+            if not _is_safe_prefix_iri(ns_str):
+                continue
             prefixes[str(prefix)] = ns_str
-    result_bytes = ox.serialize(
-        sorted_triples,
-        format=ox_format,
-        prefixes=prefixes,
-        base_iri=base_iri,
-    )
+    try:
+        result_bytes = ox.serialize(
+            sorted_triples,
+            format=ox_format,
+            prefixes=prefixes,
+            base_iri=base_iri,
+        )
+    except ValueError:
+        # pyoxigraph rejects prefixes with invalid IRIs (e.g. containing
+        # fragment-like characters such as double '#').  Retry without
+        # the offending prefixes by falling back to no prefixes, which
+        # still produces valid (if verbose) Turtle.
+        logger.warning(
+            "pyoxigraph rejected one or more prefix IRIs; "
+            "serializing without prefix declarations"
+        )
+        result_bytes = ox.serialize(
+            sorted_triples,
+            format=ox_format,
+        )
     return result_bytes.decode("utf-8")
