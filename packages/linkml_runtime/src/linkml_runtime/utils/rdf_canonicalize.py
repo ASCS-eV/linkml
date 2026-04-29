@@ -25,10 +25,17 @@ with stable blank node labels and sorted triples.
    prefix whose namespace equals the base IRI (e.g. rdflib's auto-bound
    ``base:`` prefix), pyoxigraph emits CURIEs like ``base:label`` that
    rdflib rejects.  We skip such prefixes during serialization.
+
+5. **Trailing escaped dot in PN_LOCAL**: pyoxigraph emits CURIEs like
+   ``prefix:local\\.`` for IRIs whose local part ends with ``.``.  This
+   is valid Turtle (PN_LOCAL_ESC), but rdflib's notation3 parser rejects
+   it because it conflicts with the statement-terminator dot.  We
+   post-process the output to expand such CURIEs to full ``<IRI>`` form.
 """
 
 import io
 import logging
+import re
 
 import pyoxigraph as ox
 import rdflib
@@ -53,6 +60,45 @@ _FORMAT_MAP: dict[str, ox.RdfFormat] = {
 
 # Formats that support prefix declarations.
 _PREFIX_FORMATS = frozenset({ox.RdfFormat.TURTLE, ox.RdfFormat.TRIG, ox.RdfFormat.N3, ox.RdfFormat.RDF_XML})
+
+
+# Characters that may appear escaped in a Turtle PN_LOCAL via PN_LOCAL_ESC.
+_PN_LOCAL_ESC_UNESCAPE = re.compile(r"\\([_~.\-!$&'()*+,;=/?#@%])")
+
+
+def _expand_trailing_dot_curies(turtle_text: str, prefixes: dict[str, str]) -> str:
+    """Replace CURIEs whose local part ends in ``\\.`` with full ``<IRI>`` form.
+
+    rdflib's notation3 parser rejects PN_LOCAL ending in an escaped dot
+    even though Turtle permits it (PN_LOCAL_ESC).  pyoxigraph emits this
+    form for IRIs ending in ``.`` (e.g. ``biolink:StrandEnum#.``).  We
+    rewrite each such CURIE to its expanded ``<IRI>`` form so the output
+    round-trips through rdflib.
+    """
+    if not prefixes:
+        return turtle_text
+
+    # Match: a prefix name, ':', a local part (no whitespace or token
+    # delimiters), ending in ``\.``, followed by whitespace.  Use a
+    # negative lookbehind to avoid matching inside ``<...>`` or word
+    # characters that would make this a substring of something else.
+    pattern = re.compile(
+        r"(?<![<\w])"
+        r"([A-Za-z_][\w.-]*?):"
+        r"([^\s,;()<>\"'\[\]]*?\\\.)"
+        r"(?=\s)"
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        prefix = match.group(1)
+        local_escaped = match.group(2)
+        namespace = prefixes.get(prefix)
+        if namespace is None:
+            return match.group(0)
+        local = _PN_LOCAL_ESC_UNESCAPE.sub(r"\1", local_escaped)
+        return f"<{namespace}{local}>"
+
+    return pattern.sub(replace, turtle_text)
 
 
 def _is_safe_prefix_iri(iri: str) -> bool:
@@ -152,6 +198,7 @@ def canonicalize_rdf_graph(
             if not _is_safe_prefix_iri(ns_str):
                 continue
             prefixes[str(prefix)] = ns_str
+    used_prefixes = prefixes
     try:
         result_bytes = ox.serialize(
             sorted_triples,
@@ -169,4 +216,8 @@ def canonicalize_rdf_graph(
             sorted_triples,
             format=ox_format,
         )
-    return result_bytes.decode("utf-8")
+        used_prefixes = None
+    result = result_bytes.decode("utf-8")
+    if ox_format in _PREFIX_FORMATS and used_prefixes:
+        result = _expand_trailing_dot_curies(result, used_prefixes)
+    return result
