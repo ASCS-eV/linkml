@@ -17,6 +17,17 @@ classes:
     slots:
       - list_exact_size
 
+  ParentClass:
+    slots:
+      - inherited_slot
+      - restricted_slot
+
+  ChildWithZeroMaxCard:
+    is_a: ParentClass
+    slot_usage:
+      restricted_slot:
+        maximum_cardinality: 0
+
 slots:
   list_min_max_size:
     range: integer
@@ -28,3 +39,11 @@ slots:
     range: integer
     multivalued: true
     exact_cardinality: 3
+
+  inherited_slot:
+    range: string
+    multivalued: true
+
+  restricted_slot:
+    range: string
+    multivalued: true
