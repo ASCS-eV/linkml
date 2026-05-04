@@ -16,9 +16,9 @@ from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
 from linkml.utils.generator import Generator, shared_arguments
 from linkml.utils.language_tags import LanguageTagResolver
+from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.linkml_model.meta import ClassDefinition, ElementName
 from linkml_runtime.utils.formatutils import underscore
-from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.utils.yamlutils import TypedNode, extended_float, extended_int, extended_str
 
 logger = logging.getLogger(__name__)
@@ -180,6 +180,10 @@ class ShaclGenerator(Generator):
     def serialize(self, **args) -> str:
         g = self.as_graph()
         fmt = "turtle" if self.format in ["owl", "ttl"] else self.format
+        if self.deterministic and fmt == "turtle":
+            from linkml.utils.generator import deterministic_turtle
+
+            return deterministic_turtle(g)
         return canonicalize_rdf_graph(g, output_format=fmt)
 
     def as_graph(self) -> Graph:
@@ -418,13 +422,13 @@ class ShaclGenerator(Generator):
         sv = self.schemaview
         enum = sv.get_enum(r)
         pv_node = BNode()
+        pv_items = list(enum.permissible_values.items())
+        if self.deterministic:
+            pv_items = sorted(pv_items, key=lambda x: x[0])
         Collection(
             g,
             pv_node,
-            [
-                URIRef(sv.expand_curie(pv.meaning)) if pv.meaning else Literal(pv_name)
-                for pv_name, pv in enum.permissible_values.items()
-            ],
+            [URIRef(sv.expand_curie(pv.meaning)) if pv.meaning else Literal(pv_name) for pv_name, pv in pv_items],
         )
         func(SH["in"], pv_node)
 
