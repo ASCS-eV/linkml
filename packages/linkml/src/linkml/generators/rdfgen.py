@@ -20,7 +20,7 @@ from linkml._version import __version__
 from linkml.generators.jsonldgen import JSONLDGenerator
 from linkml.utils.generator import Generator, shared_arguments
 from linkml_runtime.linkml_model import SchemaDefinition
-from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
+from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 
 
 @dataclass

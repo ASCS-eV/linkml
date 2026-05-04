@@ -26,7 +26,7 @@ from linkml_runtime.linkml_model.meta import (
 from linkml_runtime.linkml_model.types import SHEX
 from linkml_runtime.utils.formatutils import camelcase, sfx
 from linkml_runtime.utils.metamodelcore import URIorCURIE
-from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
+from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 
 
 @dataclass
