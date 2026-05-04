@@ -1373,6 +1373,7 @@ def _build_message_test_schema():
 # Helper functions
 # ---------------------------------------------------------------------------
 
+
 def _parse_shacl(schema, **kwargs):
     shacl = ShaclGenerator(schema, mergeimports=False, **kwargs).serialize()
     g = rdflib.Graph()
