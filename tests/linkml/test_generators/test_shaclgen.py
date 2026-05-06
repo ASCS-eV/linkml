@@ -1524,6 +1524,55 @@ def test_message_template_description_fallback_empty():
     assert Literal("bare_slot: ") in msgs
 
 
+def test_message_template_comments_placeholder():
+    """{comments} expands to slot comments joined with '; '."""
+    sb = SchemaBuilder()
+    sb.add_slot(
+        SlotDefinition(
+            "wind_speed",
+            range="float",
+            description="Wind speed in metres per second.",
+            comments=["ISO 34503:2023, Section 10.2.3"],
+        )
+    )
+    sb.add_class("Weather", slots=["wind_speed"])
+    sb.add_defaults()
+    g = _parse_shacl(sb.schema, message_template="{name} ({class}): {description} [{comments}]")
+
+    msgs = _get_prop_objects(g, EX.Weather, EX.wind_speed, SH.message)
+    assert Literal("wind_speed (Weather): Wind speed in metres per second. [ISO 34503:2023, Section 10.2.3]") in msgs
+
+
+def test_message_template_comments_multiple():
+    """{comments} joins multiple comments with '; '."""
+    sb = SchemaBuilder()
+    sb.add_slot(
+        SlotDefinition(
+            "temperature",
+            range="float",
+            comments=["ISO 34503:2023, Section 10.2", "Unit: Celsius"],
+        )
+    )
+    sb.add_class("Weather", slots=["temperature"])
+    sb.add_defaults()
+    g = _parse_shacl(sb.schema, message_template="{comments}")
+
+    msgs = _get_prop_objects(g, EX.Weather, EX.temperature, SH.message)
+    assert Literal("ISO 34503:2023, Section 10.2; Unit: Celsius") in msgs
+
+
+def test_message_template_comments_fallback_empty():
+    """{comments} falls back to empty string when slot has no comments."""
+    sb = SchemaBuilder()
+    sb.add_slot(SlotDefinition("bare_slot", range="string"))
+    sb.add_class("Thing", slots=["bare_slot"])
+    sb.add_defaults()
+    g = _parse_shacl(sb.schema, message_template="{name}: {comments}")
+
+    msgs = _get_prop_objects(g, EX.Thing, EX.bare_slot, SH.message)
+    assert Literal("bare_slot: ") in msgs
+
+
 def test_no_message_template_no_sh_message():
     """Without --message-template, no sh:message is emitted (backward-compat)."""
     schema = _build_message_test_schema()

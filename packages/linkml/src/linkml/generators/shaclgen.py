@@ -93,6 +93,7 @@ class ShaclGenerator(Generator):
     * ``{name}`` — the slot name (underscore-separated LinkML name)
     * ``{title}`` — the slot title (human-readable), falls back to *name*
     * ``{description}`` — the slot description, falls back to empty string
+    * ``{comments}`` — the slot comments joined with ``; ``, falls back to empty string
     * ``{class}`` — the enclosing class name
     * ``{path}``  — the property IRI (compact or full)
 
@@ -274,15 +275,17 @@ class ShaclGenerator(Generator):
                             name=s.name,
                             title=s.title or s.name,
                             description=s.description or "",
+                            comments="; ".join(s.comments) if s.comments else "",
                             **{"class": c.name},
                             path=str(slot_uri),
-                        )
+                        ).strip()
                     except (KeyError, IndexError, ValueError) as exc:
                         raise ValueError(
                             f"Invalid placeholder {exc} in --message-template. "
-                            f"Allowed: {{name}}, {{title}}, {{description}}, {{class}}, {{path}}"
+                            f"Allowed: {{name}}, {{title}}, {{description}}, {{comments}}, {{class}}, {{path}}"
                         ) from None
-                    prop_pv_text(SH.message, msg_text)
+                    if msg_text:
+                        prop_pv_text(SH.message, msg_text)
                 # minCount
                 if s.minimum_cardinality is not None:
                     prop_pv_literal(SH.minCount, s.minimum_cardinality)
@@ -805,8 +808,9 @@ def add_simple_data_type(func: Callable, r: ElementName) -> None:
     help=(
         "Template string for sh:message on each property shape. "
         "Placeholders: {name} (slot name), {title} (slot title or name), "
-        "{description} (slot description), {class} (class name), {path} (property IRI). "
-        'Example: "Validation of {name} failed!"'
+        "{description} (slot description), {comments} (slot comments joined with '; '), "
+        "{class} (class name), {path} (property IRI). "
+        'Example: "{name} ({class}): {description} [{comments}]"'
     ),
 )
 @click.option(
