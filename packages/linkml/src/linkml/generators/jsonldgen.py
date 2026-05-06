@@ -1,5 +1,6 @@
 """Generate JSONld from a LinkML schema."""
 
+import json
 import os
 from collections.abc import Sequence
 from copy import deepcopy
@@ -178,6 +179,8 @@ class JSONLDGenerator(Generator):
             # TODO: The _visit function above alters the schema in situ
             # force some context_kwargs
             context_kwargs["metadata"] = False
+            # Forward prefix normalisation into the inline @context.
+            context_kwargs.setdefault("normalize_prefixes", self.normalize_prefixes)
             add_prefixes = ContextGenerator(self.original_schema, **context_kwargs).serialize()
             add_prefixes_json = loads(add_prefixes)
             metamodel_ctx = self.metamodel_context or METAMODEL_CONTEXT_URI
@@ -202,6 +205,10 @@ class JSONLDGenerator(Generator):
                 self.schema["@context"].append({"@base": base_prefix})
         # json_obj["@id"] = self.schema.id
         out = str(as_json(self.schema, indent="  ")) + "\n"
+        if self.deterministic:
+            from linkml.utils.generator import deterministic_json
+
+            out = deterministic_json(json.loads(out), indent=2) + "\n"
         self.schema = self.original_schema
         return out
 
