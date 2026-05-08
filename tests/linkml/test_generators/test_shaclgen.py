@@ -2163,6 +2163,7 @@ def test_exclusive_value_sparql_uses_enum_iri():
     assert f"<{edge_none_iri}>" in query, f"SPARQL must reference EdgeNone as full IRI <{edge_none_iri}>, got:\n{query}"
 
 
+
 def test_exclusive_value_max_card_1_sparql_structure():
     """For maximum_cardinality: 1, SPARQL uses FILTER(?other != <value>).
 
