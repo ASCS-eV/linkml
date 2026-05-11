@@ -541,8 +541,7 @@ Defaults to <code class="docutils literal notranslate"><span class="pre">False</
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If a valid <code class="docutils literal notranslate"><span class="pre">SchemaDefinition</span></code> cannot be constructed
-from the <code class="docutils literal notranslate"><span class="pre">schema</span></code> parameter.</p>
+<dd class="field-even"><p><strong>ValidationError</strong> – If requested to raise and validation errors are found.</p>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>A validation report</p>
@@ -792,6 +791,12 @@ and validated against the LinkML metamodel.</p>
 <dt class="sig sig-object std" id="cmdoption-linkml-validate-allow-null-for-optional-enums">
 <span class="sig-name descname"><span class="pre">--allow-null-for-optional-enums</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-validate-allow-null-for-optional-enums" title="Link to this definition">¶</a></dt>
 <dd><p>Downgrade enum validation errors to warnings when the value is null/empty and the slot is not required. Prevents ‘None is not one of […]’ and “’’ is not one of […]” errors for optional enum slots.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-validate-include">
+<span class="sig-name descname"><span class="pre">--include</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;include&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-validate-include" title="Link to this definition">¶</a></dt>
+<dd><p>Additional schema files to include. Rules and classification rules from these schemas are additively merged onto matching classes in the base schema. May be specified multiple times.</p>
 </dd></dl>
 
 <dl class="std option">
