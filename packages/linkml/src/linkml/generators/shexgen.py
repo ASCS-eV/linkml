@@ -15,6 +15,7 @@ from linkml import METAMODEL_NAMESPACE, METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
 from linkml.generators.common.subproperty import get_subproperty_values
 from linkml.utils.generator import Generator, shared_arguments
+from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.linkml_model.meta import (
     ClassDefinition,
     ElementName,
@@ -176,7 +177,7 @@ class ShExGenerator(Generator):
             g = Graph()
             g.parse(data=shex, format="json-ld", version="1.1")
             g.bind("owl", OWL)
-            shex = g.serialize(format="turtle")
+            shex = canonicalize_rdf_graph(g, output_format="turtle")
         elif self.format == "shex":
             g = Graph()
             self.namespaces.load_graph(g)

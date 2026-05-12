@@ -7,6 +7,8 @@ from rdflib.collection import Collection
 
 from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shaclgen import ShaclGenerator
+from linkml_runtime.linkml_model import SlotDefinition
+from linkml_runtime.utils.schema_builder import SchemaBuilder
 
 EXPECTED = [
     (
@@ -376,7 +378,16 @@ def test_ifabsent(input_path):
 
     def check_slot_default_value(slot: URIRef, default_value: Any, datatype: str = None) -> None:
         for subject, predicate, object in g.triples((None, SH.path, slot)):
-            assert (subject, SH.defaultValue, Literal(default_value, datatype=datatype)) in g
+            # pyoxigraph's RDFC-1.0 serialization drops explicit ^^xsd:string
+            # per RDF 1.1 (plain literals and xsd:string are equivalent).
+            # Accept either form for xsd:string typed values.
+            expected = Literal(default_value, datatype=datatype)
+            if (subject, SH.defaultValue, expected) in g:
+                return
+            if datatype and str(datatype) == "http://www.w3.org/2001/XMLSchema#string":
+                if (subject, SH.defaultValue, Literal(default_value)) in g:
+                    return
+            raise AssertionError(f"Expected ({subject}, sh:defaultValue, {expected!r}) not found in graph")
 
     check_slot_default_value(
         URIRef("https://w3id.org/linkml/tests/kitchen_sink/ifabsent_string"),
@@ -566,6 +577,81 @@ def test_multivalued_slot_exact_cardinality(input_path):
         SH.maxCount,
         rdflib.term.Literal("3", datatype=rdflib.term.URIRef("http://www.w3.org/2001/XMLSchema#integer")),
     ) in g
+
+
+def test_zero_maximum_cardinality_emits_maxcount(input_path):
+    """Test that maximum_cardinality: 0 correctly emits sh:maxCount 0.
+
+    Regression test for the bug where Python truthiness check
+    `if s.maximum_cardinality:` would skip the value 0 (falsy),
+    failing to emit sh:maxCount 0 in the generated SHACL shape.
+    The fix uses `if s.maximum_cardinality is not None:` instead.
+
+    This is the primary mechanism for suppressing inherited slots on
+    subclasses via slot_usage (e.g., OWL maxCardinality 0 pattern).
+    """
+    shacl = ShaclGenerator(input_path("shaclgen/cardinality.yaml"), mergeimports=True).serialize()
+
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+
+    # Find the ChildWithZeroMaxCard shape
+    child_uri = URIRef("https://w3id.org/linkml/examples/cardinality/ChildWithZeroMaxCard")
+    restricted_slot_uri = URIRef("https://w3id.org/linkml/examples/cardinality/restricted_slot")
+
+    # Get all property shapes for the child class
+    prop_nodes = list(g.objects(child_uri, SH.property))
+    assert prop_nodes, "ChildWithZeroMaxCard should have property shapes"
+
+    # Find the property shape for restricted_slot
+    restricted_prop_node = None
+    for pn in prop_nodes:
+        if (pn, SH.path, restricted_slot_uri) in g:
+            restricted_prop_node = pn
+            break
+    assert restricted_prop_node is not None, "Should have a property shape for restricted_slot"
+
+    # The critical assertion: sh:maxCount 0 must be emitted
+    max_count_values = list(g.objects(restricted_prop_node, SH.maxCount))
+    assert len(max_count_values) == 1, f"Expected exactly one sh:maxCount, got {max_count_values}"
+    assert max_count_values[0] == rdflib.term.Literal(
+        0, datatype=rdflib.term.URIRef("http://www.w3.org/2001/XMLSchema#integer")
+    ), f"sh:maxCount should be 0, got {max_count_values[0]}"
+
+
+def test_zero_exact_cardinality_emits_both_counts(input_path):
+    """Test that exact_cardinality: 0 emits both sh:minCount 0 and sh:maxCount 0.
+
+    Same truthiness bug as maximum_cardinality: `if s.exact_cardinality:`
+    skips value 0 (falsy). The fix uses `is not None` instead.
+    """
+    shacl = ShaclGenerator(input_path("shaclgen/cardinality.yaml"), mergeimports=True).serialize()
+
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+
+    child_uri = URIRef("https://w3id.org/linkml/examples/cardinality/ChildWithZeroExactCard")
+    restricted_slot_uri = URIRef("https://w3id.org/linkml/examples/cardinality/restricted_slot")
+
+    prop_nodes = list(g.objects(child_uri, SH.property))
+    assert prop_nodes, "ChildWithZeroExactCard should have property shapes"
+
+    restricted_prop_node = None
+    for pn in prop_nodes:
+        if (pn, SH.path, restricted_slot_uri) in g:
+            restricted_prop_node = pn
+            break
+    assert restricted_prop_node is not None, "Should have a property shape for restricted_slot"
+
+    XSD_INT = rdflib.term.URIRef("http://www.w3.org/2001/XMLSchema#integer")
+
+    min_count_values = list(g.objects(restricted_prop_node, SH.minCount))
+    assert len(min_count_values) == 1, f"Expected exactly one sh:minCount, got {min_count_values}"
+    assert min_count_values[0] == rdflib.term.Literal(0, datatype=XSD_INT)
+
+    max_count_values = list(g.objects(restricted_prop_node, SH.maxCount))
+    assert len(max_count_values) == 1, f"Expected exactly one sh:maxCount, got {max_count_values}"
+    assert max_count_values[0] == rdflib.term.Literal(0, datatype=XSD_INT)
 
 
 def test_exclude_imports(input_path):
@@ -1160,3 +1246,1272 @@ classes:
     uri_ref = props["https://example.org/uriRef"]
     uri_kinds = list(g.objects(uri_ref, SH.nodeKind))
     assert SH.IRI in uri_kinds, f"Expected sh:IRI for uri, got {uri_kinds}"
+
+
+# ---------------------------------------------------------------------------
+# --default-language tests
+# ---------------------------------------------------------------------------
+
+EX = rdflib.Namespace("http://example.org/test-schema/")
+
+
+def _build_shacl_lang_schema():
+    """Build a schema with title/description for language-tag testing."""
+    sb = SchemaBuilder()
+    sb.add_slot(
+        SlotDefinition(
+            "vehicle_name",
+            range="string",
+            description="The vehicle name.",
+            title="Name",
+        )
+    )
+    sb.add_class(
+        "Vehicle",
+        slots=["vehicle_name"],
+        description="A road vehicle.",
+        title="Vehicle",
+    )
+    sb.add_defaults()
+    return sb.schema
+
+
+def _build_message_test_schema():
+    """Build a schema for sh:message testing (includes a second slot without title)."""
+    sb = SchemaBuilder()
+    sb.add_slot(
+        SlotDefinition(
+            "vehicle_name",
+            range="string",
+            description="The vehicle name.",
+            title="Name",
+            required=True,
+        )
+    )
+    sb.add_slot(
+        SlotDefinition(
+            "speed",
+            range="integer",
+            description="Speed in km/h.",
+        )
+    )
+    sb.add_class(
+        "Vehicle",
+        slots=["vehicle_name", "speed"],
+        description="A road vehicle.",
+    )
+    sb.add_defaults()
+    return sb.schema
+
+
+def _parse_shacl(schema, **kwargs):
+    shacl = ShaclGenerator(schema, mergeimports=False, **kwargs).serialize()
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+    return g
+
+
+def _get_prop_objects(g, shape_uri, prop_path_uri, predicate):
+    """Get predicate values for the property shape with the given sh:path."""
+    for prop_node in g.objects(shape_uri, SH.property):
+        paths = list(g.objects(prop_node, SH.path))
+        if paths and paths[0] == prop_path_uri:
+            return list(g.objects(prop_node, predicate))
+    return []
+
+
+def test_shacl_default_language_node_shape():
+    """NodeShape rdfs:label and rdfs:comment get @en with --default-language."""
+    schema = _build_shacl_lang_schema()
+    g = _parse_shacl(schema, default_language="en")
+
+    vehicle_shape = EX.Vehicle
+
+    labels = list(g.objects(vehicle_shape, RDFS.label))
+    assert Literal("Vehicle", lang="en") in labels
+
+    comments = list(g.objects(vehicle_shape, RDFS.comment))
+    assert Literal("A road vehicle.", lang="en") in comments
+
+
+def test_shacl_default_language_property_shape():
+    """PropertyShape sh:name and sh:description get @en with --default-language."""
+    schema = _build_shacl_lang_schema()
+    g = _parse_shacl(schema, default_language="en")
+
+    vehicle_shape = EX.Vehicle
+    slot_uri = EX.vehicle_name
+
+    sh_names = _get_prop_objects(g, vehicle_shape, slot_uri, SH["name"])
+    assert Literal("Name", lang="en") in sh_names
+
+    sh_descs = _get_prop_objects(g, vehicle_shape, slot_uri, SH.description)
+    assert Literal("The vehicle name.", lang="en") in sh_descs
+
+
+def test_shacl_no_default_language_plain_literals():
+    """Without --default-language, literals have no language tag (backward-compat)."""
+    schema = _build_shacl_lang_schema()
+    g = _parse_shacl(schema)
+
+    vehicle_shape = EX.Vehicle
+
+    labels = list(g.objects(vehicle_shape, RDFS.label))
+    assert Literal("Vehicle") in labels
+    for lit in labels:
+        assert lit.language is None, f"Expected no lang tag, got {lit.language!r}"
+
+    slot_uri = EX.vehicle_name
+    sh_names = _get_prop_objects(g, vehicle_shape, slot_uri, SH["name"])
+    assert Literal("Name") in sh_names
+    for lit in sh_names:
+        assert lit.language is None, f"Expected no lang tag, got {lit.language!r}"
+
+
+def test_shacl_default_language_numeric_literals_untagged():
+    """Numeric literals (sh:order, sh:minCount, etc.) must never get language tags."""
+    schema = _build_shacl_lang_schema()
+    schema.slots["vehicle_name"].required = True
+    g = _parse_shacl(schema, default_language="fr")
+
+    vehicle_shape = EX.Vehicle
+    slot_uri = EX.vehicle_name
+
+    orders = _get_prop_objects(g, vehicle_shape, slot_uri, SH.order)
+    for lit in orders:
+        assert lit.language is None, f"sh:order must not be language-tagged: {lit!r}"
+
+    min_counts = _get_prop_objects(g, vehicle_shape, slot_uri, SH.minCount)
+    for lit in min_counts:
+        assert lit.language is None, f"sh:minCount must not be language-tagged: {lit!r}"
+
+
+def test_shacl_default_language_annotations_tagged():
+    """SHACL string annotations are language-tagged with --default-language."""
+    from linkml_runtime.linkml_model.meta import Annotation, Prefix
+
+    schema = _build_shacl_lang_schema()
+    schema.prefixes["skos"] = Prefix(
+        prefix_prefix="skos",
+        prefix_reference="http://www.w3.org/2004/02/skos/core#",
+    )
+    schema.classes["Vehicle"].annotations["skos:altLabel"] = Annotation(tag="skos:altLabel", value="Car")
+    g = _parse_shacl(schema, default_language="en", include_annotations=True)
+
+    vehicle_shape = EX.Vehicle
+    SKOS = rdflib.Namespace("http://www.w3.org/2004/02/skos/core#")
+    alt_labels = list(g.objects(vehicle_shape, SKOS.altLabel))
+    assert Literal("Car", lang="en") in alt_labels
+
+
+def test_shacl_default_language_empty_string_treated_as_none():
+    """An empty string default_language is normalised to None (no tags)."""
+    schema = _build_shacl_lang_schema()
+    g = _parse_shacl(schema, default_language="")
+
+    vehicle_shape = EX.Vehicle
+
+    labels = list(g.objects(vehicle_shape, RDFS.label))
+    assert Literal("Vehicle") in labels
+    for lit in labels:
+        assert lit.language is None, f"Expected no lang tag, got {lit.language!r}"
+
+
+def test_shacl_default_language_whitespace_only_treated_as_none():
+    """A whitespace-only default_language is normalised to None (no tags)."""
+    schema = _build_shacl_lang_schema()
+    g = _parse_shacl(schema, default_language="   ")
+
+    vehicle_shape = EX.Vehicle
+
+    labels = list(g.objects(vehicle_shape, RDFS.label))
+    assert Literal("Vehicle") in labels
+    for lit in labels:
+        assert lit.language is None, f"Expected no lang tag, got {lit.language!r}"
+
+
+def test_shacl_default_language_in_language_override():
+    """Element-level in_language overrides the generator default_language in SHACL."""
+    schema = _build_shacl_lang_schema()
+    schema.classes["Vehicle"].in_language = "de"
+    g = _parse_shacl(schema, default_language="en")
+
+    vehicle_shape = EX.Vehicle
+
+    # Vehicle class should use element-level "de", not default "en"
+    labels = list(g.objects(vehicle_shape, RDFS.label))
+    assert Literal("Vehicle", lang="de") in labels
+    assert Literal("Vehicle", lang="en") not in labels
+
+    comments = list(g.objects(vehicle_shape, RDFS.comment))
+    assert Literal("A road vehicle.", lang="de") in comments
+    assert Literal("A road vehicle.", lang="en") not in comments
+
+
+def test_shacl_default_language_bcp47_warning(caplog):
+    """A malformed BCP 47 tag logs a warning but still produces output."""
+    import logging
+
+    schema = _build_shacl_lang_schema()
+    # "toolongtag" passes rdflib's lax regex but fails strict BCP 47.
+    with caplog.at_level(logging.WARNING):
+        shacl = ShaclGenerator(schema, mergeimports=False, default_language="toolongtag").serialize()
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+
+    # Tag is still applied (warning, not error)
+    labels = list(g.objects(EX.Vehicle, RDFS.label))
+    assert any(lit.language == "toolongtag" for lit in labels)
+    # Warning was emitted
+    assert any("not a well-formed BCP 47 tag" in rec.message for rec in caplog.records)
+
+
+def test_shacl_default_language_bcp47_valid_no_warning(caplog):
+    """A well-formed BCP 47 tag does not log any warning."""
+    import logging
+
+    schema = _build_shacl_lang_schema()
+    with caplog.at_level(logging.WARNING):
+        ShaclGenerator(schema, mergeimports=False, default_language="en").serialize()
+    assert not any("BCP 47" in rec.message for rec in caplog.records)
+
+
+def test_shacl_default_language_in_language_bcp47_warning(caplog):
+    """A malformed in_language value logs a warning in SHACL generator."""
+    import logging
+
+    schema = _build_shacl_lang_schema()
+    # "toolongtag" passes rdflib but fails strict BCP 47.
+    schema.classes["Vehicle"].in_language = "toolongtag"
+    with caplog.at_level(logging.WARNING):
+        shacl = ShaclGenerator(schema, mergeimports=False, default_language="en").serialize()
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+
+    # Vehicle uses the (malformed) in_language, not the default
+    labels = list(g.objects(EX.Vehicle, RDFS.label))
+    assert any(lit.language == "toolongtag" for lit in labels)
+    assert any("in_language" in rec.message and "toolongtag" in rec.message for rec in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# --message-template tests
+# ---------------------------------------------------------------------------
+
+
+def test_message_template_basic():
+    """--message-template emits sh:message on every property shape."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(schema, message_template="Validation of {name} failed!")
+
+    vehicle_shape = EX.Vehicle
+
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert Literal("Validation of vehicle_name failed!") in msgs
+
+    msgs = _get_prop_objects(g, vehicle_shape, EX.speed, SH.message)
+    assert Literal("Validation of speed failed!") in msgs
+
+
+def test_message_template_title_placeholder():
+    """{title} expands to slot title, falling back to slot name."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(schema, message_template="{title} is invalid")
+
+    vehicle_shape = EX.Vehicle
+
+    # vehicle_name has title="Name"
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert Literal("Name is invalid") in msgs
+
+    # speed has no title → falls back to slot name
+    msgs = _get_prop_objects(g, vehicle_shape, EX.speed, SH.message)
+    assert Literal("speed is invalid") in msgs
+
+
+def test_message_template_class_placeholder():
+    """{class} expands to the enclosing class name."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(schema, message_template="{class}.{name} constraint violated")
+
+    vehicle_shape = EX.Vehicle
+
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert Literal("Vehicle.vehicle_name constraint violated") in msgs
+
+
+def test_message_template_description_placeholder():
+    """{description} expands to the slot description, empty string when absent."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(schema, message_template="{name} ({class}): {description}")
+
+    vehicle_shape = EX.Vehicle
+
+    # vehicle_name has description="The vehicle name."
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert Literal("vehicle_name (Vehicle): The vehicle name.") in msgs
+
+    # speed has description="Speed in km/h."
+    msgs = _get_prop_objects(g, vehicle_shape, EX.speed, SH.message)
+    assert Literal("speed (Vehicle): Speed in km/h.") in msgs
+
+
+def test_message_template_description_fallback_empty():
+    """{description} falls back to empty string when slot has no description."""
+    sb = SchemaBuilder()
+    sb.add_slot(SlotDefinition("bare_slot", range="string"))
+    sb.add_class("Thing", slots=["bare_slot"])
+    sb.add_defaults()
+    g = _parse_shacl(sb.schema, message_template="{name}: {description}")
+
+    msgs = _get_prop_objects(g, EX.Thing, EX.bare_slot, SH.message)
+    assert Literal("bare_slot:") in msgs
+
+
+def test_message_template_comments_placeholder():
+    """{comments} expands to slot comments joined with '; '."""
+    sb = SchemaBuilder()
+    sb.add_slot(
+        SlotDefinition(
+            "wind_speed",
+            range="float",
+            description="Wind speed in metres per second.",
+            comments=["ISO 34503:2023, Section 10.2.3"],
+        )
+    )
+    sb.add_class("Weather", slots=["wind_speed"])
+    sb.add_defaults()
+    g = _parse_shacl(sb.schema, message_template="{name} ({class}): {description} [{comments}]")
+
+    msgs = _get_prop_objects(g, EX.Weather, EX.wind_speed, SH.message)
+    assert Literal("wind_speed (Weather): Wind speed in metres per second. [ISO 34503:2023, Section 10.2.3]") in msgs
+
+
+def test_message_template_comments_multiple():
+    """{comments} joins multiple comments with '; '."""
+    sb = SchemaBuilder()
+    sb.add_slot(
+        SlotDefinition(
+            "temperature",
+            range="float",
+            comments=["ISO 34503:2023, Section 10.2", "Unit: Celsius"],
+        )
+    )
+    sb.add_class("Weather", slots=["temperature"])
+    sb.add_defaults()
+    g = _parse_shacl(sb.schema, message_template="{comments}")
+
+    msgs = _get_prop_objects(g, EX.Weather, EX.temperature, SH.message)
+    assert Literal("ISO 34503:2023, Section 10.2; Unit: Celsius") in msgs
+
+
+def test_message_template_comments_fallback_empty():
+    """{comments} falls back to empty string when slot has no comments."""
+    sb = SchemaBuilder()
+    sb.add_slot(SlotDefinition("bare_slot", range="string"))
+    sb.add_class("Thing", slots=["bare_slot"])
+    sb.add_defaults()
+    g = _parse_shacl(sb.schema, message_template="{name}: {comments}")
+
+    msgs = _get_prop_objects(g, EX.Thing, EX.bare_slot, SH.message)
+    assert Literal("bare_slot:") in msgs
+
+
+def test_no_message_template_no_sh_message():
+    """Without --message-template, no sh:message is emitted (backward-compat)."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(schema)
+
+    vehicle_shape = EX.Vehicle
+
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert msgs == []
+
+    msgs = _get_prop_objects(g, vehicle_shape, EX.speed, SH.message)
+    assert msgs == []
+
+
+def test_message_template_invalid_placeholder_raises():
+    """An invalid placeholder in --message-template raises ValueError."""
+    import pytest
+
+    schema = _build_message_test_schema()
+    with pytest.raises(ValueError, match="Invalid placeholder"):
+        _parse_shacl(schema, message_template="Error: {invalid}")
+
+
+def test_message_template_positional_placeholder_raises():
+    """Positional placeholders like {0} raise ValueError."""
+    import pytest
+
+    schema = _build_message_test_schema()
+    with pytest.raises(ValueError, match="Invalid placeholder"):
+        _parse_shacl(schema, message_template="Error: {0}")
+
+
+def test_message_template_format_spec_raises():
+    """Format specs like {name:d} raise ValueError."""
+    import pytest
+
+    schema = _build_message_test_schema()
+    with pytest.raises(ValueError, match="Invalid placeholder"):
+        _parse_shacl(schema, message_template="Error: {name:d}")
+
+
+def test_message_template_empty_string_treated_as_none():
+    """An empty message_template is normalised to None (no sh:message)."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(schema, message_template="")
+
+    vehicle_shape = EX.Vehicle
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert msgs == []
+
+
+def test_message_template_whitespace_only_treated_as_none():
+    """A whitespace-only message_template is normalised to None (no sh:message)."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(schema, message_template="   ")
+
+    vehicle_shape = EX.Vehicle
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert msgs == []
+
+
+def test_message_template_with_default_language():
+    """sh:message is language-tagged when both --message-template and --default-language are set."""
+    schema = _build_message_test_schema()
+    g = _parse_shacl(
+        schema,
+        message_template="Validation of {name} failed!",
+        default_language="en",
+    )
+
+    vehicle_shape = EX.Vehicle
+    msgs = _get_prop_objects(g, vehicle_shape, EX.vehicle_name, SH.message)
+    assert Literal("Validation of vehicle_name failed!", lang="en") in msgs
+
+    # Verify the message is NOT a plain literal
+    assert Literal("Validation of vehicle_name failed!") not in msgs
+
+
+# ---------------------------------------------------------------------------
+# --emit-rules / sh:sparql tests
+# ---------------------------------------------------------------------------
+
+_RULES_SCHEMA_YAML = """
+id: https://example.org/boolean-guards
+name: boolean_guard_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/boolean-guards/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  WeatherWind:
+    range: boolean
+    slot_uri: ex:WeatherWind
+  weatherWindValue:
+    description: Wind speed value.
+    range: decimal
+    slot_uri: ex:weatherWindValue
+  WeatherRain:
+    range: boolean
+    slot_uri: ex:WeatherRain
+  weatherRainValue:
+    description: Rain intensity value.
+    range: decimal
+    slot_uri: ex:weatherRainValue
+  Temperature:
+    range: decimal
+    slot_uri: ex:Temperature
+classes:
+  Environment:
+    class_uri: ex:Environment
+    slots:
+      - WeatherWind
+      - weatherWindValue
+      - WeatherRain
+      - weatherRainValue
+      - Temperature
+    rules:
+      - description: If weatherWindValue is provided, WeatherWind must be true.
+        preconditions:
+          slot_conditions:
+            weatherWindValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            WeatherWind:
+              equals_string: "true"
+      - description: If weatherRainValue is provided, WeatherRain must be true.
+        preconditions:
+          slot_conditions:
+            weatherRainValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            WeatherRain:
+              equals_string: "true"
+"""
+
+EX_RULES = rdflib.Namespace("https://example.org/boolean-guards/")
+
+
+def test_rule_boolean_guard_generates_sparql():
+    """Boolean-guard rules produce sh:sparql constraints on the NodeShape."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 2, f"Expected 2 sh:sparql constraints, got {len(sparql_nodes)}"
+
+    for node in sparql_nodes:
+        assert (node, RDF.type, SH.SPARQLConstraint) in g
+        selects = list(g.objects(node, SH.select))
+        assert len(selects) == 1, "Each constraint must have exactly one sh:select"
+        query = str(selects[0])
+        assert "$this" in query, "SPARQL must use $this pre-bound variable"
+        assert "OPTIONAL" in query, "SPARQL must use OPTIONAL for flag/value"
+        assert "FILTER" in query, "SPARQL must have a FILTER clause"
+        assert "BOUND" in query, "SPARQL must use BOUND()"
+
+
+def test_rule_with_description_generates_message():
+    """Rule description is emitted as sh:message on the SPARQLConstraint."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+
+    messages = set()
+    for node in sparql_nodes:
+        for msg in g.objects(node, SH.message):
+            messages.add(str(msg))
+
+    assert "If weatherWindValue is provided, WeatherWind must be true." in messages
+    assert "If weatherRainValue is provided, WeatherRain must be true." in messages
+
+
+def test_rule_sparql_contains_correct_uris():
+    """SPARQL queries reference the correct slot URIs."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+
+    queries = [str(list(g.objects(n, SH.select))[0]) for n in sparql_nodes]
+    all_sparql = "\n".join(queries)
+
+    assert str(EX_RULES.WeatherWind) in all_sparql
+    assert str(EX_RULES.weatherWindValue) in all_sparql
+    assert str(EX_RULES.WeatherRain) in all_sparql
+    assert str(EX_RULES.weatherRainValue) in all_sparql
+
+
+_DEACTIVATED_RULE_SCHEMA_YAML = """
+id: https://example.org/deactivated-test
+name: deactivated_rule_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/deactivated-test/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  Flag:
+    range: boolean
+    slot_uri: ex:Flag
+  flagValue:
+    range: decimal
+    slot_uri: ex:flagValue
+classes:
+  TestClass:
+    class_uri: ex:TestClass
+    slots:
+      - Flag
+      - flagValue
+    rules:
+      - description: This rule is deactivated.
+        deactivated: true
+        preconditions:
+          slot_conditions:
+            flagValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            Flag:
+              equals_string: "true"
+"""
+
+
+def test_rule_deactivated_skipped():
+    """Deactivated rules do not produce sh:sparql constraints."""
+    g = _parse_shacl(_DEACTIVATED_RULE_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/deactivated-test/TestClass")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0, f"Deactivated rule should not emit sh:sparql, got {len(sparql_nodes)}"
+
+
+_UNSUPPORTED_RULE_SCHEMA_YAML = """
+id: https://example.org/unsupported-test
+name: unsupported_rule_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/unsupported-test/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  slotA:
+    range: string
+    slot_uri: ex:slotA
+  slotB:
+    range: string
+    slot_uri: ex:slotB
+classes:
+  TestClass:
+    class_uri: ex:TestClass
+    slots:
+      - slotA
+      - slotB
+    rules:
+      - description: Rule with no postconditions.
+        preconditions:
+          slot_conditions:
+            slotA:
+              value_presence: PRESENT
+"""
+
+
+def test_rule_unsupported_pattern_skipped():
+    """Unrecognised rule patterns are silently skipped (no sh:sparql emitted)."""
+    g = _parse_shacl(_UNSUPPORTED_RULE_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/unsupported-test/TestClass")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0
+
+
+def test_rule_no_emit_rules_flag():
+    """--no-emit-rules suppresses sh:sparql constraint generation."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML, emit_rules=False)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0, f"emit_rules=False should suppress rules, got {len(sparql_nodes)}"
+
+
+_NO_RULES_SCHEMA_YAML = """
+id: https://example.org/no-rules
+name: no_rules_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/no-rules/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  name:
+    range: string
+    slot_uri: ex:name
+classes:
+  SimpleClass:
+    class_uri: ex:SimpleClass
+    slots:
+      - name
+"""
+
+
+def test_rule_no_rules_no_sparql():
+    """Classes without rules: blocks produce no sh:sparql constraints."""
+    g = _parse_shacl(_NO_RULES_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/no-rules/SimpleClass")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0
+
+
+def test_rule_multiple_rules_per_class():
+    """Multiple boolean-guard rules on one class produce multiple sh:sparql constraints."""
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 2
+
+    # Each constraint should reference different slot pairs
+    queries = [str(list(g.objects(n, SH.select))[0]) for n in sparql_nodes]
+    wind_query = [q for q in queries if "weatherWindValue" in q]
+    rain_query = [q for q in queries if "weatherRainValue" in q]
+    assert len(wind_query) == 1, "Expected exactly one wind query"
+    assert len(rain_query) == 1, "Expected exactly one rain query"
+
+
+# ---------------------------------------------------------------------------
+# Tests for URI resolution without explicit slot_uri
+# ---------------------------------------------------------------------------
+
+_NO_SLOT_URI_SCHEMA_YAML = """
+id: https://example.org/no-slot-uri
+name: no_slot_uri_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/no-slot-uri/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  is_active:
+    range: boolean
+  measured_value:
+    range: decimal
+classes:
+  Reading:
+    class_uri: ex:Reading
+    slots:
+      - is_active
+      - measured_value
+    rules:
+      - description: If measured_value is provided, is_active must be true.
+        preconditions:
+          slot_conditions:
+            measured_value:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            is_active:
+              equals_string: "true"
+"""
+
+
+def test_rule_no_explicit_slot_uri():
+    """Slots without explicit slot_uri resolve via default_prefix + underscore(name)."""
+    g = _parse_shacl(_NO_SLOT_URI_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/no-slot-uri/Reading")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    # URIs should be default_prefix:underscore(name)
+    assert "https://example.org/no-slot-uri/is_active" in query
+    assert "https://example.org/no-slot-uri/measured_value" in query
+
+
+# ---------------------------------------------------------------------------
+# Tests for elseconditions rejection
+# ---------------------------------------------------------------------------
+
+_ELSE_COND_SCHEMA_YAML = """
+id: https://example.org/else-test
+name: else_cond_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/else-test/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  Flag:
+    range: boolean
+    slot_uri: ex:Flag
+  flagValue:
+    range: decimal
+    slot_uri: ex:flagValue
+  fallbackValue:
+    range: string
+    slot_uri: ex:fallbackValue
+classes:
+  TestClass:
+    class_uri: ex:TestClass
+    slots:
+      - Flag
+      - flagValue
+      - fallbackValue
+    rules:
+      - description: Rule with elseconditions should be skipped.
+        preconditions:
+          slot_conditions:
+            flagValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            Flag:
+              equals_string: "true"
+        elseconditions:
+          slot_conditions:
+            fallbackValue:
+              value_presence: PRESENT
+"""
+
+
+def test_rule_with_elseconditions_emitted():
+    """Rules with elseconditions now emit the forward (if/then) branch as sh:sparql."""
+    g = _parse_shacl(_ELSE_COND_SCHEMA_YAML)
+
+    shape = URIRef("https://example.org/else-test/TestClass")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) >= 1, "Rule with elseconditions should emit sh:sparql for the forward branch"
+
+
+# ---------------------------------------------------------------------------
+# SPARQL syntax validation
+# ---------------------------------------------------------------------------
+
+
+def test_rule_sparql_syntax_valid():
+    """Generated SPARQL queries must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_RULES_SCHEMA_YAML)
+
+    shape = EX_RULES.Environment
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) >= 1
+
+    for node in sparql_nodes:
+        query_text = str(list(g.objects(node, SH.select))[0])
+        # prepareQuery validates SPARQL syntax; $this is a valid variable name
+        prepareQuery(query_text)
+
+
+# ===========================================================================
+# Exclusive-value pattern tests (SHACL §5 SPARQL constraints)
+# ===========================================================================
+#
+# The "exclusive value" pattern translates a LinkML rule where:
+#   - preconditions: slot X has equals_string (a specific enum value name)
+#   - postconditions: same slot X has maximum_cardinality N
+#
+# Semantics: "If value V is present in multivalued slot X, then X has at most
+# N values total."  For N=1 this means V must be the sole value (mutual
+# exclusion with other enum members).
+#
+# Generated SHACL: sh:SPARQLConstraint per W3C SHACL §5.3.1, using $this
+# pre-bound to each focus node.
+#
+# References:
+#   - W3C SHACL §5 <https://www.w3.org/TR/shacl/#sparql-constraints>
+#   - W3C SHACL §5.3.1 <https://www.w3.org/TR/shacl/#sparql-constraints-prebound>
+#   - ISO 34503:2023, 9.3.6 (motivating use case: EdgeNone exclusivity)
+# ===========================================================================
+
+_EXCLUSIVE_VALUE_SCHEMA_YAML = """
+id: https://example.org/exclusive-value
+name: exclusive_value_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/exclusive-value/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  EdgeTypeEnum:
+    permissible_values:
+      EdgeNone:
+        meaning: ex:EdgeNone
+      EdgeBarriers:
+        meaning: ex:EdgeBarriers
+      EdgeMarkers:
+        meaning: ex:EdgeMarkers
+
+  PriorityEnum:
+    permissible_values:
+      High:
+        description: High priority (no meaning IRI).
+      Medium:
+        description: Medium priority (no meaning IRI).
+      Low:
+        description: Low priority (no meaning IRI).
+
+slots:
+  edgeType:
+    range: EdgeTypeEnum
+    multivalued: true
+    slot_uri: ex:edgeType
+  priority:
+    range: PriorityEnum
+    multivalued: true
+    slot_uri: ex:priority
+  otherSlot:
+    range: string
+    slot_uri: ex:otherSlot
+
+classes:
+  Road:
+    class_uri: ex:Road
+    slots:
+      - edgeType
+      - otherSlot
+    rules:
+      - description: >-
+          EdgeNone is mutually exclusive with other edge types.
+        preconditions:
+          slot_conditions:
+            edgeType:
+              equals_string: "EdgeNone"
+        postconditions:
+          slot_conditions:
+            edgeType:
+              maximum_cardinality: 1
+
+  Intersection:
+    class_uri: ex:Intersection
+    slots:
+      - edgeType
+    rules:
+      - description: >-
+          EdgeNone allows at most 2 total edge values.
+        preconditions:
+          slot_conditions:
+            edgeType:
+              equals_string: "EdgeNone"
+        postconditions:
+          slot_conditions:
+            edgeType:
+              maximum_cardinality: 2
+
+  Task:
+    class_uri: ex:Task
+    slots:
+      - priority
+    rules:
+      - description: >-
+          High priority is exclusive (literal fallback test).
+        preconditions:
+          slot_conditions:
+            priority:
+              equals_string: "High"
+        postconditions:
+          slot_conditions:
+            priority:
+              maximum_cardinality: 1
+
+  MismatchedSlots:
+    class_uri: ex:MismatchedSlots
+    slots:
+      - edgeType
+      - otherSlot
+    rules:
+      - description: >-
+          Different slots in pre/post — not an exclusive-value pattern.
+        preconditions:
+          slot_conditions:
+            edgeType:
+              equals_string: "EdgeNone"
+        postconditions:
+          slot_conditions:
+            otherSlot:
+              maximum_cardinality: 1
+"""
+
+EX_EXCL = rdflib.Namespace("https://example.org/exclusive-value/")
+
+
+def test_exclusive_value_generates_sparql():
+    """Exclusive-value rules produce sh:sparql constraints on the NodeShape."""
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    shape = EX_EXCL.Road
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    node = sparql_nodes[0]
+    assert (node, RDF.type, SH.SPARQLConstraint) in g
+    selects = list(g.objects(node, SH.select))
+    assert len(selects) == 1, "Constraint must have exactly one sh:select"
+
+
+def test_exclusive_value_sparql_uses_enum_iri():
+    """SPARQL references the enum value's meaning IRI, not a string literal.
+
+    Per the enum definition, EdgeNone has meaning: ex:EdgeNone which expands
+    to <https://example.org/exclusive-value/EdgeNone>.  The generated SPARQL
+    must use this full IRI in angle brackets.
+    """
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    shape = EX_EXCL.Road
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+
+    edge_none_iri = str(EX_EXCL.EdgeNone)
+    assert f"<{edge_none_iri}>" in query, f"SPARQL must reference EdgeNone as full IRI <{edge_none_iri}>, got:\n{query}"
+
+
+def test_exclusive_value_max_card_1_sparql_structure():
+    """For maximum_cardinality: 1, SPARQL uses FILTER(?other != <value>).
+
+    The query pattern for N=1 is:
+        SELECT $this WHERE {
+            $this <slot> <value> .
+            $this <slot> ?other .
+            FILTER (?other != <value>)
+        }
+
+    This is more efficient than the COUNT-based approach for the common
+    singleton exclusion case.
+    """
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    shape = EX_EXCL.Road
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+
+    assert "$this" in query, "SPARQL must use $this pre-bound variable (SHACL §5.3.1)"
+    assert "FILTER" in query, "N=1 pattern must use FILTER for exclusion check"
+    assert "?other" in query, "N=1 pattern must bind ?other for comparison"
+    # Must NOT use COUNT for the N=1 case (simpler pattern)
+    assert "COUNT" not in query, "N=1 pattern should use FILTER, not COUNT"
+    # The slot URI must appear (property path)
+    assert str(EX_EXCL.edgeType) in query, "SPARQL must reference the slot URI"
+
+
+def test_exclusive_value_max_card_gt1_sparql_structure():
+    """For maximum_cardinality > 1, SPARQL uses COUNT-based subquery.
+
+    The query pattern for N>1 is:
+        SELECT $this WHERE {
+            $this <slot> <value> .
+            {
+                SELECT $this (COUNT(?val) AS ?count)
+                WHERE { $this <slot> ?val . }
+                GROUP BY $this
+                HAVING (?count > N)
+            }
+        }
+    """
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    shape = EX_EXCL.Intersection
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+
+    assert "$this" in query, "SPARQL must use $this pre-bound variable"
+    assert "COUNT" in query, "N>1 pattern must use COUNT"
+    assert "GROUP BY" in query, "N>1 pattern must GROUP BY $this"
+    assert "HAVING" in query, "N>1 pattern must use HAVING for count check"
+    assert "> 2" in query, "HAVING must check count > maximum_cardinality (2)"
+
+
+def test_exclusive_value_no_meaning_falls_back_to_literal():
+    """When enum values lack a meaning IRI, the value is compared as a literal.
+
+    PriorityEnum values have no meaning field, so 'High' is used as a
+    quoted string in the SPARQL rather than an IRI in angle brackets.
+    """
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    shape = EX_EXCL.Task
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+
+    # Should use quoted literal, not angle-bracket IRI
+    assert '"High"' in query, f"No-meaning enum should use literal '\"High\"', got:\n{query}"
+    assert "<High>" not in query, "Should not emit as IRI when meaning is absent"
+
+
+def test_exclusive_value_different_slots_not_recognised():
+    """Rules where pre/post reference different slots are NOT exclusive-value.
+
+    The pattern requires the SAME slot in both preconditions and
+    postconditions.  When they differ, the rule is unrecognised and
+    silently skipped (no sh:sparql emitted).
+    """
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    shape = EX_EXCL.MismatchedSlots
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 0, (
+        f"Mismatched slots should not trigger exclusive-value pattern, got {len(sparql_nodes)}"
+    )
+
+
+def test_exclusive_value_message_from_description():
+    """Rule description is emitted as sh:message on the SPARQLConstraint."""
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    shape = EX_EXCL.Road
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    messages = [str(m) for node in sparql_nodes for m in g.objects(node, SH.message)]
+
+    assert any("EdgeNone is mutually exclusive" in m for m in messages), (
+        f"Expected message about EdgeNone exclusivity, got: {messages}"
+    )
+
+
+def test_exclusive_value_sparql_syntax_valid():
+    """Generated SPARQL for exclusive-value rules must be syntactically valid.
+
+    Uses rdflib's prepareQuery() which validates SPARQL syntax.
+    $this is a valid SPARQL variable name per the grammar.
+    """
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_EXCLUSIVE_VALUE_SCHEMA_YAML)
+
+    for shape in (EX_EXCL.Road, EX_EXCL.Intersection, EX_EXCL.Task):
+        sparql_nodes = list(g.objects(shape, SH.sparql))
+        for node in sparql_nodes:
+            query_text = str(list(g.objects(node, SH.select))[0])
+            # prepareQuery validates SPARQL syntax
+            prepareQuery(query_text)
+
+
+def test_exclusive_value_coexists_with_boolean_guard():
+    """Exclusive-value and boolean-guard rules can coexist on the same class.
+
+    When a class has both pattern types, both produce sh:sparql constraints.
+    """
+    schema = """
+id: https://example.org/mixed-rules
+name: mixed_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/mixed-rules/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  StatusEnum:
+    permissible_values:
+      None:
+        meaning: ex:None
+      Active:
+        meaning: ex:Active
+
+slots:
+  status:
+    range: StatusEnum
+    multivalued: true
+    slot_uri: ex:status
+  Flag:
+    range: boolean
+    slot_uri: ex:Flag
+  flagValue:
+    range: decimal
+    slot_uri: ex:flagValue
+
+classes:
+  Widget:
+    class_uri: ex:Widget
+    slots:
+      - status
+      - Flag
+      - flagValue
+    rules:
+      - description: None is exclusive.
+        preconditions:
+          slot_conditions:
+            status:
+              equals_string: "None"
+        postconditions:
+          slot_conditions:
+            status:
+              maximum_cardinality: 1
+      - description: If flagValue present, Flag must be true.
+        preconditions:
+          slot_conditions:
+            flagValue:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            Flag:
+              equals_string: "true"
+"""
+    g = _parse_shacl(schema)
+
+    shape = URIRef("https://example.org/mixed-rules/Widget")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 2, (
+        f"Expected 2 sh:sparql constraints (1 exclusive + 1 boolean guard), got {len(sparql_nodes)}"
+    )
+
+    queries = [str(list(g.objects(n, SH.select))[0]) for n in sparql_nodes]
+    # One should have FILTER(?other != ...) pattern, the other BOUND pattern
+    has_exclusive = any("?other" in q for q in queries)
+    has_boolean = any("BOUND" in q for q in queries)
+    assert has_exclusive, "Expected one exclusive-value SPARQL constraint"
+    assert has_boolean, "Expected one boolean-guard SPARQL constraint"
+
+
+def test_any_of_with_pattern(input_path):
+    """Test that pattern constraints inside any_of branches emit sh:pattern.
+
+    Exercises three cases:
+    1. PatternOnlyBranch: any_of with a pattern-only branch (no range)
+    2. RangeWithPattern: any_of with range + pattern on the same branch
+    3. MixedBranches: combination of range-only, pattern-only, and range+pattern
+    """
+    shacl = ShaclGenerator(input_path("shaclgen/any_of_pattern.yaml"), mergeimports=True).serialize()
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+
+    def get_or_branch_nodes(class_uri: str, slot_local: str) -> list[rdflib.BNode]:
+        """Return the list of BNodes inside sh:or for a given class property."""
+        class_ref = URIRef(class_uri)
+        for prop_node in g.objects(class_ref, SH.property):
+            paths = list(g.objects(prop_node, SH.path))
+            if any(slot_local in str(p) for p in paths):
+                for or_head in g.objects(prop_node, SH["or"]):
+                    return list(Collection(g, or_head))
+        return []
+
+    prefix = "https://w3id.org/linkml/examples/any_of_pattern/"
+
+    # Case 1: PatternOnlyBranch — license slot has 3 branches:
+    #   [enum sh:in], [sh:nodeKind sh:IRI], [sh:pattern "^LicenseRef-..."]
+    branches = get_or_branch_nodes(f"{prefix}PatternOnlyBranch", "license")
+    assert len(branches) == 3, f"Expected 3 branches, got {len(branches)}"
+    # Find the branch with sh:pattern
+    pattern_branches = [b for b in branches if list(g.objects(b, SH.pattern))]
+    assert len(pattern_branches) == 1, f"Expected 1 pattern branch, got {len(pattern_branches)}"
+    pattern_val = str(list(g.objects(pattern_branches[0], SH.pattern))[0])
+    assert pattern_val == "^LicenseRef-[a-zA-Z0-9\\-\\.]+$"
+    # The pattern-only branch should NOT have sh:datatype or sh:class
+    assert list(g.objects(pattern_branches[0], SH.datatype)) == []
+    assert list(g.objects(pattern_branches[0], SH["class"])) == []
+
+    # Case 2: RangeWithPattern — identifier slot has 2 branches:
+    #   [sh:datatype xsd:string + sh:pattern "^[A-Z]{2}-[0-9]{4}$"], [sh:datatype xsd:integer]
+    branches = get_or_branch_nodes(f"{prefix}RangeWithPattern", "identifier")
+    assert len(branches) == 2, f"Expected 2 branches, got {len(branches)}"
+    # Find branch with both datatype and pattern
+    combo_branches = [b for b in branches if list(g.objects(b, SH.datatype)) and list(g.objects(b, SH.pattern))]
+    assert len(combo_branches) == 1, f"Expected 1 combo branch, got {len(combo_branches)}"
+    assert str(list(g.objects(combo_branches[0], SH.pattern))[0]) == "^[A-Z]{2}-[0-9]{4}$"
+    # The other branch (integer) should NOT have sh:pattern
+    int_branches = [b for b in branches if b not in combo_branches]
+    assert list(g.objects(int_branches[0], SH.pattern)) == []
+
+    # Case 3: MixedBranches — code slot has 3 branches:
+    #   [sh:datatype xsd:integer], [sh:pattern "^CUSTOM-.*$"], [sh:datatype xsd:string + sh:pattern "^STD-[0-9]+$"]
+    branches = get_or_branch_nodes(f"{prefix}MixedBranches", "code")
+    assert len(branches) == 3, f"Expected 3 branches, got {len(branches)}"
+    # Exactly 2 branches should have sh:pattern
+    pattern_branches = [b for b in branches if list(g.objects(b, SH.pattern))]
+    assert len(pattern_branches) == 2, f"Expected 2 pattern branches, got {len(pattern_branches)}"
+    # Collect the patterns
+    patterns = sorted(str(list(g.objects(b, SH.pattern))[0]) for b in pattern_branches)
+    assert patterns == ["^CUSTOM-.*$", "^STD-[0-9]+$"]
+    # The integer-only branch should have no pattern
+    no_pattern = [b for b in branches if not list(g.objects(b, SH.pattern))]
+    assert len(no_pattern) == 1
+    assert list(g.objects(no_pattern[0], SH.datatype)) == [URIRef("http://www.w3.org/2001/XMLSchema#integer")]
