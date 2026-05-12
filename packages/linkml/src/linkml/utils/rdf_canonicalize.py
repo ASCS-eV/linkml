@@ -146,7 +146,10 @@ def canonicalize_rdf_graph(
             "pyoxigraph does not support format %r; falling back to rdflib serializer",
             output_format,
         )
-        return graph.serialize(format=output_format)
+        # rdflib's Turtle serializer emits a trailing double newline;
+        # normalize to single newline for consistent file endings.
+        data = graph.serialize(format=output_format)
+        return data.rstrip("\n") + "\n" if data.endswith("\n") else data
 
     # 1. Transfer rdflib graph to pyoxigraph via N-Triples.
     nt_data = graph.serialize(format="nt")

@@ -310,8 +310,8 @@ class ContextGenerator(Generator):
                 json.dump(frame, f, indent=2, ensure_ascii=False)
 
         if self.deterministic:
-            return self._deterministic_context_json(json.loads(str(as_json(context))), indent=3) + "\n"
-        return str(as_json(context)) + "\n"
+            return self._deterministic_context_json(json.loads(str(as_json(context))), indent=3)
+        return str(as_json(context))
 
     @staticmethod
     def _deterministic_context_json(data: dict, indent: int = 3) -> str:
