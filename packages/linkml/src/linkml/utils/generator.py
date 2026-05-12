@@ -307,7 +307,9 @@ def deterministic_turtle(graph: "RdfGraph") -> str:
         if pfx_s and any(iri.startswith(ns_s) for iri in used_iris):
             result_graph.bind(pfx_s, ns_s)
 
-    return result_graph.serialize(format="turtle")
+    # rdflib's Turtle serializer always emits a trailing double newline;
+    # normalize to a single newline for consistent file endings.
+    return result_graph.serialize(format="turtle").rstrip("\n") + "\n"
 
 
 def deterministic_json(obj: object, indent: int = 3, preserve_list_order_keys: frozenset[str] | None = None) -> str:
