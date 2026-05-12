@@ -15,6 +15,7 @@ from linkml import METAMODEL_NAMESPACE, METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
 from linkml.generators.common.subproperty import get_subproperty_values
 from linkml.utils.generator import Generator, shared_arguments
+from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.linkml_model.meta import (
     ClassDefinition,
     ElementName,
@@ -26,7 +27,6 @@ from linkml_runtime.linkml_model.meta import (
 from linkml_runtime.linkml_model.types import SHEX
 from linkml_runtime.utils.formatutils import camelcase, sfx
 from linkml_runtime.utils.metamodelcore import URIorCURIE
-from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 
 
 @dataclass

@@ -23,6 +23,7 @@ from linkml._version import __version__
 from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecation_warning
 from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
+from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime import SchemaView
 from linkml_runtime.linkml_model.meta import (
     AnonymousClassExpression,
@@ -43,7 +44,6 @@ from linkml_runtime.linkml_model.meta import (
 )
 from linkml_runtime.utils.formatutils import camelcase, underscore
 from linkml_runtime.utils.introspection import package_schemaview
-from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.utils.yamlutils import YAMLRoot
 
 logger = logging.getLogger(__name__)
@@ -703,9 +703,7 @@ class OwlSchemaGenerator(Generator):
             members = list(cls.exactly_one_of)
             if self.deterministic:
                 members = sorted(members, key=_expression_sort_key)
-            sub_exprs: list[OWL_EXPRESSION] = self._present(
-                self.transform_class_expression(x) for x in members
-            )
+            sub_exprs: list[OWL_EXPRESSION] = self._present(self.transform_class_expression(x) for x in members)
             if isinstance(cls, ClassDefinition):
                 cls_uri = self._class_uri(cls.name)
                 listnode = BNode()

@@ -45,4 +45,3 @@ ORCID:4567 a personinfo:Person ;
 	personinfo:full_name "Lois Lane" .
 _:c14n0 a personinfo:Container ;
 	personinfo:persons ORCID:1234 , ORCID:4567 .
-

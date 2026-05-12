@@ -79,4 +79,3 @@ _:c14n6 sh:datatype xsd:string ;
 	sh:path personinfo:aliases .
 _:c14n7 rdf:first rdf:type ;
 	rdf:rest rdf:nil .
-

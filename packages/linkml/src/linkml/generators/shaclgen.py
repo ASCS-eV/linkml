@@ -15,9 +15,9 @@ from linkml.generators.common.subproperty import get_subproperty_values, is_uri_
 from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
 from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
+from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.linkml_model.meta import ClassDefinition, ElementName, PresenceEnum
 from linkml_runtime.utils.formatutils import underscore
-from linkml.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.utils.yamlutils import TypedNode, extended_float, extended_int, extended_str
 
 logger = logging.getLogger(__name__)
@@ -480,7 +480,7 @@ class ShaclGenerator(Generator):
 
             message = getattr(rule, "description", None)
             if message:
-                g.add((constraint, SH.message, Literal(message)))
+                g.add((constraint, SH.message, Literal(message, lang=self._resolve_language())))
 
             g.add((constraint, SH.select, Literal(sparql_query)))
 

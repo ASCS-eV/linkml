@@ -1303,6 +1303,7 @@ def _build_message_test_schema():
     sb.add_defaults()
     return sb.schema
 
+
 def _parse_shacl(schema, **kwargs):
     shacl = ShaclGenerator(schema, mergeimports=False, **kwargs).serialize()
     g = rdflib.Graph()
@@ -1692,6 +1693,8 @@ def test_message_template_with_default_language():
 
     # Verify the message is NOT a plain literal
     assert Literal("Validation of vehicle_name failed!") not in msgs
+
+
 # ---------------------------------------------------------------------------
 # --emit-rules / sh:sparql tests
 # ---------------------------------------------------------------------------
@@ -2245,7 +2248,6 @@ def test_exclusive_value_sparql_uses_enum_iri():
 
     edge_none_iri = str(EX_EXCL.EdgeNone)
     assert f"<{edge_none_iri}>" in query, f"SPARQL must reference EdgeNone as full IRI <{edge_none_iri}>, got:\n{query}"
-
 
 
 def test_exclusive_value_max_card_1_sparql_structure():

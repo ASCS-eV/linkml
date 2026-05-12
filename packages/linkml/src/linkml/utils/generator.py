@@ -232,6 +232,8 @@ def normalize_graph_prefixes(graph: "Graph", schema_prefixes: dict[str, str]) ->
         if std_pfx in current_bindings and current_bindings[std_pfx] != ns_str:
             continue
         graph.bind(std_pfx, Namespace(ns_str), override=True, replace=True)
+
+
 def _wl_signatures(
     quads: list,
     iterations: int = 4,
@@ -502,7 +504,6 @@ def deterministic_json(obj: object, indent: int = 3, preserve_list_order_keys: f
 # §4.1); @list containers are explicitly ordered; @graph and @set are
 # included defensively.
 _JSONLD_ORDERED_KEYS: frozenset[str] = frozenset({"@context", "@list", "@graph", "@set", "imports"})
-
 
 
 @dataclass
