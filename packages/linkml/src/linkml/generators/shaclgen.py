@@ -452,7 +452,7 @@ class ShaclGenerator(Generator):
 
             message = getattr(rule, "description", None)
             if message:
-                g.add((constraint, SH.message, Literal(message)))
+                g.add((constraint, SH.message, Literal(message, lang=self._resolve_language())))
 
             g.add((constraint, SH.select, Literal(sparql_query)))
 
