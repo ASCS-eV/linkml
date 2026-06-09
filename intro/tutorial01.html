@@ -362,6 +362,8 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../maintainers/index.html">Maintainers Guide</a><input aria-label="Toggle navigation of Maintainers Guide" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../maintainers/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../maintainers/organization.html">GitHub Organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../maintainers/contributor-hierarchy.html">Contributor Hierarchy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../maintainers/codeowners.html">CODEOWNERS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../maintainers/deprecation.html">Deprecations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../maintainers/code-of-conduct.html">Code of Conduct</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../maintainers/generator-governance.html">Generator and Validator Governance</a></li>
@@ -574,12 +576,14 @@ to this example and show how we could model this more naturally as a number.</p>
 <p>This will produce RDF/turtle output as follows</p>
 <!-- MATCHES data.ttl -->
 <div class="highlight-turtle notranslate"><div class="highlight"><pre><span></span><span class="k">@prefix</span><span class="w"> </span><span class="nn">personinfo:</span><span class="w"> </span><span class="nv">&lt;https://w3id.org/linkml/examples/personinfo&gt;</span><span class="w"> </span><span class="p">.</span>
-
-<span class="p">[]</span> <span class="kt">a</span> <span class="nn">personinfo</span><span class="p">:</span><span class="nt">Person</span> <span class="p">;</span>
-    <span class="nn">personinfo</span><span class="p">:</span><span class="nt">age</span> <span class="s">&quot;32&quot;</span> <span class="p">;</span>
-    <span class="nn">personinfo</span><span class="p">:</span><span class="nt">full_name</span> <span class="s">&quot;Clark Kent&quot;</span> <span class="p">;</span>
-    <span class="nn">personinfo</span><span class="p">:</span><span class="nt">id</span> <span class="s">&quot;ORCID:1234&quot;</span> <span class="p">;</span>
-    <span class="nn">personinfo</span><span class="p">:</span><span class="nt">phone</span> <span class="s">&quot;555-555-5555&quot;</span> <span class="p">.</span>
+<span class="k">@prefix</span><span class="w"> </span><span class="nn">rdf:</span><span class="w"> </span><span class="nv">&lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&gt;</span><span class="w"> </span><span class="p">.</span>
+<span class="k">@prefix</span><span class="w"> </span><span class="nn">xsd:</span><span class="w"> </span><span class="nv">&lt;http://www.w3.org/2001/XMLSchema#&gt;</span><span class="w"> </span><span class="p">.</span>
+<span class="k">@prefix</span><span class="w"> </span><span class="nn">linkml:</span><span class="w"> </span><span class="nv">&lt;https://w3id.org/linkml/&gt;</span><span class="w"> </span><span class="p">.</span>
+<span class="nn">_</span><span class="p">:</span><span class="nt">c14n0</span> <span class="kt">a</span> <span class="nn">personinfo</span><span class="p">:</span><span class="nt">Person</span> <span class="p">;</span>
+	<span class="nn">personinfo</span><span class="p">:</span><span class="nt">age</span> <span class="s">&quot;32&quot;</span> <span class="p">;</span>
+	<span class="nn">personinfo</span><span class="p">:</span><span class="nt">full_name</span> <span class="s">&quot;Clark Kent&quot;</span> <span class="p">;</span>
+	<span class="nn">personinfo</span><span class="p">:</span><span class="nt">id</span> <span class="s">&quot;ORCID:1234&quot;</span> <span class="p">;</span>
+	<span class="nn">personinfo</span><span class="p">:</span><span class="nt">phone</span> <span class="s">&quot;555-555-5555&quot;</span> <span class="p">.</span>
 </pre></div>
 </div>
 <p>To write the RDF/turtle output directly to a file use</p>
