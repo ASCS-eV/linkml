@@ -270,6 +270,7 @@
 <li class="toctree-l2"><a class="reference internal" href="sqltable.html">SQL DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sqlalchemy.html">SQL Alchemy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sqlvalidation.html">SQL Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="bigquery.html">BigQuery DDL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="typedb.html">TypeDB / TypeQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="linkml.html">LinkML Generators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prefixmap.html">Prefix Generator</a></li>
@@ -459,6 +460,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -475,8 +477,10 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p><a href="#boolean-expressions">Boolean Expressions</a></p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -503,6 +507,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p><a href="#core-structure">Core Structure</a></p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -517,6 +522,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p><a href="#defaults-computed">Defaults &amp; Computed</a></p></td>
 <td class="text-center"><p>✅</p></td>
@@ -531,11 +537,13 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p><a href="#enumerations">Enumerations</a></p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -559,6 +567,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p><a href="#inheritance-refinement">Inheritance &amp; Refinement</a></p></td>
 <td class="text-center"><p>✅</p></td>
@@ -573,8 +582,10 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-even"><td><p><a href="#inlining-references">Inlining &amp; References</a></p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -601,6 +612,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p><a href="#other">Other</a></p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -608,6 +620,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -629,6 +642,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-even"><td><p><a href="#schema-level">Schema-Level</a></p></td>
 <td class="text-center"><p>✅</p></td>
@@ -643,6 +657,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p><a href="#slot-typing-ranges">Slot Typing &amp; Ranges</a></p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -657,8 +672,10 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p><a href="#value-constraints">Value Constraints</a></p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -684,6 +701,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 </tr>
 </tbody>
@@ -802,6 +820,14 @@
 <td class="text-center"><p>64</p></td>
 <td class="text-center"><p>44%</p></td>
 </tr>
+<tr class="row-even"><td><p>sql_ddl_bigquery</p></td>
+<td class="text-center"><p>0</p></td>
+<td class="text-center"><p>24</p></td>
+<td class="text-center"><p>40</p></td>
+<td class="text-center"><p>0</p></td>
+<td class="text-center"><p>64</p></td>
+<td class="text-center"><p>0%</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -826,6 +852,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -839,6 +866,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -865,10 +893,12 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Cardinality in exactly_one_of</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -895,11 +925,13 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-even"><td><p>Class boolean constraints with required</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -923,6 +955,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-even"><td><p>Slot all_of</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -932,6 +965,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -951,6 +985,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Slot boolean with expressions</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -964,6 +999,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p>Slot exactly_one_of</p></td>
@@ -979,6 +1015,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-even"><td><p>Slot none_of</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -988,6 +1025,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1016,6 +1054,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1032,11 +1071,13 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Membership constraints</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1060,6 +1101,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Required / multivalued</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1074,6 +1116,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -1097,6 +1140,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1113,6 +1157,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Attribute refinement</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1127,6 +1172,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Attributes</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1141,6 +1187,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Class inheritance (is_a)</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1155,6 +1202,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Mixins</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1169,6 +1217,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Slot inheritance</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1183,6 +1232,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Slot usage</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1197,6 +1247,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -1220,6 +1271,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1236,6 +1288,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -1259,6 +1312,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1275,6 +1329,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Enum hierarchy</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1289,6 +1344,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Non-standard enum names</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1303,11 +1359,13 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Static enums</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1331,6 +1389,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -1354,6 +1413,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1370,6 +1430,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p>Nested keys</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1381,6 +1442,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
@@ -1398,6 +1460,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p>Unique keys</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1411,6 +1474,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 </tr>
 </tbody>
@@ -1435,11 +1499,13 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Subproperty class range</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
@@ -1465,11 +1531,13 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Subproperty multivalued</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
@@ -1493,11 +1561,13 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Subproperty slot_usage narrowing</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
@@ -1515,6 +1585,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1544,6 +1615,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1560,6 +1632,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Inlined objects</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1574,6 +1647,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Inlined with unique keys</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1588,6 +1662,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 </tbody>
 </table>
@@ -1611,6 +1686,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1627,6 +1703,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Annotations</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1641,8 +1718,10 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Common metadata</p></td>
+<td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
@@ -1669,6 +1748,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Element URIs</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1683,6 +1763,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -1706,6 +1787,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1715,6 +1797,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1745,6 +1828,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1754,6 +1838,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1775,6 +1860,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-even"><td><p>Precondition rules</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1789,6 +1875,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p>Value presence in rules</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1802,6 +1889,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 </tr>
 </tbody>
@@ -1826,6 +1914,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1842,6 +1931,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Schema imports</p></td>
 <td class="text-center"><p>✅</p></td>
@@ -1856,6 +1946,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -1879,6 +1970,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1895,6 +1987,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Custom types (typeof)</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1909,6 +2002,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Date/datetime types</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1922,6 +2016,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-odd"><td><p>Primitive type ranges</p></td>
@@ -1937,6 +2032,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>URI types</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -1951,6 +2047,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -1974,6 +2071,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -1986,6 +2084,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
@@ -2004,8 +2103,10 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>ID prefix</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -2032,6 +2133,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>✅</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 <tr class="row-even"><td><p>Regex pattern</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -2046,6 +2148,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>✅</p></td>
+<td class="text-center"><p>❓</p></td>
 </tr>
 </tbody>
 </table>
@@ -2069,6 +2172,7 @@
 <th class="head text-center"><p>Postgres DDL</p></th>
 <th class="head text-center"><p>Pandera</p></th>
 <th class="head text-center"><p>Polars Schema</p></th>
+<th class="head text-center"><p>sql_ddl_bigquery</p></th>
 </tr>
 </thead>
 <tbody>
@@ -2085,6 +2189,7 @@
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>❓</p></td>
 <td class="text-center"><p>⚠️</p></td>
+<td class="text-center"><p>⚠️</p></td>
 </tr>
 <tr class="row-odd"><td><p>range expression nesting</p></td>
 <td class="text-center"><p>⚠️</p></td>
@@ -2098,6 +2203,7 @@
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>❓</p></td>
+<td class="text-center"><p>⚠️</p></td>
 <td class="text-center"><p>⚠️</p></td>
 </tr>
 </tbody>
