@@ -640,9 +640,72 @@ class ShaclGenerator(Generator):
             elif getattr(cond, "minimum_value", None) is not None:
                 lines.append(f"$this <{path}> {var} .")
                 lines.append(f"FILTER ( {var} >= {self._sparql_number(cond.minimum_value)} )")
+            elif getattr(cond, "range_expression", None) is not None and getattr(
+                cond.range_expression, "slot_conditions", None
+            ):
+                # One-hop into an inlined child object: bind the child node and
+                # apply the inner slot conditions to it.
+                node = f"{var}_node"
+                lines.append(f"$this <{path}> {node} .")
+                inner = self._member_conditions(sv, cls, slot_name, node, cond.range_expression.slot_conditions)
+                if inner is None:
+                    return None
+                lines.extend(inner)
             else:
                 return None
         return lines
+
+    def _member_conditions(
+        self, sv, cls: ClassDefinition, container_slot_name: str, node_var: str, slot_conditions
+    ) -> list[str] | None:
+        """Constrain the object bound to *node_var* — an instance of the range
+        class of *container_slot_name* — by a set of inner slot conditions.
+
+        Shared by the nested ``range_expression`` precondition (single inlined
+        child) and the ``has_member`` postcondition (a list member).  Enum
+        values are resolved against the container slot's range class.  Returns
+        ``None`` for unsupported inner operators.
+        """
+        lines: list[str] = []
+        for j, (inner_name, icond) in enumerate(slot_conditions.items()):
+            ipath = self._slot_uri(sv, inner_name, cls)
+            ivar = f"{node_var}_{j}"
+            if getattr(icond, "value_presence", None) == PresenceEnum(PresenceEnum.PRESENT):
+                lines.append(f"{node_var} <{ipath}> {ivar} .")
+            elif getattr(icond, "equals_string", None) is not None:
+                iref = self._resolve_member_enum_ref(sv, container_slot_name, inner_name, icond.equals_string)
+                lines.append(f"{node_var} <{ipath}> {ivar} .")
+                lines.append(f"FILTER ( {ivar} = {iref} )")
+            elif getattr(icond, "maximum_value", None) is not None:
+                lines.append(f"{node_var} <{ipath}> {ivar} .")
+                lines.append(f"FILTER ( {ivar} <= {self._sparql_number(icond.maximum_value)} )")
+            elif getattr(icond, "minimum_value", None) is not None:
+                lines.append(f"{node_var} <{ipath}> {ivar} .")
+                lines.append(f"FILTER ( {ivar} >= {self._sparql_number(icond.minimum_value)} )")
+            else:
+                return None
+        return lines
+
+    def _resolve_member_enum_ref(self, sv, container_slot_name: str, inner_slot_name: str, value_name: str) -> str:
+        """Resolve an inner enum value to a SPARQL term using the *range class*
+        of the container slot.
+
+        A slot such as ``type`` may be reused across classes with different
+        enum ranges (via ``slot_usage``); resolving through the container's
+        range class picks the correct enum.  Falls back to
+        :meth:`_resolve_enum_value_ref` (and thence to a literal) when the
+        container is not a class, the inner slot is not on it, or the value has
+        no ``meaning``.
+        """
+        container = sv.get_slot(container_slot_name)
+        range_class = container.range if container else None
+        if range_class and range_class in sv.all_classes() and inner_slot_name in sv.class_slots(range_class):
+            induced = sv.induced_slot(inner_slot_name, range_class)
+            if induced and induced.range in sv.all_enums():
+                pv = sv.get_enum(induced.range).permissible_values.get(value_name)
+                if pv and pv.meaning:
+                    return f"<{sv.expand_curie(pv.meaning)}>"
+        return self._resolve_enum_value_ref(sv, inner_slot_name, value_name)
 
     @staticmethod
     def _sparql_number(value) -> str:

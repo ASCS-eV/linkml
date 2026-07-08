@@ -3411,3 +3411,136 @@ def test_threshold_precondition_pyshacl_end_to_end():
         advanced=True,
     )
     assert not conforms, f"Fog without the required note should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: nested range_expression precondition (M4)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X (inlined child) has range_expression on an inner
+#     slot (e.g. sun_position.elevation <= 0)
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If the child's inner value satisfies the condition, then Y must
+# be present."  The SPARQL binds the child node with one extra hop.
+# ===========================================================================
+
+_NESTED_SCHEMA_YAML = """
+id: https://example.org/nested
+name: nested_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/nested/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  sun_position:
+    range: SunPosition
+    inlined: true
+    slot_uri: ex:sun_position
+  elevation:
+    range: float
+    slot_uri: ex:elevation
+  headlight_note:
+    range: string
+    slot_uri: ex:headlight_note
+
+classes:
+  SunPosition:
+    class_uri: ex:SunPosition
+    slots:
+      - elevation
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sun_position
+      - headlight_note
+    rules:
+      - description: When the sun is at or below the horizon a headlight note is required.
+        preconditions:
+          slot_conditions:
+            sun_position:
+              range_expression:
+                slot_conditions:
+                  elevation:
+                    maximum_value: 0.0
+        postconditions:
+          slot_conditions:
+            headlight_note:
+              required: true
+"""
+
+EX_NEST = rdflib.Namespace("https://example.org/nested/")
+
+
+def test_nested_precondition_generates_sparql():
+    """A nested range_expression precondition emits a two-hop graph pattern."""
+    g = _parse_shacl(_NESTED_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_NEST.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert str(EX_NEST.sun_position) in query, "must traverse the container slot"
+    assert str(EX_NEST.elevation) in query, "must traverse the inner slot"
+    assert "<= 0.0" in query, f"inner threshold must appear, got:\n{query}"
+    assert "FILTER NOT EXISTS" in query
+    assert str(EX_NEST.headlight_note) in query
+
+
+def test_nested_precondition_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_NESTED_SCHEMA_YAML)
+    for node in g.objects(EX_NEST.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_nested_precondition_pyshacl_end_to_end():
+    """End-to-end: sun below horizon requires the note; above horizon does not."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_NESTED_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: night (elevation -90) with a note; day (45) needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/nested/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wNight a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "-90.0"^^xsd:float ] ;
+        ex:headlight_note "on" .
+
+    ex:wDay a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "45.0"^^xsd:float ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: night (elevation -90) without the required note.
+    violating = """
+    @prefix ex: <https://example.org/nested/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "-90.0"^^xsd:float ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Night without a headlight note should fail:\n{txt}"
