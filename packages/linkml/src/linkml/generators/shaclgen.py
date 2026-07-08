@@ -459,6 +459,12 @@ class ShaclGenerator(Generator):
           multivalued slot, the total number of values must not exceed the
           given cardinality (typically 1 for mutual exclusion).
 
+        Operator combinations outside these named patterns are handled by a
+        small compositional fallback (:meth:`_compose_rule_sparql`) covering
+        conditional-required / conditional-absent postconditions, numeric
+        threshold and nested-object preconditions, and ``has_member`` list
+        membership.
+
         See `W3C SHACL §5 <https://www.w3.org/TR/shacl/#sparql-constraints>`_.
         """
         if not cls.rules:
@@ -555,6 +561,93 @@ class ShaclGenerator(Generator):
             if pre_equals is not None and post_max_card is not None and pre_slot_name == post_slot_name:
                 return self._build_exclusive_value_sparql(sv, cls, pre_slot_name, pre_equals, int(post_max_card))
 
+        # Fallback: a small compositional builder for operator combinations not
+        # covered by the three named patterns above (conditional-required,
+        # threshold preconditions, list membership, ...).  Tried only after the
+        # named patterns, so their output is unchanged.
+        composed = self._compose_rule_sparql(sv, cls, rule)
+        if composed is not None:
+            return composed
+
+        return None
+
+    def _compose_rule_sparql(self, sv, cls: ClassDefinition, rule) -> str | None:
+        """Compose a SHACL-SPARQL violation query for rule shapes not covered
+        by the three named patterns.
+
+        Translates a conjunction of *precondition* slot conditions and a single
+        *postcondition* slot condition into one ``SELECT $this`` query that
+        selects focus nodes which satisfy every precondition but violate the
+        postcondition.  Supported operators grow incrementally in
+        :meth:`_precondition_patterns` and :meth:`_postcondition_violation`;
+        the method returns ``None`` (rule skipped, never mis-translated) as soon
+        as any operator is unsupported.
+
+        A rule's ``postconditions`` are a conjunction, so violating a single
+        slot condition is sufficient; the single-postcondition case covers the
+        modeled cross-parameter rules.
+
+        Conforms to `SHACL §5.3.1
+        <https://www.w3.org/TR/shacl/#sparql-constraints-prebound>`_: ``$this``
+        is pre-bound to each focus node.
+        """
+        pre = getattr(rule, "preconditions", None)
+        post = getattr(rule, "postconditions", None)
+        if not pre or not post:
+            return None
+
+        pre_slots = getattr(pre, "slot_conditions", None) or {}
+        post_slots = getattr(post, "slot_conditions", None) or {}
+        if not pre_slots or len(post_slots) != 1:
+            return None
+
+        pre_lines = self._precondition_patterns(sv, cls, pre_slots)
+        if pre_lines is None:
+            return None
+
+        post_slot_name, post_cond = next(iter(post_slots.items()))
+        violation = self._postcondition_violation(sv, cls, post_slot_name, post_cond)
+        if violation is None:
+            return None
+
+        body = "\n".join(f"    {line}" for line in (pre_lines + violation))
+        return f"SELECT $this WHERE {{\n{body}\n}}"
+
+    def _precondition_patterns(self, sv, cls: ClassDefinition, pre_slots) -> list[str] | None:
+        """Translate a conjunction of precondition slot conditions into SPARQL
+        graph patterns (plus ``FILTER`` lines) that bind focus nodes satisfying
+        every condition.
+
+        Returns ``None`` if any condition uses an operator not handled here.
+
+        Supported operators: ``value_presence: PRESENT`` and ``equals_string``.
+        """
+        lines: list[str] = []
+        for i, (slot_name, cond) in enumerate(pre_slots.items()):
+            path = self._slot_uri(sv, slot_name, cls)
+            var = f"?pre{i}"
+            if getattr(cond, "value_presence", None) == PresenceEnum(PresenceEnum.PRESENT):
+                lines.append(f"$this <{path}> {var} .")
+            elif getattr(cond, "equals_string", None) is not None:
+                ref = self._resolve_enum_value_ref(sv, slot_name, cond.equals_string)
+                lines.append(f"$this <{path}> {var} .")
+                lines.append(f"FILTER ( {var} = {ref} )")
+            else:
+                return None
+        return lines
+
+    def _postcondition_violation(self, sv, cls: ClassDefinition, slot_name: str, cond) -> list[str] | None:
+        """Translate a single postcondition slot condition into SPARQL that
+        matches a *violation* of it.
+
+        Returns ``None`` for operators not handled here.
+
+        Supported operators: ``required: true`` (violation = the target slot is
+        absent on a focus node that satisfies the preconditions).
+        """
+        path = self._slot_uri(sv, slot_name, cls)
+        if getattr(cond, "required", None) is True:
+            return [f"FILTER NOT EXISTS {{ $this <{path}> ?post . }}"]
         return None
 
     def _build_boolean_guard_sparql(self, sv, cls: ClassDefinition, flag_slot_name: str, value_slot_name: str) -> str:

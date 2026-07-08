@@ -3016,3 +3016,146 @@ def test_presence_implies_value_pyshacl_end_to_end():
         advanced=True,
     )
     assert not conforms, f"Missing-target instance should fail SHACL validation:\n{results_text}"
+
+
+# ===========================================================================
+# Compositional fallback: conditional-required pattern (M1)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has equals_string V
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If X = V, then Y must be present."  Emitted as an
+# sh:SPARQLConstraint whose SELECT matches focus nodes where the precondition
+# holds but the required slot is absent (FILTER NOT EXISTS).
+# ===========================================================================
+
+_CONDITIONAL_REQUIRED_SCHEMA_YAML = """
+id: https://example.org/conditional-required
+name: conditional_required_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/conditional-required/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  SkyModelEnum:
+    permissible_values:
+      ClearSky:
+        meaning: ex:ClearSky
+      OvercastSky:
+        meaning: ex:OvercastSky
+      MeasuredOvercastSky:
+        meaning: ex:MeasuredOvercastSky
+
+slots:
+  sky_model:
+    range: SkyModelEnum
+    slot_uri: ex:sky_model
+  overcast_sky_illuminance:
+    range: float
+    slot_uri: ex:overcast_sky_illuminance
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sky_model
+      - overcast_sky_illuminance
+    rules:
+      - description: The MeasuredOvercastSky model requires the sky illuminance.
+        preconditions:
+          slot_conditions:
+            sky_model:
+              equals_string: MeasuredOvercastSky
+        postconditions:
+          slot_conditions:
+            overcast_sky_illuminance:
+              required: true
+"""
+
+EX_CR = rdflib.Namespace("https://example.org/conditional-required/")
+
+
+def test_conditional_required_generates_sparql():
+    """equals_string precondition + required postcondition → one sh:sparql constraint."""
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+
+    shape = EX_CR.Weather
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    node = sparql_nodes[0]
+    assert (node, RDF.type, SH.SPARQLConstraint) in g
+    query = str(list(g.objects(node, SH.select))[0])
+
+    assert "$this" in query, "SPARQL must use $this pre-bound variable (SHACL §5.3.1)"
+    assert "FILTER NOT EXISTS" in query, "required violation must use FILTER NOT EXISTS"
+    # precondition references the enum meaning IRI and the trigger slot
+    assert f"<{EX_CR.MeasuredOvercastSky}>" in query, f"precondition must use the enum IRI, got:\n{query}"
+    assert str(EX_CR.sky_model) in query
+    assert str(EX_CR.overcast_sky_illuminance) in query
+
+
+def test_conditional_required_message_from_description():
+    """Rule description is emitted as sh:message."""
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+    messages = [str(m) for node in g.objects(EX_CR.Weather, SH.sparql) for m in g.objects(node, SH.message)]
+    assert any("requires the sky illuminance" in m for m in messages), messages
+
+
+def test_conditional_required_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+    for node in g.objects(EX_CR.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_conditional_required_pyshacl_end_to_end():
+    """End-to-end: pyshacl passes conforming instances and flags the violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_CONDITIONAL_REQUIRED_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: MeasuredOvercastSky WITH illuminance; ClearSky needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/conditional-required/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wMeasured a ex:Weather ;
+        ex:sky_model ex:MeasuredOvercastSky ;
+        ex:overcast_sky_illuminance "4200.0"^^xsd:float .
+
+    ex:wClear a ex:Weather ;
+        ex:sky_model ex:ClearSky .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: MeasuredOvercastSky WITHOUT the required illuminance.
+    violating = """
+    @prefix ex: <https://example.org/conditional-required/> .
+
+    ex:wBad a ex:Weather ;
+        ex:sky_model ex:MeasuredOvercastSky .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"MeasuredOvercastSky without illuminance should fail:\n{txt}"
