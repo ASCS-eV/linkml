@@ -3544,3 +3544,163 @@ def test_nested_precondition_pyshacl_end_to_end():
         advanced=True,
     )
     assert not conforms, f"Night without a headlight note should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: has_member list-membership postcondition (M5)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  any supported precondition (here value_presence PRESENT)
+#   - postconditions: multivalued slot has_member with a nested
+#     range_expression constraining the member's inner slots
+#
+# Semantics: "If the precondition holds, the list must contain a member
+# matching the inner conditions."  Violation = no such member (FILTER NOT
+# EXISTS over the members).  Inner enum values resolve against the member
+# class (LightControlGroup), which disambiguates the reused `type` slot.
+# ===========================================================================
+
+_HAS_MEMBER_SCHEMA_YAML = """
+id: https://example.org/has-member
+name: has_member_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/has-member/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  LightGroupEnum:
+    permissible_values:
+      Vehicle:
+        meaning: ex:Vehicle
+      StreetLight:
+        meaning: ex:StreetLight
+  LightTypeEnum:
+    permissible_values:
+      low_beam_headlight:
+        meaning: ex:low_beam_headlight
+      front_fog_light:
+        meaning: ex:front_fog_light
+
+slots:
+  fog_declared:
+    range: string
+    slot_uri: ex:fog_declared
+  enabled_light_control_groups:
+    range: LightControlGroup
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+    slot_uri: ex:enabled_light_control_groups
+  group:
+    range: LightGroupEnum
+    slot_uri: ex:group
+  type:
+    range: LightTypeEnum
+    slot_uri: ex:type
+
+classes:
+  LightControlGroup:
+    class_uri: ex:LightControlGroup
+    slots:
+      - group
+      - type
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - fog_declared
+      - enabled_light_control_groups
+    rules:
+      - description: When fog is declared, a front fog light group must be enabled.
+        preconditions:
+          slot_conditions:
+            fog_declared:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            enabled_light_control_groups:
+              has_member:
+                range_expression:
+                  slot_conditions:
+                    group:
+                      equals_string: Vehicle
+                    type:
+                      equals_string: front_fog_light
+"""
+
+EX_HM = rdflib.Namespace("https://example.org/has-member/")
+
+
+def test_has_member_generates_sparql():
+    """has_member postcondition emits a FILTER NOT EXISTS over list members."""
+    g = _parse_shacl(_HAS_MEMBER_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_HM.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "FILTER NOT EXISTS" in query, "list-membership violation must use FILTER NOT EXISTS"
+    assert str(EX_HM.enabled_light_control_groups) in query
+    assert str(EX_HM.group) in query and str(EX_HM.type) in query
+    # inner enum values resolve against the member class (LightControlGroup),
+    # so the reused `type` slot picks LightTypeEnum, not another enum.
+    assert f"<{EX_HM.Vehicle}>" in query, f"group value must be the enum IRI, got:\n{query}"
+    assert f"<{EX_HM.front_fog_light}>" in query, f"type value must be the enum IRI, got:\n{query}"
+
+
+def test_has_member_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_HAS_MEMBER_SCHEMA_YAML)
+    for node in g.objects(EX_HM.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_has_member_pyshacl_end_to_end():
+    """End-to-end: fog requires a front-fog-light member; otherwise it fails."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_HAS_MEMBER_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: fog declared WITH a front-fog-light group; and no fog at all.
+    conforming = """
+    @prefix ex: <https://example.org/has-member/> .
+
+    ex:wFog a ex:Weather ;
+        ex:fog_declared "yes" ;
+        ex:enabled_light_control_groups
+            [ a ex:LightControlGroup ; ex:group ex:Vehicle ; ex:type ex:front_fog_light ] .
+
+    ex:wNoFog a ex:Weather .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: fog declared but only a low-beam group (no front fog light).
+    violating = """
+    @prefix ex: <https://example.org/has-member/> .
+
+    ex:wBad a ex:Weather ;
+        ex:fog_declared "yes" ;
+        ex:enabled_light_control_groups
+            [ a ex:LightControlGroup ; ex:group ex:Vehicle ; ex:type ex:low_beam_headlight ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Fog without a front-fog-light group should fail:\n{txt}"

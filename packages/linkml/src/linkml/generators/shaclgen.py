@@ -731,12 +731,29 @@ class ShaclGenerator(Generator):
           node that satisfies the preconditions.
         * ``value_presence: ABSENT`` — violation = the target slot *is* present
           (inapplicable-slot / conditional-absent).
+        * ``has_member`` with a nested ``range_expression`` — violation = *no*
+          member of the (multivalued) target slot matches the inner conditions
+          (list-membership; e.g. the light-group list must contain a
+          ``{group: Vehicle, type: front_fog_light}`` entry).
         """
         path = self._slot_uri(sv, slot_name, cls)
         if getattr(cond, "required", None) is True:
             return [f"FILTER NOT EXISTS {{ $this <{path}> ?post . }}"]
         if getattr(cond, "value_presence", None) == PresenceEnum(PresenceEnum.ABSENT):
             return [f"$this <{path}> ?post ."]
+        has_member = getattr(cond, "has_member", None)
+        if (
+            has_member is not None
+            and getattr(has_member, "range_expression", None) is not None
+            and getattr(has_member.range_expression, "slot_conditions", None)
+        ):
+            member_lines = [f"$this <{path}> ?mem ."]
+            inner = self._member_conditions(sv, cls, slot_name, "?mem", has_member.range_expression.slot_conditions)
+            if inner is None:
+                return None
+            member_lines.extend(inner)
+            block = " ".join(member_lines)
+            return [f"FILTER NOT EXISTS {{ {block} }}"]
         return None
 
     def _build_boolean_guard_sparql(self, sv, cls: ClassDefinition, flag_slot_name: str, value_slot_name: str) -> str:
