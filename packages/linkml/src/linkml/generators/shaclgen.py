@@ -109,11 +109,15 @@ class ShaclGenerator(Generator):
 
     When ``True`` (default), recognised rule patterns are translated into
     SHACL-SPARQL constraints (``sh:SPARQLConstraint``) on the corresponding
-    ``sh:NodeShape``.  Currently two patterns are recognised:
+    ``sh:NodeShape``.  Currently three patterns are recognised:
 
     * *Boolean guard* — a precondition with ``value_presence: PRESENT`` on a
       value slot and a postcondition with ``equals_string: "true"`` on a
       boolean flag slot.
+    * *Presence implies value* — a precondition with ``value_presence: PRESENT``
+      on a value slot and a postcondition with ``equals_string`` or
+      ``equals_string_in`` on a (typically enum-valued) target slot.  This
+      generalises the boolean guard to arbitrary required values.
     * *Exclusive value* — a precondition with ``equals_string`` on a slot and
       a postcondition with ``maximum_cardinality`` on the *same* slot.
 
@@ -405,6 +409,13 @@ class ShaclGenerator(Generator):
           ``value_presence: PRESENT`` on a value slot and a *postcondition*
           with ``equals_string: "true"`` on a boolean flag slot.
 
+        * **Presence implies value** — a *precondition* with
+          ``value_presence: PRESENT`` on a value slot and a *postcondition*
+          with ``equals_string`` or ``equals_string_in`` on a target slot.
+          Enforces that when the value slot is present, the target slot must
+          be present and hold one of the allowed values (generalises the
+          boolean guard to enum-valued targets).
+
         * **Exclusive value** — a *precondition* with ``equals_string`` on
           a slot and a *postcondition* with ``maximum_cardinality`` on the
           *same* slot.  Enforces that when a specific value is present in a
@@ -496,6 +507,18 @@ class ShaclGenerator(Generator):
             if is_value_present and is_flag_true:
                 return self._build_boolean_guard_sparql(sv, cls, post_slot_name, pre_slot_name)
 
+            # Pattern: presence implies value (enum guard)
+            # preconditions: value slot with value_presence PRESENT
+            # postconditions: target slot with equals_string or equals_string_in
+            # Semantics: "If the value slot is present, the target slot must be
+            # present and hold one of the allowed values."  Generalises the
+            # boolean guard (equals_string "true") to arbitrary enum values.
+            post_equals = getattr(post_cond, "equals_string", None)
+            post_equals_in = getattr(post_cond, "equals_string_in", None)
+            if is_value_present and (post_equals is not None or post_equals_in):
+                allowed = list(post_equals_in) if post_equals_in else [post_equals]
+                return self._build_presence_implies_value_sparql(sv, cls, pre_slot_name, post_slot_name, allowed)
+
             # Pattern: exclusive value
             # preconditions: slot X has equals_string (a specific enum value)
             # postconditions: same slot X has maximum_cardinality N
@@ -529,6 +552,42 @@ class ShaclGenerator(Generator):
             f'        ( !BOUND(?flag) || str(?flag) != "true" ) &&\n'
             f"        BOUND(?value)\n"
             f"    )\n"
+            f"}}"
+        )
+
+    def _build_presence_implies_value_sparql(
+        self,
+        sv,
+        cls: ClassDefinition,
+        value_slot_name: str,
+        target_slot_name: str,
+        allowed_values: list[str],
+    ) -> str:
+        """Build a SPARQL SELECT query for the presence-implies-value pattern.
+
+        Detects violations where the *value slot* is present but the *target
+        slot* is absent or holds a value outside the allowed set.  This
+        generalises the boolean-guard pattern to enum-valued targets: it
+        supports a single required value (``equals_string``) or a set of
+        acceptable values (``equals_string_in``).
+
+        Each allowed value is resolved via the target slot's enum ``meaning``
+        to a full IRI; values without a ``meaning`` (or non-enum targets) fall
+        back to a plain string literal.
+
+        Conforms to `SHACL §5.3.1
+        <https://www.w3.org/TR/shacl/#sparql-constraints-prebound>`_:
+        ``$this`` is pre-bound to each focus node.
+        """
+        value_uri = self._slot_uri(sv, value_slot_name, cls)
+        target_uri = self._slot_uri(sv, target_slot_name, cls)
+        refs = ", ".join(self._resolve_enum_value_ref(sv, target_slot_name, v) for v in allowed_values)
+
+        return (
+            f"SELECT $this WHERE {{\n"
+            f"    $this <{value_uri}> ?value .\n"
+            f"    OPTIONAL {{ $this <{target_uri}> ?target . }}\n"
+            f"    FILTER ( !BOUND(?target) || ?target NOT IN ({refs}) )\n"
             f"}}"
         )
 
@@ -890,8 +949,9 @@ def add_simple_data_type(func: Callable, r: ElementName) -> None:
     show_default=True,
     help=(
         "Emit sh:sparql constraints from LinkML rules: blocks. "
-        "When enabled (default), recognised rule patterns (e.g. boolean-guard) "
-        "are translated into SHACL-SPARQL constraints on the corresponding "
+        "When enabled (default), recognised rule patterns (boolean-guard, "
+        "presence-implies-value, exclusive-value) are translated into "
+        "SHACL-SPARQL constraints on the corresponding "
         "sh:NodeShape. Use --no-emit-rules to suppress rule generation."
     ),
 )
