@@ -3291,3 +3291,123 @@ def test_conditional_absent_pyshacl_end_to_end():
         advanced=True,
     )
     assert not conforms, f"ClearSky with illuminance should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: numeric threshold precondition (M3)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has maximum_value N (or minimum_value)
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If X <= N, then Y must be present."  The threshold becomes a
+# SPARQL FILTER; combined here with the M1 required violation.
+# ===========================================================================
+
+_THRESHOLD_SCHEMA_YAML = """
+id: https://example.org/threshold
+name: threshold_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/threshold/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  meteorological_optical_range:
+    range: float
+    slot_uri: ex:meteorological_optical_range
+  fog_note:
+    range: string
+    slot_uri: ex:fog_note
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - meteorological_optical_range
+      - fog_note
+    rules:
+      - description: In fog (optical range at or below 4000) a fog note is required.
+        preconditions:
+          slot_conditions:
+            meteorological_optical_range:
+              maximum_value: 4000
+        postconditions:
+          slot_conditions:
+            fog_note:
+              required: true
+"""
+
+EX_THR = rdflib.Namespace("https://example.org/threshold/")
+
+
+def test_threshold_precondition_generates_sparql():
+    """maximum_value precondition emits a numeric FILTER on the trigger slot."""
+    g = _parse_shacl(_THRESHOLD_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_THR.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "<= 4000" in query, f"threshold must emit '<= 4000', got:\n{query}"
+    assert "FILTER NOT EXISTS" in query, "required postcondition violation must use NOT EXISTS"
+    assert str(EX_THR.meteorological_optical_range) in query
+    assert str(EX_THR.fog_note) in query
+
+
+def test_threshold_precondition_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_THRESHOLD_SCHEMA_YAML)
+    for node in g.objects(EX_THR.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_threshold_precondition_pyshacl_end_to_end():
+    """End-to-end: below-threshold requires the note; above-threshold does not."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_THRESHOLD_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: foggy (400) with a note; clear (5000) needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/threshold/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wFog a ex:Weather ;
+        ex:meteorological_optical_range "400.0"^^xsd:float ;
+        ex:fog_note "reduced visibility" .
+
+    ex:wClear a ex:Weather ;
+        ex:meteorological_optical_range "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: foggy (400) without the required note.
+    violating = """
+    @prefix ex: <https://example.org/threshold/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:meteorological_optical_range "400.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Fog without the required note should fail:\n{txt}"

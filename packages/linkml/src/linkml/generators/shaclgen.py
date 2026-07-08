@@ -620,7 +620,9 @@ class ShaclGenerator(Generator):
 
         Returns ``None`` if any condition uses an operator not handled here.
 
-        Supported operators: ``value_presence: PRESENT`` and ``equals_string``.
+        Supported operators: ``value_presence: PRESENT``, ``equals_string``,
+        and the numeric thresholds ``minimum_value`` / ``maximum_value``
+        (inclusive bounds, per the LinkML metamodel).
         """
         lines: list[str] = []
         for i, (slot_name, cond) in enumerate(pre_slots.items()):
@@ -632,9 +634,27 @@ class ShaclGenerator(Generator):
                 ref = self._resolve_enum_value_ref(sv, slot_name, cond.equals_string)
                 lines.append(f"$this <{path}> {var} .")
                 lines.append(f"FILTER ( {var} = {ref} )")
+            elif getattr(cond, "maximum_value", None) is not None:
+                lines.append(f"$this <{path}> {var} .")
+                lines.append(f"FILTER ( {var} <= {self._sparql_number(cond.maximum_value)} )")
+            elif getattr(cond, "minimum_value", None) is not None:
+                lines.append(f"$this <{path}> {var} .")
+                lines.append(f"FILTER ( {var} >= {self._sparql_number(cond.minimum_value)} )")
             else:
                 return None
         return lines
+
+    @staticmethod
+    def _sparql_number(value) -> str:
+        """Render a numeric threshold bound as a SPARQL numeric literal.
+
+        LinkML parses ``minimum_value`` / ``maximum_value`` as ``int`` or
+        ``float`` (possibly the ``extended_int`` / ``extended_float`` runtime
+        subclasses); ``str`` yields a plain numeric token
+        (e.g. ``4000`` or ``0.0``) that SPARQL compares with numeric promotion
+        against ``xsd:float`` / ``xsd:decimal`` data values.
+        """
+        return str(value)
 
     def _postcondition_violation(self, sv, cls: ClassDefinition, slot_name: str, cond) -> list[str] | None:
         """Translate a single postcondition slot condition into SPARQL that
