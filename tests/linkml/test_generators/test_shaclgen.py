@@ -3159,3 +3159,135 @@ def test_conditional_required_pyshacl_end_to_end():
         advanced=True,
     )
     assert not conforms, f"MeasuredOvercastSky without illuminance should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: conditional-absent pattern (M2)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has equals_string V
+#   - postconditions: slot Y has value_presence: ABSENT
+#
+# Semantics: "If X = V, then Y must NOT be present" (inapplicable slot).
+# Emitted as an sh:SPARQLConstraint whose SELECT matches focus nodes where the
+# precondition holds and the forbidden slot is present.
+# ===========================================================================
+
+_CONDITIONAL_ABSENT_SCHEMA_YAML = """
+id: https://example.org/conditional-absent
+name: conditional_absent_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/conditional-absent/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  SkyModelEnum:
+    permissible_values:
+      ClearSky:
+        meaning: ex:ClearSky
+      OvercastSky:
+        meaning: ex:OvercastSky
+
+slots:
+  sky_model:
+    range: SkyModelEnum
+    slot_uri: ex:sky_model
+  overcast_sky_illuminance:
+    range: float
+    slot_uri: ex:overcast_sky_illuminance
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sky_model
+      - overcast_sky_illuminance
+    rules:
+      - description: ClearSky makes overcast_sky_illuminance inapplicable.
+        preconditions:
+          slot_conditions:
+            sky_model:
+              equals_string: ClearSky
+        postconditions:
+          slot_conditions:
+            overcast_sky_illuminance:
+              value_presence: ABSENT
+"""
+
+EX_CA = rdflib.Namespace("https://example.org/conditional-absent/")
+
+
+def test_conditional_absent_generates_sparql():
+    """equals_string precondition + value_presence ABSENT → one sh:sparql constraint."""
+    g = _parse_shacl(_CONDITIONAL_ABSENT_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_CA.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "$this" in query
+    # violation = precondition holds AND the forbidden slot is present; the
+    # forbidden-slot triple must NOT be wrapped in NOT EXISTS.
+    assert "FILTER NOT EXISTS" not in query, f"conditional-absent must not use NOT EXISTS, got:\n{query}"
+    assert f"<{EX_CA.ClearSky}>" in query
+    assert str(EX_CA.overcast_sky_illuminance) in query
+
+
+def test_conditional_absent_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_CONDITIONAL_ABSENT_SCHEMA_YAML)
+    for node in g.objects(EX_CA.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_conditional_absent_pyshacl_end_to_end():
+    """End-to-end: pyshacl passes conforming instances and flags the violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_CONDITIONAL_ABSENT_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: ClearSky without illuminance; OvercastSky may set illuminance.
+    conforming = """
+    @prefix ex: <https://example.org/conditional-absent/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wClear a ex:Weather ;
+        ex:sky_model ex:ClearSky .
+
+    ex:wOvercast a ex:Weather ;
+        ex:sky_model ex:OvercastSky ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: ClearSky WITH the inapplicable illuminance.
+    violating = """
+    @prefix ex: <https://example.org/conditional-absent/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:sky_model ex:ClearSky ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"ClearSky with illuminance should fail:\n{txt}"

@@ -642,12 +642,18 @@ class ShaclGenerator(Generator):
 
         Returns ``None`` for operators not handled here.
 
-        Supported operators: ``required: true`` (violation = the target slot is
-        absent on a focus node that satisfies the preconditions).
+        Supported operators:
+
+        * ``required: true`` — violation = the target slot is absent on a focus
+          node that satisfies the preconditions.
+        * ``value_presence: ABSENT`` — violation = the target slot *is* present
+          (inapplicable-slot / conditional-absent).
         """
         path = self._slot_uri(sv, slot_name, cls)
         if getattr(cond, "required", None) is True:
             return [f"FILTER NOT EXISTS {{ $this <{path}> ?post . }}"]
+        if getattr(cond, "value_presence", None) == PresenceEnum(PresenceEnum.ABSENT):
+            return [f"$this <{path}> ?post ."]
         return None
 
     def _build_boolean_guard_sparql(self, sv, cls: ClassDefinition, flag_slot_name: str, value_slot_name: str) -> str:
