@@ -600,46 +600,75 @@ class ShaclGenerator(Generator):
         body = "\n".join(f"    {line}" for line in (pre_lines + violation))
         return f"SELECT $this WHERE {{\n{body}\n}}"
 
+    def _scalar_filters(self, var: str, cond, resolve: Callable[[str], str]) -> list[str] | None:
+        """Return the SPARQL ``FILTER`` lines for the scalar operators on *cond*.
+
+        Unlike a first-match dispatch, **every** recognised operator contributes
+        a line, so a condition combining operators — e.g. a bounded range
+        ``{minimum_value: X, maximum_value: Y}`` — emits *both* bounds instead of
+        silently keeping only the first and under-constraining the query.
+        ``value_presence: PRESENT`` contributes no filter (the caller's triple
+        binding already enforces presence).
+
+        *resolve* maps an ``equals_string`` value to a SPARQL term (an enum
+        ``meaning`` IRI or an escaped string literal).
+
+        Returns ``None`` when *cond* sets none of the recognised scalar
+        operators, so the caller skips a rule it cannot faithfully translate
+        rather than emitting an under-constrained (or vacuous) query.
+        """
+        filters: list[str] = []
+        recognized = getattr(cond, "value_presence", None) == PresenceEnum(PresenceEnum.PRESENT)
+        equals = getattr(cond, "equals_string", None)
+        if equals is not None:
+            filters.append(f"FILTER ( {var} = {resolve(equals)} )")
+            recognized = True
+        minimum = getattr(cond, "minimum_value", None)
+        if minimum is not None:
+            filters.append(f"FILTER ( {var} >= {self._sparql_number(minimum)} )")
+            recognized = True
+        maximum = getattr(cond, "maximum_value", None)
+        if maximum is not None:
+            filters.append(f"FILTER ( {var} <= {self._sparql_number(maximum)} )")
+            recognized = True
+        return filters if recognized else None
+
     def _precondition_patterns(self, sv, cls: ClassDefinition, pre_slots) -> list[str] | None:
         """Translate a conjunction of precondition slot conditions into SPARQL
         graph patterns (plus ``FILTER`` lines) that bind focus nodes satisfying
         every condition.
 
-        Returns ``None`` if any condition uses an operator not handled here.
+        Returns ``None`` if any condition sets no recognised operator.
 
-        Supported operators: ``value_presence: PRESENT``, ``equals_string``,
-        and the numeric thresholds ``minimum_value`` / ``maximum_value``
-        (inclusive bounds, per the LinkML metamodel).
+        Supported operators, which **combine** on a single condition (so a
+        bounded range ``{minimum_value: X, maximum_value: Y}`` emits both
+        bounds): ``value_presence: PRESENT``, ``equals_string``, and the numeric
+        thresholds ``minimum_value`` / ``maximum_value`` (inclusive, per the
+        LinkML metamodel).  A ``range_expression`` with inner ``slot_conditions``
+        reaches one hop into an inlined child object.
         """
         lines: list[str] = []
         for i, (slot_name, cond) in enumerate(pre_slots.items()):
             path = self._slot_uri(sv, slot_name, cls)
             var = f"?pre{i}"
-            if getattr(cond, "value_presence", None) == PresenceEnum(PresenceEnum.PRESENT):
-                lines.append(f"$this <{path}> {var} .")
-            elif getattr(cond, "equals_string", None) is not None:
-                ref = self._resolve_enum_value_ref(sv, slot_name, cond.equals_string)
-                lines.append(f"$this <{path}> {var} .")
-                lines.append(f"FILTER ( {var} = {ref} )")
-            elif getattr(cond, "maximum_value", None) is not None:
-                lines.append(f"$this <{path}> {var} .")
-                lines.append(f"FILTER ( {var} <= {self._sparql_number(cond.maximum_value)} )")
-            elif getattr(cond, "minimum_value", None) is not None:
-                lines.append(f"$this <{path}> {var} .")
-                lines.append(f"FILTER ( {var} >= {self._sparql_number(cond.minimum_value)} )")
-            elif getattr(cond, "range_expression", None) is not None and getattr(
-                cond.range_expression, "slot_conditions", None
-            ):
+            range_expr = getattr(cond, "range_expression", None)
+            if range_expr is not None and getattr(range_expr, "slot_conditions", None):
                 # One-hop into an inlined child object: bind the child node and
                 # apply the inner slot conditions to it.
                 node = f"{var}_node"
                 lines.append(f"$this <{path}> {node} .")
-                inner = self._member_conditions(sv, cls, slot_name, node, cond.range_expression.slot_conditions)
+                inner = self._member_conditions(sv, cls, slot_name, node, range_expr.slot_conditions)
                 if inner is None:
                     return None
                 lines.extend(inner)
-            else:
+                continue
+            filters = self._scalar_filters(
+                var, cond, lambda v, sn=slot_name: self._resolve_enum_value_ref(sv, sn, v, cls)
+            )
+            if filters is None:
                 return None
+            lines.append(f"$this <{path}> {var} .")
+            lines.extend(filters)
         return lines
 
     def _member_conditions(
@@ -650,27 +679,23 @@ class ShaclGenerator(Generator):
 
         Shared by the nested ``range_expression`` precondition (single inlined
         child) and the ``has_member`` postcondition (a list member).  Enum
-        values are resolved against the container slot's range class.  Returns
-        ``None`` for unsupported inner operators.
+        values are resolved against the container slot's range class, and (like
+        preconditions) combining operators on one condition emits all of them.
+        Returns ``None`` for unsupported inner operators.
         """
         lines: list[str] = []
         for j, (inner_name, icond) in enumerate(slot_conditions.items()):
             ipath = self._slot_uri(sv, inner_name, cls)
             ivar = f"{node_var}_{j}"
-            if getattr(icond, "value_presence", None) == PresenceEnum(PresenceEnum.PRESENT):
-                lines.append(f"{node_var} <{ipath}> {ivar} .")
-            elif getattr(icond, "equals_string", None) is not None:
-                iref = self._resolve_member_enum_ref(sv, container_slot_name, inner_name, icond.equals_string)
-                lines.append(f"{node_var} <{ipath}> {ivar} .")
-                lines.append(f"FILTER ( {ivar} = {iref} )")
-            elif getattr(icond, "maximum_value", None) is not None:
-                lines.append(f"{node_var} <{ipath}> {ivar} .")
-                lines.append(f"FILTER ( {ivar} <= {self._sparql_number(icond.maximum_value)} )")
-            elif getattr(icond, "minimum_value", None) is not None:
-                lines.append(f"{node_var} <{ipath}> {ivar} .")
-                lines.append(f"FILTER ( {ivar} >= {self._sparql_number(icond.minimum_value)} )")
-            else:
+            filters = self._scalar_filters(
+                ivar,
+                icond,
+                lambda v, inm=inner_name: self._resolve_member_enum_ref(sv, container_slot_name, inm, v),
+            )
+            if filters is None:
                 return None
+            lines.append(f"{node_var} <{ipath}> {ivar} .")
+            lines.extend(filters)
         return lines
 
     def _resolve_member_enum_ref(self, sv, container_slot_name: str, inner_slot_name: str, value_name: str) -> str:
@@ -705,6 +730,27 @@ class ShaclGenerator(Generator):
         against ``xsd:float`` / ``xsd:decimal`` data values.
         """
         return str(value)
+
+    @staticmethod
+    def _sparql_string_literal(value: str) -> str:
+        """Render *value* as a double-quoted SPARQL string literal, escaping the
+        characters the grammar forbids raw.
+
+        ``equals_string`` / permissible-value names are schema-controlled but
+        may legitimately contain a double quote, backslash, or newline; without
+        escaping these would break the ``sh:select`` query (or allow SPARQL
+        injection).  See `SPARQL 1.1 §19.7 escape sequences
+        <https://www.w3.org/TR/sparql11-query/#grammarEscapes>`_.
+        """
+        escaped = (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+        )
+        return f'"{escaped}"'
 
     def _postcondition_violation(self, sv, cls: ClassDefinition, slot_name: str, cond) -> list[str] | None:
         """Translate a single postcondition slot condition into SPARQL that
@@ -793,7 +839,7 @@ class ShaclGenerator(Generator):
         """
         value_uri = self._slot_uri(sv, value_slot_name, cls)
         target_uri = self._slot_uri(sv, target_slot_name, cls)
-        refs = ", ".join(self._resolve_enum_value_ref(sv, target_slot_name, v) for v in allowed_values)
+        refs = ", ".join(self._resolve_enum_value_ref(sv, target_slot_name, v, cls) for v in allowed_values)
 
         return (
             f"SELECT $this WHERE {{\n"
@@ -830,7 +876,7 @@ class ShaclGenerator(Generator):
         ``$this`` is pre-bound to each focus node.
         """
         slot_uri = self._slot_uri(sv, slot_name, cls)
-        value_ref = self._resolve_enum_value_ref(sv, slot_name, value_name)
+        value_ref = self._resolve_enum_value_ref(sv, slot_name, value_name, cls)
 
         if max_card == 1:
             return (
@@ -853,15 +899,23 @@ class ShaclGenerator(Generator):
             f"}}"
         )
 
-    def _resolve_enum_value_ref(self, sv, slot_name: str, value_name: str) -> str:
+    def _resolve_enum_value_ref(self, sv, slot_name: str, value_name: str, cls: ClassDefinition | None = None) -> str:
         """Resolve an enum value name to a SPARQL term (IRI or literal).
 
         Looks up the slot's range as an enum, finds the permissible value
         matching *value_name*, and returns its ``meaning`` as a full IRI
-        wrapped in angle brackets.  Falls back to a quoted literal if the
-        slot is not an enum or the value lacks a ``meaning``.
+        wrapped in angle brackets.  Falls back to an escaped quoted literal if
+        the slot is not an enum or the value lacks a ``meaning``.
+
+        When *cls* is given and the slot is declared on it, the slot is resolved
+        in the class's induced context, so a range narrowed via ``slot_usage``
+        (a class-specific enum) selects the correct permissible values instead
+        of the base slot's enum.
         """
-        slot = sv.get_slot(slot_name)
+        if cls is not None and slot_name in sv.class_slots(cls.name):
+            slot = sv.induced_slot(slot_name, cls.name)
+        else:
+            slot = sv.get_slot(slot_name)
         if slot:
             range_name = slot.range
             if range_name and range_name in sv.all_enums():
@@ -870,17 +924,22 @@ class ShaclGenerator(Generator):
                 if pv and pv.meaning:
                     iri = sv.expand_curie(pv.meaning)
                     return f"<{iri}>"
-        return f'"{value_name}"'
+        return self._sparql_string_literal(value_name)
 
     def _slot_uri(self, sv, slot_name: str, cls: ClassDefinition) -> str:
         """Resolve a slot name to a full IRI string for use in SPARQL queries.
 
-        Mirrors the resolution logic used for ``sh:path`` in the main slot loop:
-        prefer ``sv.get_uri()`` for slots registered in the schema map, fall
-        back to ``default_prefix:underscored_name``.
+        Mirrors the resolution logic used for ``sh:path`` in the main slot loop,
+        including the **induced** (class-specific) slot: a ``slot_usage``
+        override of ``slot_uri`` must yield the same IRI as ``sh:path``.
+        Otherwise the SPARQL body would query a property the data never uses and
+        the constraint would silently never fire (a false negative).
         """
-        slot = sv.get_slot(slot_name)
-        if slot and slot_name in sv.element_by_schema_map():
+        if slot_name in sv.class_slots(cls.name):
+            slot = sv.induced_slot(slot_name, cls.name)
+        else:
+            slot = sv.get_slot(slot_name)
+        if slot and slot.name in sv.element_by_schema_map():
             return sv.get_uri(slot, expand=True)
         pfx = sv.schema.default_prefix
         return sv.expand_curie(f"{pfx}:{underscore(slot_name)}")

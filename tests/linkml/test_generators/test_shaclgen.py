@@ -3494,3 +3494,334 @@ def test_has_member_pyshacl_end_to_end():
         advanced=True,
     )
     assert not conforms, f"Fog without a front-fog-light group should fail:\n{txt}"
+
+
+# ===========================================================================
+# Rule-converter robustness regressions (review hardening)
+#
+# These guard three defects found while reviewing the rule converters:
+#   1. A single precondition combining minimum_value + maximum_value dropped
+#      all but the first bound (silent under-constraint / false positives).
+#   2. A slot_usage `slot_uri` (or enum `range`) override made the SPARQL body
+#      query the *base* IRI while `sh:path` used the *induced* IRI, so the
+#      constraint silently never fired (false negative).
+#   3. An `equals_string` value containing a quote/backslash produced invalid,
+#      unparsable SPARQL (broken artifact / injection).
+# ===========================================================================
+
+_COMBINED_BOUNDS_SCHEMA_YAML = """
+id: https://example.org/combined-bounds
+name: combined_bounds_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/combined-bounds/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  reading_value:
+    range: integer
+    slot_uri: ex:reading_value
+  reading_note:
+    range: string
+    slot_uri: ex:reading_note
+
+classes:
+  Reading:
+    class_uri: ex:Reading
+    slots:
+      - reading_value
+      - reading_note
+    rules:
+      - description: A mid-range reading requires an explanatory note.
+        preconditions:
+          slot_conditions:
+            reading_value:
+              minimum_value: 10
+              maximum_value: 20
+        postconditions:
+          slot_conditions:
+            reading_note:
+              required: true
+"""
+
+EX_CB = rdflib.Namespace("https://example.org/combined-bounds/")
+
+
+def test_rule_precondition_combines_min_and_max_bounds():
+    """A precondition with both minimum_value and maximum_value must emit both
+    bounds; the pre-fix first-match dispatch kept only the maximum."""
+    g = _parse_shacl(_COMBINED_BOUNDS_SCHEMA_YAML)
+
+    nodes = list(g.objects(EX_CB.Reading, SH.sparql))
+    assert len(nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(nodes)}"
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+    assert ">= 10" in query, f"lower bound must be emitted, got:\n{query}"
+    assert "<= 20" in query, f"upper bound must be emitted, got:\n{query}"
+
+
+def test_rule_combined_bounds_pyshacl_end_to_end():
+    """End-to-end: only values inside [10, 20] trigger the required note.
+
+    The below-threshold case is the key assertion — without the lower bound it
+    would be flagged as a violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_COMBINED_BOUNDS_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    conforming = """
+    @prefix ex: <https://example.org/combined-bounds/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:mid a ex:Reading ; ex:reading_value 15 ; ex:reading_note "in range" .
+    ex:low a ex:Reading ; ex:reading_value 5 .
+    ex:high a ex:Reading ; ex:reading_value 25 .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Out-of-range readings must not require a note:\n{txt}"
+
+    violating = """
+    @prefix ex: <https://example.org/combined-bounds/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:bad a ex:Reading ; ex:reading_value 15 .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"A mid-range reading without a note must fail:\n{txt}"
+
+
+_SLOT_URI_OVERRIDE_SCHEMA_YAML = """
+id: https://example.org/slot-uri-override
+name: slot_uri_override_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/slot-uri-override/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  trigger:
+    range: string
+    slot_uri: ex:GLOBAL_trigger
+  dependent:
+    range: string
+    slot_uri: ex:GLOBAL_dependent
+
+classes:
+  Scene:
+    class_uri: ex:Scene
+    slots:
+      - trigger
+      - dependent
+    slot_usage:
+      trigger:
+        slot_uri: ex:LOCAL_trigger
+      dependent:
+        slot_uri: ex:LOCAL_dependent
+    rules:
+      - description: If the trigger is present the dependent slot is required.
+        preconditions:
+          slot_conditions:
+            trigger:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            dependent:
+              required: true
+"""
+
+EX_OVR = rdflib.Namespace("https://example.org/slot-uri-override/")
+
+
+def test_rule_slot_uri_override_matches_sh_path():
+    """The SPARQL body must use the same induced (class-local) IRIs as sh:path.
+
+    A slot_usage slot_uri override changes sh:path; if the SPARQL keeps the base
+    IRI the query targets a property the data never uses and never fires."""
+    g = _parse_shacl(_SLOT_URI_OVERRIDE_SCHEMA_YAML)
+
+    paths = {str(o) for o in g.objects(None, SH.path)}
+    assert str(EX_OVR.LOCAL_trigger) in paths
+    assert str(EX_OVR.LOCAL_dependent) in paths
+
+    nodes = list(g.objects(EX_OVR.Scene, SH.sparql))
+    assert len(nodes) == 1
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+    assert str(EX_OVR.LOCAL_trigger) in query, f"SPARQL must use the induced IRI, got:\n{query}"
+    assert str(EX_OVR.LOCAL_dependent) in query, f"SPARQL must use the induced IRI, got:\n{query}"
+    assert "GLOBAL_" not in query, f"SPARQL must not fall back to the base slot_uri, got:\n{query}"
+
+
+def test_rule_slot_uri_override_pyshacl_end_to_end():
+    """End-to-end: the constraint actually fires on data that uses the induced
+    (LOCAL) IRIs.  Before the fix the SPARQL queried the base IRIs, so a missing
+    dependent slot slipped through as conforming."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_SLOT_URI_OVERRIDE_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    conforming = """
+    @prefix ex: <https://example.org/slot-uri-override/> .
+
+    ex:ok a ex:Scene ; ex:LOCAL_trigger "t" ; ex:LOCAL_dependent "d" .
+    ex:noTrigger a ex:Scene ; ex:LOCAL_dependent "d" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Trigger-with-dependent (and no-trigger) must pass:\n{txt}"
+
+    violating = """
+    @prefix ex: <https://example.org/slot-uri-override/> .
+
+    ex:bad a ex:Scene ; ex:LOCAL_trigger "t" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Trigger present without the required dependent must fail:\n{txt}"
+
+
+_ENUM_NARROWING_SCHEMA_YAML = """
+id: https://example.org/enum-narrowing
+name: enum_narrowing_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/enum-narrowing/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  BaseMode:
+    permissible_values:
+      Active:
+        meaning: ex:GLOBAL_Active
+  SceneMode:
+    permissible_values:
+      Active:
+        meaning: ex:LOCAL_Active
+
+slots:
+  activator:
+    range: string
+    slot_uri: ex:activator
+  mode:
+    range: BaseMode
+    slot_uri: ex:mode
+
+classes:
+  Scene:
+    class_uri: ex:Scene
+    slots:
+      - activator
+      - mode
+    slot_usage:
+      mode:
+        range: SceneMode
+    rules:
+      - description: If an activator is present the mode must be Active.
+        preconditions:
+          slot_conditions:
+            activator:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            mode:
+              equals_string: Active
+"""
+
+EX_EN = rdflib.Namespace("https://example.org/enum-narrowing/")
+
+
+def test_rule_enum_range_narrowed_by_slot_usage():
+    """A slot_usage range override to a class-specific enum must resolve the
+    value's meaning against the induced (narrowed) enum, not the base range."""
+    g = _parse_shacl(_ENUM_NARROWING_SCHEMA_YAML)
+
+    nodes = list(g.objects(EX_EN.Scene, SH.sparql))
+    assert len(nodes) == 1
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+    assert str(EX_EN.LOCAL_Active) in query, f"must resolve the narrowed enum meaning, got:\n{query}"
+    assert "GLOBAL_Active" not in query, f"must not resolve the base enum meaning, got:\n{query}"
+
+
+_ESCAPING_SCHEMA_YAML = """
+id: https://example.org/escaping
+name: escaping_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/escaping/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  trigger:
+    range: string
+    slot_uri: ex:trigger
+  label:
+    range: string
+    slot_uri: ex:label
+
+classes:
+  Item:
+    class_uri: ex:Item
+    slots:
+      - trigger
+      - label
+    rules:
+      - description: If a trigger is present the label must equal the quoted marker.
+        preconditions:
+          slot_conditions:
+            trigger:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            label:
+              equals_string: 'a"b\\\\c'
+"""
+
+EX_ESC = rdflib.Namespace("https://example.org/escaping/")
+
+
+def test_rule_equals_string_special_chars_escaped():
+    """An equals_string value with a quote and backslash must be escaped so the
+    generated SPARQL stays syntactically valid (no injection / broken query)."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_ESCAPING_SCHEMA_YAML)
+    nodes = list(g.objects(EX_ESC.Item, SH.sparql))
+    assert len(nodes) == 1
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+
+    # Would raise ParseException on the unescaped `... = "a"b\c"` form.
+    prepareQuery(query)
+    assert '\\"' in query, f"double quote must be escaped, got:\n{query}"
+    assert "\\\\" in query, f"backslash must be escaped, got:\n{query}"
