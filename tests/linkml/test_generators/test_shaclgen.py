@@ -2806,3 +2806,691 @@ def test_presence_implies_value_pyshacl_end_to_end():
         advanced=True,
     )
     assert not conforms, f"Missing-target instance should fail SHACL validation:\n{results_text}"
+
+
+# ===========================================================================
+# Compositional fallback: conditional-required pattern (M1)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has equals_string V
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If X = V, then Y must be present."  Emitted as an
+# sh:SPARQLConstraint whose SELECT matches focus nodes where the precondition
+# holds but the required slot is absent (FILTER NOT EXISTS).
+# ===========================================================================
+
+_CONDITIONAL_REQUIRED_SCHEMA_YAML = """
+id: https://example.org/conditional-required
+name: conditional_required_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/conditional-required/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  SkyModelEnum:
+    permissible_values:
+      ClearSky:
+        meaning: ex:ClearSky
+      OvercastSky:
+        meaning: ex:OvercastSky
+      MeasuredOvercastSky:
+        meaning: ex:MeasuredOvercastSky
+
+slots:
+  sky_model:
+    range: SkyModelEnum
+    slot_uri: ex:sky_model
+  overcast_sky_illuminance:
+    range: float
+    slot_uri: ex:overcast_sky_illuminance
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sky_model
+      - overcast_sky_illuminance
+    rules:
+      - description: The MeasuredOvercastSky model requires the sky illuminance.
+        preconditions:
+          slot_conditions:
+            sky_model:
+              equals_string: MeasuredOvercastSky
+        postconditions:
+          slot_conditions:
+            overcast_sky_illuminance:
+              required: true
+"""
+
+EX_CR = rdflib.Namespace("https://example.org/conditional-required/")
+
+
+def test_conditional_required_generates_sparql():
+    """equals_string precondition + required postcondition → one sh:sparql constraint."""
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+
+    shape = EX_CR.Weather
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    node = sparql_nodes[0]
+    assert (node, RDF.type, SH.SPARQLConstraint) in g
+    query = str(list(g.objects(node, SH.select))[0])
+
+    assert "$this" in query, "SPARQL must use $this pre-bound variable (SHACL §5.3.1)"
+    assert "FILTER NOT EXISTS" in query, "required violation must use FILTER NOT EXISTS"
+    # precondition references the enum meaning IRI and the trigger slot
+    assert f"<{EX_CR.MeasuredOvercastSky}>" in query, f"precondition must use the enum IRI, got:\n{query}"
+    assert str(EX_CR.sky_model) in query
+    assert str(EX_CR.overcast_sky_illuminance) in query
+
+
+def test_conditional_required_message_from_description():
+    """Rule description is emitted as sh:message."""
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+    messages = [str(m) for node in g.objects(EX_CR.Weather, SH.sparql) for m in g.objects(node, SH.message)]
+    assert any("requires the sky illuminance" in m for m in messages), messages
+
+
+def test_conditional_required_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+    for node in g.objects(EX_CR.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_conditional_required_pyshacl_end_to_end():
+    """End-to-end: pyshacl passes conforming instances and flags the violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_CONDITIONAL_REQUIRED_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: MeasuredOvercastSky WITH illuminance; ClearSky needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/conditional-required/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wMeasured a ex:Weather ;
+        ex:sky_model ex:MeasuredOvercastSky ;
+        ex:overcast_sky_illuminance "4200.0"^^xsd:float .
+
+    ex:wClear a ex:Weather ;
+        ex:sky_model ex:ClearSky .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: MeasuredOvercastSky WITHOUT the required illuminance.
+    violating = """
+    @prefix ex: <https://example.org/conditional-required/> .
+
+    ex:wBad a ex:Weather ;
+        ex:sky_model ex:MeasuredOvercastSky .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"MeasuredOvercastSky without illuminance should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: conditional-absent pattern (M2)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has equals_string V
+#   - postconditions: slot Y has value_presence: ABSENT
+#
+# Semantics: "If X = V, then Y must NOT be present" (inapplicable slot).
+# Emitted as an sh:SPARQLConstraint whose SELECT matches focus nodes where the
+# precondition holds and the forbidden slot is present.
+# ===========================================================================
+
+_CONDITIONAL_ABSENT_SCHEMA_YAML = """
+id: https://example.org/conditional-absent
+name: conditional_absent_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/conditional-absent/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  SkyModelEnum:
+    permissible_values:
+      ClearSky:
+        meaning: ex:ClearSky
+      OvercastSky:
+        meaning: ex:OvercastSky
+
+slots:
+  sky_model:
+    range: SkyModelEnum
+    slot_uri: ex:sky_model
+  overcast_sky_illuminance:
+    range: float
+    slot_uri: ex:overcast_sky_illuminance
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sky_model
+      - overcast_sky_illuminance
+    rules:
+      - description: ClearSky makes overcast_sky_illuminance inapplicable.
+        preconditions:
+          slot_conditions:
+            sky_model:
+              equals_string: ClearSky
+        postconditions:
+          slot_conditions:
+            overcast_sky_illuminance:
+              value_presence: ABSENT
+"""
+
+EX_CA = rdflib.Namespace("https://example.org/conditional-absent/")
+
+
+def test_conditional_absent_generates_sparql():
+    """equals_string precondition + value_presence ABSENT → one sh:sparql constraint."""
+    g = _parse_shacl(_CONDITIONAL_ABSENT_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_CA.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "$this" in query
+    # violation = precondition holds AND the forbidden slot is present; the
+    # forbidden-slot triple must NOT be wrapped in NOT EXISTS.
+    assert "FILTER NOT EXISTS" not in query, f"conditional-absent must not use NOT EXISTS, got:\n{query}"
+    assert f"<{EX_CA.ClearSky}>" in query
+    assert str(EX_CA.overcast_sky_illuminance) in query
+
+
+def test_conditional_absent_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_CONDITIONAL_ABSENT_SCHEMA_YAML)
+    for node in g.objects(EX_CA.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_conditional_absent_pyshacl_end_to_end():
+    """End-to-end: pyshacl passes conforming instances and flags the violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_CONDITIONAL_ABSENT_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: ClearSky without illuminance; OvercastSky may set illuminance.
+    conforming = """
+    @prefix ex: <https://example.org/conditional-absent/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wClear a ex:Weather ;
+        ex:sky_model ex:ClearSky .
+
+    ex:wOvercast a ex:Weather ;
+        ex:sky_model ex:OvercastSky ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: ClearSky WITH the inapplicable illuminance.
+    violating = """
+    @prefix ex: <https://example.org/conditional-absent/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:sky_model ex:ClearSky ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"ClearSky with illuminance should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: numeric threshold precondition (M3)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has maximum_value N (or minimum_value)
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If X <= N, then Y must be present."  The threshold becomes a
+# SPARQL FILTER; combined here with the M1 required violation.
+# ===========================================================================
+
+_THRESHOLD_SCHEMA_YAML = """
+id: https://example.org/threshold
+name: threshold_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/threshold/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  meteorological_optical_range:
+    range: float
+    slot_uri: ex:meteorological_optical_range
+  fog_note:
+    range: string
+    slot_uri: ex:fog_note
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - meteorological_optical_range
+      - fog_note
+    rules:
+      - description: In fog (optical range at or below 4000) a fog note is required.
+        preconditions:
+          slot_conditions:
+            meteorological_optical_range:
+              maximum_value: 4000
+        postconditions:
+          slot_conditions:
+            fog_note:
+              required: true
+"""
+
+EX_THR = rdflib.Namespace("https://example.org/threshold/")
+
+
+def test_threshold_precondition_generates_sparql():
+    """maximum_value precondition emits a numeric FILTER on the trigger slot."""
+    g = _parse_shacl(_THRESHOLD_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_THR.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "<= 4000" in query, f"threshold must emit '<= 4000', got:\n{query}"
+    assert "FILTER NOT EXISTS" in query, "required postcondition violation must use NOT EXISTS"
+    assert str(EX_THR.meteorological_optical_range) in query
+    assert str(EX_THR.fog_note) in query
+
+
+def test_threshold_precondition_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_THRESHOLD_SCHEMA_YAML)
+    for node in g.objects(EX_THR.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_threshold_precondition_pyshacl_end_to_end():
+    """End-to-end: below-threshold requires the note; above-threshold does not."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_THRESHOLD_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: foggy (400) with a note; clear (5000) needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/threshold/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wFog a ex:Weather ;
+        ex:meteorological_optical_range "400.0"^^xsd:float ;
+        ex:fog_note "reduced visibility" .
+
+    ex:wClear a ex:Weather ;
+        ex:meteorological_optical_range "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: foggy (400) without the required note.
+    violating = """
+    @prefix ex: <https://example.org/threshold/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:meteorological_optical_range "400.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Fog without the required note should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: nested range_expression precondition (M4)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X (inlined child) has range_expression on an inner
+#     slot (e.g. sun_position.elevation <= 0)
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If the child's inner value satisfies the condition, then Y must
+# be present."  The SPARQL binds the child node with one extra hop.
+# ===========================================================================
+
+_NESTED_SCHEMA_YAML = """
+id: https://example.org/nested
+name: nested_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/nested/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  sun_position:
+    range: SunPosition
+    inlined: true
+    slot_uri: ex:sun_position
+  elevation:
+    range: float
+    slot_uri: ex:elevation
+  headlight_note:
+    range: string
+    slot_uri: ex:headlight_note
+
+classes:
+  SunPosition:
+    class_uri: ex:SunPosition
+    slots:
+      - elevation
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sun_position
+      - headlight_note
+    rules:
+      - description: When the sun is at or below the horizon a headlight note is required.
+        preconditions:
+          slot_conditions:
+            sun_position:
+              range_expression:
+                slot_conditions:
+                  elevation:
+                    maximum_value: 0.0
+        postconditions:
+          slot_conditions:
+            headlight_note:
+              required: true
+"""
+
+EX_NEST = rdflib.Namespace("https://example.org/nested/")
+
+
+def test_nested_precondition_generates_sparql():
+    """A nested range_expression precondition emits a two-hop graph pattern."""
+    g = _parse_shacl(_NESTED_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_NEST.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert str(EX_NEST.sun_position) in query, "must traverse the container slot"
+    assert str(EX_NEST.elevation) in query, "must traverse the inner slot"
+    assert "<= 0.0" in query, f"inner threshold must appear, got:\n{query}"
+    assert "FILTER NOT EXISTS" in query
+    assert str(EX_NEST.headlight_note) in query
+
+
+def test_nested_precondition_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_NESTED_SCHEMA_YAML)
+    for node in g.objects(EX_NEST.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_nested_precondition_pyshacl_end_to_end():
+    """End-to-end: sun below horizon requires the note; above horizon does not."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_NESTED_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: night (elevation -90) with a note; day (45) needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/nested/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wNight a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "-90.0"^^xsd:float ] ;
+        ex:headlight_note "on" .
+
+    ex:wDay a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "45.0"^^xsd:float ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: night (elevation -90) without the required note.
+    violating = """
+    @prefix ex: <https://example.org/nested/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "-90.0"^^xsd:float ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Night without a headlight note should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: has_member list-membership postcondition (M5)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  any supported precondition (here value_presence PRESENT)
+#   - postconditions: multivalued slot has_member with a nested
+#     range_expression constraining the member's inner slots
+#
+# Semantics: "If the precondition holds, the list must contain a member
+# matching the inner conditions."  Violation = no such member (FILTER NOT
+# EXISTS over the members).  Inner enum values resolve against the member
+# class (LightControlGroup), which disambiguates the reused `type` slot.
+# ===========================================================================
+
+_HAS_MEMBER_SCHEMA_YAML = """
+id: https://example.org/has-member
+name: has_member_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/has-member/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  LightGroupEnum:
+    permissible_values:
+      Vehicle:
+        meaning: ex:Vehicle
+      StreetLight:
+        meaning: ex:StreetLight
+  LightTypeEnum:
+    permissible_values:
+      low_beam_headlight:
+        meaning: ex:low_beam_headlight
+      front_fog_light:
+        meaning: ex:front_fog_light
+
+slots:
+  fog_declared:
+    range: string
+    slot_uri: ex:fog_declared
+  enabled_light_control_groups:
+    range: LightControlGroup
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+    slot_uri: ex:enabled_light_control_groups
+  group:
+    range: LightGroupEnum
+    slot_uri: ex:group
+  type:
+    range: LightTypeEnum
+    slot_uri: ex:type
+
+classes:
+  LightControlGroup:
+    class_uri: ex:LightControlGroup
+    slots:
+      - group
+      - type
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - fog_declared
+      - enabled_light_control_groups
+    rules:
+      - description: When fog is declared, a front fog light group must be enabled.
+        preconditions:
+          slot_conditions:
+            fog_declared:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            enabled_light_control_groups:
+              has_member:
+                range_expression:
+                  slot_conditions:
+                    group:
+                      equals_string: Vehicle
+                    type:
+                      equals_string: front_fog_light
+"""
+
+EX_HM = rdflib.Namespace("https://example.org/has-member/")
+
+
+def test_has_member_generates_sparql():
+    """has_member postcondition emits a FILTER NOT EXISTS over list members."""
+    g = _parse_shacl(_HAS_MEMBER_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_HM.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "FILTER NOT EXISTS" in query, "list-membership violation must use FILTER NOT EXISTS"
+    assert str(EX_HM.enabled_light_control_groups) in query
+    assert str(EX_HM.group) in query and str(EX_HM.type) in query
+    # inner enum values resolve against the member class (LightControlGroup),
+    # so the reused `type` slot picks LightTypeEnum, not another enum.
+    assert f"<{EX_HM.Vehicle}>" in query, f"group value must be the enum IRI, got:\n{query}"
+    assert f"<{EX_HM.front_fog_light}>" in query, f"type value must be the enum IRI, got:\n{query}"
+
+
+def test_has_member_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_HAS_MEMBER_SCHEMA_YAML)
+    for node in g.objects(EX_HM.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_has_member_pyshacl_end_to_end():
+    """End-to-end: fog requires a front-fog-light member; otherwise it fails."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_HAS_MEMBER_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: fog declared WITH a front-fog-light group; and no fog at all.
+    conforming = """
+    @prefix ex: <https://example.org/has-member/> .
+
+    ex:wFog a ex:Weather ;
+        ex:fog_declared "yes" ;
+        ex:enabled_light_control_groups
+            [ a ex:LightControlGroup ; ex:group ex:Vehicle ; ex:type ex:front_fog_light ] .
+
+    ex:wNoFog a ex:Weather .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: fog declared but only a low-beam group (no front fog light).
+    violating = """
+    @prefix ex: <https://example.org/has-member/> .
+
+    ex:wBad a ex:Weather ;
+        ex:fog_declared "yes" ;
+        ex:enabled_light_control_groups
+            [ a ex:LightControlGroup ; ex:group ex:Vehicle ; ex:type ex:low_beam_headlight ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Fog without a front-fog-light group should fail:\n{txt}"
