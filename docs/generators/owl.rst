@@ -311,6 +311,40 @@ Other examples
   translation of Biolink schema to OWL
 
 
+Deterministic output
+^^^^^^^^^^^^^^^^^^^^
+
+Generated Turtle can differ between runs — blank-node identifiers and
+statement order depend on Python dict ordering and rdflib serialization
+internals — which makes version-controlled artifacts show large spurious
+diffs. Use ``--deterministic`` for byte-identical output across invocations:
+
+.. code:: bash
+
+   gen-owl --deterministic schema.yaml
+
+The pipeline has three phases:
+
+1. `RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_ canonicalization (via
+   `pyoxigraph <https://pypi.org/project/pyoxigraph/>`_), so isomorphic
+   inputs produce identical triple sets;
+2. Weisfeiler–Lehman structural hashing replaces the sequential ``_:c14nN``
+   labels with content-derived ones, so adding or removing a triple only
+   renames the directly involved blank nodes (diff-stable output);
+3. re-serialization with rdflib recovers idiomatic Turtle — inline blank
+   nodes (`Turtle §2.7 <https://www.w3.org/TR/turtle/#BNodes>`_), collection
+   syntax (`§2.8 <https://www.w3.org/TR/turtle/#collections>`_) — and only
+   declares prefixes actually used in the graph.
+
+All triples are preserved; only the syntactic form is normalised. Unordered
+collections such as ``owl:oneOf`` items are additionally sorted. The option
+is available on ``gen-owl``, ``gen-shacl``, ``gen-jsonld``, and
+``gen-jsonld-context`` (for JSON output it deep-sorts objects instead).
+
+``pyoxigraph >= 0.4.0`` is required and imported lazily — it is only needed
+when the flag is used and is deliberately not a core dependency.
+
+
 Docs
 ----
 
