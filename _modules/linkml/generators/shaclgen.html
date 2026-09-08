@@ -5,11 +5,11 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="https://linkml.io/uploads/linkml-logo_color.png" as="image">
 
-    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
         <title>linkml.generators.shaclgen - linkml documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=580074bf" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/plot_directive.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
@@ -265,6 +265,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/python.html">Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/pydantic.html">Pydantic</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/java.html">Java</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../generators/golang.html">Go</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/typescript.html">Typescript</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/rust.html">Rust</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqltable.html">SQL DDL</a></li>
@@ -331,6 +332,7 @@
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../cli/index.html">CLI</a><input aria-label="Toggle navigation of CLI" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/linkml.html"><code class="docutils literal notranslate"><span class="pre">linkml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/config.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">config</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/generate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">generate</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/lint.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">lint</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/validate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">validate</span></code></a></li>
@@ -357,6 +359,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../code/deprecation.html">Deprecation Log</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config/index.html">Configuration</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Maintainers Guide:</span></p>
 <ul>
@@ -421,7 +424,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.generators.shacl.shacl_ifabsent_processor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ShaclIfAbsentProcessor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.utils.generator</span><span class="w"> </span><span class="kn">import</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">shared_arguments</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.utils.language_tags</span><span class="w"> </span><span class="kn">import</span> <span class="n">LanguageTagResolver</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.linkml_model.meta</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassDefinition</span><span class="p">,</span> <span class="n">ElementName</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.linkml_model.meta</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassDefinition</span><span class="p">,</span> <span class="n">ElementName</span><span class="p">,</span> <span class="n">PresenceEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.formatutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">underscore</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.rdf_canonicalize</span><span class="w"> </span><span class="kn">import</span> <span class="n">canonicalize_rdf_graph</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.yamlutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedNode</span><span class="p">,</span> <span class="n">extended_float</span><span class="p">,</span> <span class="n">extended_int</span><span class="p">,</span> <span class="n">extended_str</span>
@@ -549,6 +552,22 @@
 <span class="sd">    ignores any per-slot ``in_language``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">emit_rules</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Emit ``sh:sparql`` constraints from LinkML ``rules:`` blocks.</span>
+
+<span class="sd">    When ``True`` (default), recognised rule patterns are translated into</span>
+<span class="sd">    SHACL-SPARQL constraints (``sh:SPARQLConstraint``) on the corresponding</span>
+<span class="sd">    ``sh:NodeShape``.  Currently two patterns are recognised:</span>
+
+<span class="sd">    * *Boolean guard* — a precondition with ``value_presence: PRESENT`` on a</span>
+<span class="sd">      value slot and a postcondition with ``equals_string: &quot;true&quot;`` on a</span>
+<span class="sd">      boolean flag slot.</span>
+<span class="sd">    * *Exclusive value* — a precondition with ``equals_string`` on a slot and</span>
+<span class="sd">      a postcondition with ``maximum_cardinality`` on the *same* slot.</span>
+
+<span class="sd">    See `W3C SHACL §5 &lt;https://www.w3.org/TR/shacl/#sparql-constraints&gt;`_</span>
+<span class="sd">    and `linkml/linkml#2464 &lt;https://github.com/linkml/linkml/issues/2464&gt;`_.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">generatorname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span>
     <span class="n">generatorversion</span> <span class="o">=</span> <span class="s2">&quot;0.0.1&quot;</span>
     <span class="n">valid_formats</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;ttl&quot;</span><span class="p">]</span>
@@ -685,9 +704,9 @@
                     <span class="k">if</span> <span class="n">msg_text</span><span class="p">:</span>
                         <span class="n">g</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">pnode</span><span class="p">,</span> <span class="n">SH</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">Literal</span><span class="p">(</span><span class="n">msg_text</span><span class="p">,</span> <span class="n">lang</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_resolve_language</span><span class="p">(</span><span class="kc">None</span><span class="p">))))</span>
                 <span class="c1"># minCount</span>
-                <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">minimum_cardinality</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">minimum_cardinality</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">prop_pv_literal</span><span class="p">(</span><span class="n">SH</span><span class="o">.</span><span class="n">minCount</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">minimum_cardinality</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">s</span><span class="o">.</span><span class="n">exact_cardinality</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="n">s</span><span class="o">.</span><span class="n">exact_cardinality</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">prop_pv_literal</span><span class="p">(</span><span class="n">SH</span><span class="o">.</span><span class="n">minCount</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">exact_cardinality</span><span class="p">)</span>
                 <span class="c1"># Identifiers map to the node&#39;s IRI rather than a property triple,</span>
                 <span class="c1"># so there&#39;s no arc to constrain with sh:minCount 1 — emitting it</span>
@@ -695,9 +714,9 @@
                 <span class="k">elif</span> <span class="n">s</span><span class="o">.</span><span class="n">required</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">s</span><span class="o">.</span><span class="n">identifier</span><span class="p">:</span>
                     <span class="n">prop_pv_literal</span><span class="p">(</span><span class="n">SH</span><span class="o">.</span><span class="n">minCount</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
                 <span class="c1"># maxCount</span>
-                <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">maximum_cardinality</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">maximum_cardinality</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">prop_pv_literal</span><span class="p">(</span><span class="n">SH</span><span class="o">.</span><span class="n">maxCount</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">maximum_cardinality</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">s</span><span class="o">.</span><span class="n">exact_cardinality</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="n">s</span><span class="o">.</span><span class="n">exact_cardinality</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">prop_pv_literal</span><span class="p">(</span><span class="n">SH</span><span class="o">.</span><span class="n">maxCount</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">exact_cardinality</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="ow">not</span> <span class="n">s</span><span class="o">.</span><span class="n">multivalued</span><span class="p">:</span>
                     <span class="n">prop_pv_literal</span><span class="p">(</span><span class="n">SH</span><span class="o">.</span><span class="n">maxCount</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
@@ -799,9 +818,238 @@
                 <span class="k">if</span> <span class="n">default_value</span><span class="p">:</span>
                     <span class="n">prop_pv</span><span class="p">(</span><span class="n">SH</span><span class="o">.</span><span class="n">defaultValue</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
 
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">emit_rules</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_add_rules</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">class_uri_with_suffix</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="n">g</span>
 
     <span class="n">LINKML_ANY_URI</span> <span class="o">=</span> <span class="s2">&quot;https://w3id.org/linkml/Any&quot;</span>
+
+    <span class="c1"># -------------------------------------------------------------------</span>
+    <span class="c1"># Rules → sh:sparql</span>
+    <span class="c1"># -------------------------------------------------------------------</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_add_rules</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">g</span><span class="p">:</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">shape_uri</span><span class="p">:</span> <span class="n">URIRef</span><span class="p">,</span> <span class="bp">cls</span><span class="p">:</span> <span class="n">ClassDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Emit ``sh:sparql`` constraints from LinkML ``rules:`` blocks.</span>
+
+<span class="sd">        Each recognised rule is converted into an ``sh:SPARQLConstraint``</span>
+<span class="sd">        attached to *shape_uri*.  Unrecognised patterns are logged at</span>
+<span class="sd">        ``DEBUG`` level and silently skipped.</span>
+
+<span class="sd">        Currently recognised patterns:</span>
+
+<span class="sd">        * **Boolean guard** — a *precondition* with</span>
+<span class="sd">          ``value_presence: PRESENT`` on a value slot and a *postcondition*</span>
+<span class="sd">          with ``equals_string: &quot;true&quot;`` on a boolean flag slot.</span>
+
+<span class="sd">        * **Exclusive value** — a *precondition* with ``equals_string`` on</span>
+<span class="sd">          a slot and a *postcondition* with ``maximum_cardinality`` on the</span>
+<span class="sd">          *same* slot.  Enforces that when a specific value is present in a</span>
+<span class="sd">          multivalued slot, the total number of values must not exceed the</span>
+<span class="sd">          given cardinality (typically 1 for mutual exclusion).</span>
+
+<span class="sd">        See `W3C SHACL §5 &lt;https://www.w3.org/TR/shacl/#sparql-constraints&gt;`_.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">cls</span><span class="o">.</span><span class="n">rules</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">sv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span>
+        <span class="k">for</span> <span class="n">rule</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">rules</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;deactivated&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;bidirectional&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Rule in class </span><span class="si">%r</span><span class="s2"> has bidirectional=true; &quot;</span>
+                    <span class="s2">&quot;SHACL-SPARQL generation does not support bidirectional rules. &quot;</span>
+                    <span class="s2">&quot;Skipping this rule entirely.&quot;</span><span class="p">,</span>
+                    <span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;open_world&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Rule in class </span><span class="si">%r</span><span class="s2"> has open_world=true; &quot;</span>
+                    <span class="s2">&quot;SHACL operates under closed-world assumption. &quot;</span>
+                    <span class="s2">&quot;The constraint is emitted but may not match open-world semantics.&quot;</span><span class="p">,</span>
+                    <span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;elseconditions&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">&quot;Rule in class </span><span class="si">%r</span><span class="s2"> has elseconditions; &quot;</span>
+                    <span class="s2">&quot;only the forward (if/then) branch is emitted as sh:sparql. &quot;</span>
+                    <span class="s2">&quot;The else branch cannot be represented in SHACL-SPARQL.&quot;</span><span class="p">,</span>
+                    <span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="p">)</span>
+
+            <span class="n">sparql_query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rule_to_sparql</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="bp">cls</span><span class="p">,</span> <span class="n">rule</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">sparql_query</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s2">&quot;Skipping unsupported rule pattern in class </span><span class="si">%r</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">,</span> <span class="s2">&quot;(no description)&quot;</span><span class="p">),</span>
+                <span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="n">constraint</span> <span class="o">=</span> <span class="n">BNode</span><span class="p">()</span>
+            <span class="n">g</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">shape_uri</span><span class="p">,</span> <span class="n">SH</span><span class="o">.</span><span class="n">sparql</span><span class="p">,</span> <span class="n">constraint</span><span class="p">))</span>
+            <span class="n">g</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">constraint</span><span class="p">,</span> <span class="n">RDF</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">SH</span><span class="o">.</span><span class="n">SPARQLConstraint</span><span class="p">))</span>
+
+            <span class="n">message</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">message</span><span class="p">:</span>
+                <span class="n">g</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">constraint</span><span class="p">,</span> <span class="n">SH</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">Literal</span><span class="p">(</span><span class="n">message</span><span class="p">)))</span>
+
+            <span class="n">g</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">constraint</span><span class="p">,</span> <span class="n">SH</span><span class="o">.</span><span class="n">select</span><span class="p">,</span> <span class="n">Literal</span><span class="p">(</span><span class="n">sparql_query</span><span class="p">)))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_rule_to_sparql</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sv</span><span class="p">,</span> <span class="bp">cls</span><span class="p">:</span> <span class="n">ClassDefinition</span><span class="p">,</span> <span class="n">rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert a ``ClassRule`` to a SPARQL SELECT query string.</span>
+
+<span class="sd">        Returns ``None`` when the rule does not match any supported pattern.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pre</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;preconditions&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">post</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="s2">&quot;postconditions&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">pre</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">post</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="n">pre_slots</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">pre</span><span class="p">,</span> <span class="s2">&quot;slot_conditions&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">post_slots</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">post</span><span class="p">,</span> <span class="s2">&quot;slot_conditions&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+
+        <span class="c1"># Pattern: boolean guard</span>
+        <span class="c1"># preconditions: exactly one slot with value_presence PRESENT</span>
+        <span class="c1"># postconditions: exactly one slot with equals_string &quot;true&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pre_slots</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">post_slots</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">pre_slot_name</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">pre_slots</span><span class="p">))</span>
+            <span class="n">post_slot_name</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">post_slots</span><span class="p">))</span>
+
+            <span class="n">pre_cond</span> <span class="o">=</span> <span class="n">pre_slots</span><span class="p">[</span><span class="n">pre_slot_name</span><span class="p">]</span>
+            <span class="n">post_cond</span> <span class="o">=</span> <span class="n">post_slots</span><span class="p">[</span><span class="n">post_slot_name</span><span class="p">]</span>
+
+            <span class="c1"># Note: PresenceEnum.PRESENT is a PermissibleValue, but parsed schemas</span>
+            <span class="c1"># return PresenceEnum instances — wrapping ensures type-compatible comparison.</span>
+            <span class="n">is_value_present</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">pre_cond</span><span class="p">,</span> <span class="s2">&quot;value_presence&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="n">PresenceEnum</span><span class="p">(</span><span class="n">PresenceEnum</span><span class="o">.</span><span class="n">PRESENT</span><span class="p">)</span>
+            <span class="n">is_flag_true</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">post_cond</span><span class="p">,</span> <span class="s2">&quot;equals_string&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;true&quot;</span>
+
+            <span class="k">if</span> <span class="n">is_value_present</span> <span class="ow">and</span> <span class="n">is_flag_true</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_boolean_guard_sparql</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="bp">cls</span><span class="p">,</span> <span class="n">post_slot_name</span><span class="p">,</span> <span class="n">pre_slot_name</span><span class="p">)</span>
+
+            <span class="c1"># Pattern: exclusive value</span>
+            <span class="c1"># preconditions: slot X has equals_string (a specific enum value)</span>
+            <span class="c1"># postconditions: same slot X has maximum_cardinality N</span>
+            <span class="c1"># Semantics: &quot;If value V is present in slot X, then X has at most N values.&quot;</span>
+            <span class="n">pre_equals</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">pre_cond</span><span class="p">,</span> <span class="s2">&quot;equals_string&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">post_max_card</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">post_cond</span><span class="p">,</span> <span class="s2">&quot;maximum_cardinality&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">pre_equals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">post_max_card</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">pre_slot_name</span> <span class="o">==</span> <span class="n">post_slot_name</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_exclusive_value_sparql</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="bp">cls</span><span class="p">,</span> <span class="n">pre_slot_name</span><span class="p">,</span> <span class="n">pre_equals</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">post_max_card</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_boolean_guard_sparql</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sv</span><span class="p">,</span> <span class="bp">cls</span><span class="p">:</span> <span class="n">ClassDefinition</span><span class="p">,</span> <span class="n">flag_slot_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value_slot_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build a SPARQL SELECT query for the boolean-guard pattern.</span>
+
+<span class="sd">        The query detects violations where the value property is present</span>
+<span class="sd">        but the boolean flag is absent or not ``true``.</span>
+
+<span class="sd">        Conforms to `SHACL §5.3.1</span>
+<span class="sd">        &lt;https://www.w3.org/TR/shacl/#sparql-constraints-prebound&gt;`_:</span>
+<span class="sd">        ``$this`` is pre-bound to each focus node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">flag_uri</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slot_uri</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="n">flag_slot_name</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span>
+        <span class="n">value_uri</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slot_uri</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="n">value_slot_name</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;SELECT $this WHERE </span><span class="se">{{\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;    OPTIONAL </span><span class="se">{{</span><span class="s2"> $this &lt;</span><span class="si">{</span><span class="n">flag_uri</span><span class="si">}</span><span class="s2">&gt; ?flag . </span><span class="se">}}\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;    OPTIONAL </span><span class="se">{{</span><span class="s2"> $this &lt;</span><span class="si">{</span><span class="n">value_uri</span><span class="si">}</span><span class="s2">&gt; ?value . </span><span class="se">}}\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;    FILTER (</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s1">&#39;        ( !BOUND(?flag) || str(?flag) != &quot;true&quot; ) &amp;&amp;</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="sa">f</span><span class="s2">&quot;        BOUND(?value)</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;    )</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">}}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_exclusive_value_sparql</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">sv</span><span class="p">,</span>
+        <span class="bp">cls</span><span class="p">:</span> <span class="n">ClassDefinition</span><span class="p">,</span>
+        <span class="n">slot_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">value_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">max_card</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build a SPARQL SELECT query for the exclusive-value pattern.</span>
+
+<span class="sd">        Detects violations where a specific value is present in a multivalued</span>
+<span class="sd">        slot but the total number of values exceeds *max_card*.</span>
+
+<span class="sd">        For the common case ``max_card == 1``, the query checks whether the</span>
+<span class="sd">        exclusive value coexists with any other value (simple existence test).</span>
+<span class="sd">        For ``max_card &gt; 1``, a subquery counts all values and checks against</span>
+<span class="sd">        the limit.</span>
+
+<span class="sd">        The exclusive value is resolved to its full IRI via the slot&#39;s enum</span>
+<span class="sd">        ``meaning`` field.  If the slot is not an enum or the value has no</span>
+<span class="sd">        ``meaning``, the value is compared as a plain literal.</span>
+
+<span class="sd">        Conforms to `SHACL §5.3.1</span>
+<span class="sd">        &lt;https://www.w3.org/TR/shacl/#sparql-constraints-prebound&gt;`_:</span>
+<span class="sd">        ``$this`` is pre-bound to each focus node.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">slot_uri</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_slot_uri</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="n">slot_name</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span>
+        <span class="n">value_ref</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_enum_value_ref</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="n">slot_name</span><span class="p">,</span> <span class="n">value_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">max_card</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;SELECT $this WHERE </span><span class="se">{{\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    $this &lt;</span><span class="si">{</span><span class="n">slot_uri</span><span class="si">}</span><span class="s2">&gt; </span><span class="si">{</span><span class="n">value_ref</span><span class="si">}</span><span class="s2"> .</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    $this &lt;</span><span class="si">{</span><span class="n">slot_uri</span><span class="si">}</span><span class="s2">&gt; ?other .</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;    FILTER (?other != </span><span class="si">{</span><span class="n">value_ref</span><span class="si">}</span><span class="s2">)</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="se">}}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;SELECT $this WHERE </span><span class="se">{{\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;    $this &lt;</span><span class="si">{</span><span class="n">slot_uri</span><span class="si">}</span><span class="s2">&gt; </span><span class="si">{</span><span class="n">value_ref</span><span class="si">}</span><span class="s2"> .</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;    </span><span class="se">{{\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;        SELECT $this (COUNT(?val) AS ?count)</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;        WHERE </span><span class="se">{{</span><span class="s2"> $this &lt;</span><span class="si">{</span><span class="n">slot_uri</span><span class="si">}</span><span class="s2">&gt; ?val . </span><span class="se">}}\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;        GROUP BY $this</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;        HAVING (?count &gt; </span><span class="si">{</span><span class="n">max_card</span><span class="si">}</span><span class="s2">)</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;    </span><span class="se">}}\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="se">}}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_enum_value_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sv</span><span class="p">,</span> <span class="n">slot_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve an enum value name to a SPARQL term (IRI or literal).</span>
+
+<span class="sd">        Looks up the slot&#39;s range as an enum, finds the permissible value</span>
+<span class="sd">        matching *value_name*, and returns its ``meaning`` as a full IRI</span>
+<span class="sd">        wrapped in angle brackets.  Falls back to a quoted literal if the</span>
+<span class="sd">        slot is not an enum or the value lacks a ``meaning``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">slot</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">slot</span><span class="p">:</span>
+            <span class="n">range_name</span> <span class="o">=</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span>
+            <span class="k">if</span> <span class="n">range_name</span> <span class="ow">and</span> <span class="n">range_name</span> <span class="ow">in</span> <span class="n">sv</span><span class="o">.</span><span class="n">all_enums</span><span class="p">():</span>
+                <span class="n">enum</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_enum</span><span class="p">(</span><span class="n">range_name</span><span class="p">)</span>
+                <span class="n">pv</span> <span class="o">=</span> <span class="n">enum</span><span class="o">.</span><span class="n">permissible_values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">value_name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">pv</span> <span class="ow">and</span> <span class="n">pv</span><span class="o">.</span><span class="n">meaning</span><span class="p">:</span>
+                    <span class="n">iri</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">expand_curie</span><span class="p">(</span><span class="n">pv</span><span class="o">.</span><span class="n">meaning</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;&lt;</span><span class="si">{</span><span class="n">iri</span><span class="si">}</span><span class="s2">&gt;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">value_name</span><span class="si">}</span><span class="s1">&quot;&#39;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_slot_uri</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sv</span><span class="p">,</span> <span class="n">slot_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="bp">cls</span><span class="p">:</span> <span class="n">ClassDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve a slot name to a full IRI string for use in SPARQL queries.</span>
+
+<span class="sd">        Mirrors the resolution logic used for ``sh:path`` in the main slot loop:</span>
+<span class="sd">        prefer ``sv.get_uri()`` for slots registered in the schema map, fall</span>
+<span class="sd">        back to ``default_prefix:underscored_name``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">slot</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">slot</span> <span class="ow">and</span> <span class="n">slot_name</span> <span class="ow">in</span> <span class="n">sv</span><span class="o">.</span><span class="n">element_by_schema_map</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_uri</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">pfx</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">default_prefix</span>
+        <span class="k">return</span> <span class="n">sv</span><span class="o">.</span><span class="n">expand_curie</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">pfx</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">underscore</span><span class="p">(</span><span class="n">slot_name</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_add_class</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ElementName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add an sh:class constraint for range class *r*.</span>
@@ -860,7 +1108,8 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_add_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">ElementName</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">sv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span>
-        <span class="n">rt</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_type</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+        <span class="c1"># Types can inherit URI and pattern constraints.</span>
+        <span class="n">rt</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">induced_type</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
         <span class="n">type_uri</span> <span class="o">=</span> <span class="n">rt</span><span class="o">.</span><span class="n">uri</span>
         <span class="n">expanded</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_uri</span><span class="p">(</span><span class="n">rt</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">type_uri</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">type_uri</span> <span class="ow">and</span> <span class="p">(</span><span class="n">type_uri</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_NON_LITERAL_TYPE_URIS</span> <span class="ow">or</span> <span class="n">expanded</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_NON_LITERAL_TYPE_URIS</span><span class="p">):</span>
@@ -1071,6 +1320,17 @@
         <span class="s1">&#39;Example: &quot;</span><span class="si">{name}</span><span class="s1"> (</span><span class="si">{class}</span><span class="s1">): </span><span class="si">{description}</span><span class="s1"> [</span><span class="si">{comments}</span><span class="s1">]&quot;&#39;</span>
     <span class="p">),</span>
 <span class="p">)</span>
+<span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
+    <span class="s2">&quot;--emit-rules/--no-emit-rules&quot;</span><span class="p">,</span>
+    <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">show_default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+        <span class="s2">&quot;Emit sh:sparql constraints from LinkML rules: blocks. &quot;</span>
+        <span class="s2">&quot;When enabled (default), recognised rule patterns (e.g. boolean-guard) &quot;</span>
+        <span class="s2">&quot;are translated into SHACL-SPARQL constraints on the corresponding &quot;</span>
+        <span class="s2">&quot;sh:NodeShape. Use --no-emit-rules to suppress rule generation.&quot;</span>
+    <span class="p">),</span>
+<span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">version_option</span><span class="p">(</span><span class="n">__version__</span><span class="p">,</span> <span class="s2">&quot;-V&quot;</span><span class="p">,</span> <span class="s2">&quot;--version&quot;</span><span class="p">)</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">cli</span><span class="p">(</span><span class="n">yamlfile</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate SHACL turtle from a LinkML model&quot;&quot;&quot;</span>
@@ -1117,13 +1377,361 @@
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
-    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-    <script type="module">
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
-window.addEventListener("load", () => mermaid.run());
-</script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
     </body>
 </html>

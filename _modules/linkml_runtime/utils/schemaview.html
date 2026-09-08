@@ -5,11 +5,11 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="https://linkml.io/uploads/linkml-logo_color.png" as="image">
 
-    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
         <title>linkml_runtime.utils.schemaview - linkml documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=580074bf" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/plot_directive.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
@@ -265,6 +265,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/python.html">Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/pydantic.html">Pydantic</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/java.html">Java</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../generators/golang.html">Go</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/typescript.html">Typescript</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/rust.html">Rust</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/sqltable.html">SQL DDL</a></li>
@@ -331,6 +332,7 @@
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../cli/index.html">CLI</a><input aria-label="Toggle navigation of CLI" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/linkml.html"><code class="docutils literal notranslate"><span class="pre">linkml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/config.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">config</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/generate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">generate</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/lint.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">lint</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../cli/validate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">validate</span></code></a></li>
@@ -357,6 +359,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../code/deprecation.html">Deprecation Log</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../../../config/index.html">Configuration</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Maintainers Guide:</span></p>
 <ul>
@@ -409,6 +412,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
@@ -448,6 +452,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.formatutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">camelcase</span><span class="p">,</span> <span class="n">is_empty</span><span class="p">,</span> <span class="n">sfx</span><span class="p">,</span> <span class="n">underscore</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.namespaces</span><span class="w"> </span><span class="kn">import</span> <span class="n">Namespaces</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.pattern</span><span class="w"> </span><span class="kn">import</span> <span class="n">PatternResolver</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.uri_validator</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_curie</span><span class="p">,</span> <span class="n">validate_uri</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span>
@@ -615,13 +620,6 @@
 
     <span class="n">yaml_loader</span> <span class="o">=</span> <span class="n">YAMLLoader</span><span class="p">()</span>
     <span class="n">schema</span><span class="p">:</span> <span class="n">SchemaDefinition</span> <span class="o">=</span> <span class="n">yaml_loader</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">target_class</span><span class="o">=</span><span class="n">SchemaDefinition</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-    <span class="k">if</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
-        <span class="c1"># if &quot;\n&quot; not in path and &quot;://&quot; not in path:</span>
-        <span class="c1"># only set path if the input is not a yaml string or URL.</span>
-        <span class="c1"># Setting the source path is necessary for relative imports;</span>
-        <span class="c1"># while initializing a schema with a yaml string is possible, there</span>
-        <span class="c1"># should be no expectation of relative imports working.</span>
-        <span class="n">schema</span><span class="o">.</span><span class="n">source_file</span> <span class="o">=</span> <span class="n">path</span>
     <span class="k">return</span> <span class="n">schema</span>
 
 
@@ -680,8 +678,8 @@
 
     <span class="n">schema</span><span class="p">:</span> <span class="n">SchemaDefinition</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">schema_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SchemaDefinitionName</span><span class="p">,</span> <span class="n">SchemaDefinition</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">importmap</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Optional mapping between schema names and local paths/URLs&quot;&quot;&quot;</span>
+    <span class="n">importmap</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Optional mapping between schema names and local paths/URLs, or in-memory schema dicts&quot;&quot;&quot;</span>
     <span class="n">modifications</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">uuid</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -692,7 +690,7 @@
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">schema</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="n">SchemaDefinition</span><span class="p">,</span>
-        <span class="n">importmap</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">importmap</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">merge_imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">base_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -700,8 +698,10 @@
 
 <span class="sd">        :param schema: schema or path to schema to be viewed</span>
 <span class="sd">        :type schema: str | Path | SchemaDefinition</span>
-<span class="sd">        :param importmap: import mapping, defaults to None</span>
-<span class="sd">        :type importmap: dict[str, str] | None, optional</span>
+<span class="sd">        :param importmap: import mapping. Values may be file-path/URL strings or</span>
+<span class="sd">            in-memory schema dicts (loaded directly, without filesystem or network</span>
+<span class="sd">            access). Defaults to None.</span>
+<span class="sd">        :type importmap: dict[str, str | dict[str, Any]] | None, optional</span>
 <span class="sd">        :param merge_imports: whether or not to merge imports, defaults to False</span>
 <span class="sd">        :type merge_imports: bool, optional</span>
 <span class="sd">        :param base_dir: base directory for import map, defaults to None</span>
@@ -755,6 +755,7 @@
 
 <span class="sd">        - a URL (specified as either a full URL or a CURIE)</span>
 <span class="sd">        - a local file path</span>
+<span class="sd">        - an in-memory schema dict supplied via the importmap</span>
 
 <span class="sd">        The import should leave off the .yaml suffix.</span>
 
@@ -779,6 +780,13 @@
 
         <span class="n">default_import_map</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;linkml:&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">SCHEMA_DIRECTORY</span><span class="p">)}</span>
         <span class="n">importmap</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">default_import_map</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">importmap</span><span class="p">}</span>
+        <span class="c1"># An importmap entry may be an in-memory schema dict, which is loaded</span>
+        <span class="c1"># directly without touching the filesystem or network.</span>
+        <span class="n">mapped</span> <span class="o">=</span> <span class="n">importmap</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">imp</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mapped</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.loaders.yaml_loader</span><span class="w"> </span><span class="kn">import</span> <span class="n">YAMLLoader</span>
+
+            <span class="k">return</span> <span class="n">YAMLLoader</span><span class="p">()</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">mapped</span><span class="p">,</span> <span class="n">target_class</span><span class="o">=</span><span class="n">SchemaDefinition</span><span class="p">)</span>
         <span class="n">sname</span> <span class="o">=</span> <span class="n">map_import</span><span class="p">(</span><span class="n">importmap</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">namespaces</span><span class="p">,</span> <span class="n">imp</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">from_schema</span><span class="o">.</span><span class="n">source_file</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_absolute_path</span><span class="p">(</span><span class="n">sname</span><span class="p">):</span>
             <span class="n">base_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">from_schema</span><span class="o">.</span><span class="n">source_file</span><span class="p">)</span>
@@ -2017,6 +2025,37 @@
         <span class="k">return</span> <span class="n">uri</span></div>
 
 
+<div class="viewcode-block" id="SchemaView.get_curie">
+<a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_curie">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_curie</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">element</span><span class="p">:</span> <span class="n">ElementName</span> <span class="o">|</span> <span class="n">Element</span><span class="p">,</span>
+        <span class="n">imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the CURIE for a schema element, compressing full URIs where possible.</span>
+
+<span class="sd">        This is the CURIE-returning companion to :meth:`get_uri`.  It first resolves</span>
+<span class="sd">        the element&#39;s declared URI via :meth:`get_uri`, then compresses it to a CURIE</span>
+<span class="sd">        using the schema&#39;s registered prefixes via :meth:`compress_uri`.</span>
+
+<span class="sd">        When the declared URI is already a CURIE (the common case) it is returned</span>
+<span class="sd">        unchanged.  When no URI is declared, :meth:`get_uri` constructs the fallback</span>
+<span class="sd">        ``&quot;&lt;default_prefix&gt;:&lt;element_name&gt;&quot;`` CURIE, which is then returned as-is.</span>
+<span class="sd">        When the URI is a full URI that cannot be compressed, a :exc:`ValueError` is</span>
+<span class="sd">        raised.</span>
+
+<span class="sd">        :param element: Name of schema element or element object.</span>
+<span class="sd">        :param imports: Include imports closure when resolving the element.</span>
+<span class="sd">        :return: A CURIE string such as ``&quot;schema:Event&quot;`` or ``&quot;ex:something_else&quot;``.</span>
+<span class="sd">        :raises ValueError: When the element&#39;s URI is a fully-qualified URI with no</span>
+<span class="sd">            matching prefix registered in the schema, or when it is not a valid URI or</span>
+<span class="sd">            CURIE.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_element</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">)</span>
+        <span class="n">uri</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_uri</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compress_uri</span><span class="p">(</span><span class="n">uri</span><span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="SchemaView.expand_curie">
 <a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.expand_curie">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">expand_curie</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uri</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -2033,6 +2072,46 @@
                 <span class="k">if</span> <span class="n">pfx</span> <span class="ow">in</span> <span class="n">ns</span><span class="p">:</span>
                     <span class="k">return</span> <span class="n">ns</span><span class="p">[</span><span class="n">pfx</span><span class="p">]</span> <span class="o">+</span> <span class="n">local_id</span>
         <span class="k">return</span> <span class="n">uri</span></div>
+
+
+<div class="viewcode-block" id="SchemaView.compress_uri">
+<a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.compress_uri">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compress_uri</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uri</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compress a URI or CURIE to a CURIE string using the schema&#39;s registered prefixes.</span>
+
+<span class="sd">        This is the inverse of :meth:`expand_curie`.</span>
+
+<span class="sd">        Resolution order:</span>
+
+<span class="sd">        1. Try to compress *uri* with</span>
+<span class="sd">           :meth:`~linkml_runtime.utils.namespaces.Namespaces.curie_for`.</span>
+<span class="sd">        2. If compression fails but *uri* is already a valid CURIE, return it as-is</span>
+<span class="sd">           (emitting a warning when it looks like a plain ``http(s)://`` URL to alert</span>
+<span class="sd">           callers that disambiguation is impossible).</span>
+<span class="sd">        3. If *uri* is a fully-qualified URI with no matching prefix, raise</span>
+<span class="sd">           :exc:`ValueError`.</span>
+<span class="sd">        4. If *uri* is neither a valid URI nor a valid CURIE, raise :exc:`ValueError`.</span>
+
+<span class="sd">        :param uri: A URI or CURIE string.</span>
+<span class="sd">        :return: A CURIE string such as ``&quot;schema:Event&quot;`` or ``&quot;ex:something_else&quot;``.</span>
+<span class="sd">        :raises ValueError: When *uri* is a fully-qualified URI whose namespace is not</span>
+<span class="sd">            registered, or when it is not a syntactically valid URI or CURIE.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">namespaces</span><span class="p">()</span>
+        <span class="n">curie</span> <span class="o">=</span> <span class="n">ns</span><span class="o">.</span><span class="n">curie_for</span><span class="p">(</span><span class="n">uri</span><span class="p">)</span> <span class="k">if</span> <span class="n">validate_uri</span><span class="p">(</span><span class="n">uri</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">curie</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">curie</span>
+        <span class="k">if</span> <span class="n">validate_curie</span><span class="p">(</span><span class="n">uri</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s2">&quot;https?://.*&quot;</span><span class="p">,</span> <span class="n">uri</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">uri</span><span class="si">}</span><span class="s2">&#39; looks like a URL but no registered prefix matches it; &quot;</span>
+                    <span class="s2">&quot;it cannot be unambiguously compressed to a CURIE.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="n">uri</span>
+        <span class="k">elif</span> <span class="n">validate_uri</span><span class="p">(</span><span class="n">uri</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">uri</span><span class="si">}</span><span class="s2">&#39; cannot be converted to a CURIE, corresponding prefix not defined&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">uri</span><span class="si">}</span><span class="s2">&#39; does not seem to be either a valid URI or a valid CURIE&quot;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SchemaView.get_elements_applicable_by_identifier">
@@ -2231,19 +2310,60 @@
 <div class="viewcode-block" id="SchemaView.annotation_dict">
 <a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.annotation_dict">[docs]</a>
     <span class="nd">@lru_cache</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">annotation_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element_name</span><span class="p">:</span> <span class="n">ElementName</span><span class="p">,</span> <span class="n">imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">URIorCURIE</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">annotation_dict</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">element_name</span><span class="p">:</span> <span class="n">ElementName</span><span class="p">,</span> <span class="n">imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">class_name</span><span class="p">:</span> <span class="n">ClassDefinitionName</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">URIorCURIE</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a dictionary where keys are annotation tags and values are annotation values for any given element.</span>
 
 <span class="sd">        Note this will not include higher-order annotations</span>
 
 <span class="sd">        See also: https://github.com/linkml/linkml/issues/296</span>
 
-<span class="sd">        :param element_name:</span>
-<span class="sd">        :param imports:</span>
+<span class="sd">        :param element_name: The name of the schema element for which to retrieve annotations.</span>
+<span class="sd">        :param imports: Whether to include the imports closure when looking up for the element.</span>
+<span class="sd">        :param class_name: If set, `element_name` is assumed to be a slot name, and this method</span>
+<span class="sd">            will return the annotations carried by the induced slot in the context of the</span>
+<span class="sd">            indicated class.</span>
 <span class="sd">        :return: annotation dictionary</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">class_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">induced_slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">induced_slot</span><span class="p">(</span><span class="n">element_name</span><span class="p">,</span> <span class="n">class_name</span><span class="p">,</span> <span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">induced_slot</span><span class="o">.</span><span class="n">annotations</span><span class="o">.</span><span class="n">_items</span><span class="p">()}</span>
         <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_element</span><span class="p">(</span><span class="n">element_name</span><span class="p">,</span> <span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">annotations</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span></div>
+
+
+    <span class="nd">@lru_cache</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_pattern_resolver</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PatternResolver</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a pattern resolver configured with one schema&#39;s settings.&quot;&quot;&quot;</span>
+        <span class="n">schemas_by_id</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">id</span><span class="p">):</span> <span class="n">schema</span> <span class="k">for</span> <span class="n">schema</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_schema</span><span class="p">()}</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">schemas_by_id</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">schema_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">PatternResolver</span><span class="p">(</span><span class="n">SchemaView</span><span class="p">(</span><span class="n">schema</span><span class="p">))</span>
+
+<div class="viewcode-block" id="SchemaView.resolve_pattern">
+<a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.resolve_pattern">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">resolve_pattern</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">definition</span><span class="p">:</span> <span class="n">SlotDefinition</span> <span class="o">|</span> <span class="n">TypeDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the effective regular-expression pattern for a slot or type definition.</span>
+
+<span class="sd">        Structured patterns are resolved using settings from the schema that defined the</span>
+<span class="sd">        supplied definition. The definition and underlying schemas are not modified.</span>
+
+<span class="sd">        :param definition: slot or type definition whose pattern should be resolved</span>
+<span class="sd">        :return: asserted or materialized regular-expression pattern, if present</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">structured_pattern</span> <span class="o">=</span> <span class="n">definition</span><span class="o">.</span><span class="n">structured_pattern</span>
+        <span class="k">if</span> <span class="n">structured_pattern</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">definition</span><span class="o">.</span><span class="n">pattern</span>
+
+        <span class="n">resolver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pattern_resolver</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">definition</span><span class="o">.</span><span class="n">from_schema</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+        <span class="n">pattern</span> <span class="o">=</span> <span class="n">structured_pattern</span><span class="o">.</span><span class="n">syntax</span>
+        <span class="k">if</span> <span class="n">structured_pattern</span><span class="o">.</span><span class="n">interpolated</span><span class="p">:</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="n">resolver</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="n">resolver</span><span class="o">.</span><span class="n">escape_uninterpolated</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">structured_pattern</span><span class="o">.</span><span class="n">partial_match</span><span class="p">:</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;^(?:</span><span class="si">{</span><span class="n">pattern</span><span class="si">}</span><span class="s2">)$&quot;</span>
+        <span class="k">return</span> <span class="n">pattern</span></div>
 
 
 <div class="viewcode-block" id="SchemaView.induced_slot">
@@ -2278,8 +2398,8 @@
             <span class="n">slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot_name</span><span class="p">,</span> <span class="n">imports</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
             <span class="c1"># traverse ancestors (reflexive), starting with</span>
             <span class="c1"># the main class</span>
-            <span class="k">for</span> <span class="n">an</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_ancestors</span><span class="p">(</span><span class="n">class_name</span><span class="p">):</span>
-                <span class="n">a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_class</span><span class="p">(</span><span class="n">an</span><span class="p">,</span> <span class="n">imports</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">class_ancestor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_ancestors</span><span class="p">(</span><span class="n">class_name</span><span class="p">):</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_class</span><span class="p">(</span><span class="n">class_ancestor</span><span class="p">,</span> <span class="n">imports</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">slot_name</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">attributes</span><span class="p">:</span>
                     <span class="n">slot</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">attributes</span><span class="p">[</span><span class="n">slot_name</span><span class="p">]</span>
                     <span class="n">slot_comes_from_attribute</span> <span class="o">=</span> <span class="kc">True</span>
@@ -2309,11 +2429,22 @@
 
         <span class="c1"># copy the slot, as it will be modified</span>
         <span class="n">induced_slot</span> <span class="o">=</span> <span class="n">copy</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
+
+        <span class="c1"># Resolve patterns on each copied definition *before* inheritance. `pattern`</span>
+        <span class="c1"># and `structured_pattern` are inherited as separate metaslots, so resolving</span>
+        <span class="c1"># only the final induced slot could combine them from different layers. For</span>
+        <span class="c1"># example, a child slot_usage&#39;s explicit `pattern` could otherwise be</span>
+        <span class="c1"># overwritten by a parent&#39;s inherited `structured_pattern`.</span>
+        <span class="n">induced_slot</span><span class="o">.</span><span class="n">pattern</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resolve_pattern</span><span class="p">(</span><span class="n">induced_slot</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">slot_comes_from_attribute</span><span class="p">:</span>
             <span class="n">slot_anc_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slot_ancestors</span><span class="p">(</span><span class="n">slot_name</span><span class="p">,</span> <span class="n">reflexive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="c1"># inheritable slot: first propagate from ancestors</span>
             <span class="k">for</span> <span class="n">anc_sn</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">slot_anc_names</span><span class="p">):</span>
                 <span class="n">anc_slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">anc_sn</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">anc_slot</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">anc_slot</span> <span class="o">=</span> <span class="n">copy</span><span class="p">(</span><span class="n">anc_slot</span><span class="p">)</span>
+                <span class="n">anc_slot</span><span class="o">.</span><span class="n">pattern</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resolve_pattern</span><span class="p">(</span><span class="n">anc_slot</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">metaslot_name</span> <span class="ow">in</span> <span class="n">SlotDefinition</span><span class="o">.</span><span class="n">_inherited_slots</span><span class="p">:</span>  <span class="c1"># noqa: SLF001</span>
                     <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">anc_slot</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
                         <span class="nb">setattr</span><span class="p">(</span><span class="n">induced_slot</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="n">copy</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">anc_slot</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">)))</span>
@@ -2321,17 +2452,36 @@
             <span class="s2">&quot;maximum_value&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span>
             <span class="s2">&quot;minimum_value&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span>
         <span class="p">}</span>
+        <span class="n">class_ancestors</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="bp">cls</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_ancestors</span><span class="p">(</span><span class="n">class_name</span><span class="p">,</span> <span class="n">reflexive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">mixins</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># Prepare materialized copies of slot_usage definitions before the generic</span>
+        <span class="c1"># metaslot loop below. This keeps a structured pattern and the regular pattern</span>
+        <span class="c1"># derived from it at the same inheritance priority. It also preserves enough</span>
+        <span class="c1"># provenance to select the correct settings: slot_usage definitions do not</span>
+        <span class="c1"># reliably carry `from_schema`, and that information cannot be recovered</span>
+        <span class="c1"># after all usages have been merged into `induced_slot`.</span>
+        <span class="n">resolved_slot_usages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">ClassDefinitionName</span><span class="p">,</span> <span class="n">SlotDefinition</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">class_ancestor</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">class_ancestors</span><span class="p">):</span>
+            <span class="n">owning_class</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_class</span><span class="p">(</span><span class="n">class_ancestor</span><span class="p">,</span> <span class="n">imports</span><span class="p">)</span>
+            <span class="n">asserted_slot_usage</span> <span class="o">=</span> <span class="n">owning_class</span><span class="o">.</span><span class="n">slot_usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">slot_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">asserted_slot_usage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">resolved_slot_usages</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">class_ancestor</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+                <span class="k">continue</span>
+            <span class="n">slot_usage</span> <span class="o">=</span> <span class="n">copy</span><span class="p">(</span><span class="n">asserted_slot_usage</span><span class="p">)</span>
+            <span class="c1"># A slot_usage is defined as part of its owning class, so interpolate its</span>
+            <span class="c1"># structured pattern using that class&#39;s schema rather than the base slot&#39;s.</span>
+            <span class="n">slot_usage</span><span class="o">.</span><span class="n">from_schema</span> <span class="o">=</span> <span class="n">owning_class</span><span class="o">.</span><span class="n">from_schema</span>
+            <span class="n">slot_usage</span><span class="o">.</span><span class="n">pattern</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resolve_pattern</span><span class="p">(</span><span class="n">slot_usage</span><span class="p">)</span>
+            <span class="n">resolved_slot_usages</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">class_ancestor</span><span class="p">,</span> <span class="n">slot_usage</span><span class="p">))</span>
+
         <span class="c1"># iterate through all metaslots, and potentially populate metaslot value for induced slot</span>
         <span class="k">for</span> <span class="n">metaslot_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metaslots_for_slot</span><span class="p">():</span>
             <span class="c1"># inheritance of slots; priority order</span>
             <span class="c1">#   slot-level assignment &lt; ancestor slot_usage &lt; self slot_usage</span>
             <span class="n">v</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">induced_slot</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="n">propagated_from</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="bp">cls</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">class_ancestors</span><span class="p">(</span><span class="n">class_name</span><span class="p">,</span> <span class="n">reflexive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">mixins</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">an</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">propagated_from</span><span class="p">):</span>
-                <span class="n">induced_slot</span><span class="o">.</span><span class="n">owner</span> <span class="o">=</span> <span class="n">an</span>
-                <span class="n">a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_class</span><span class="p">(</span><span class="n">an</span><span class="p">,</span> <span class="n">imports</span><span class="p">)</span>
-                <span class="n">anc_slot_usage</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">slot_usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">slot_name</span><span class="p">,</span> <span class="p">{})</span>
-                <span class="n">v2</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">anc_slot_usage</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">class_ancestor</span><span class="p">,</span> <span class="n">anc_slot_usage</span> <span class="ow">in</span> <span class="n">resolved_slot_usages</span><span class="p">:</span>
+                <span class="n">induced_slot</span><span class="o">.</span><span class="n">owner</span> <span class="o">=</span> <span class="n">class_ancestor</span>
+                <span class="n">v2</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">anc_slot_usage</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">if</span> <span class="n">anc_slot_usage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
                 <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">v</span> <span class="o">=</span> <span class="n">v2</span>
                 <span class="k">elif</span> <span class="n">metaslot_name</span> <span class="ow">in</span> <span class="n">mix_max_value_dict</span><span class="p">:</span>
@@ -2462,18 +2612,20 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate an induced type.</span>
 
 <span class="sd">        :param type_name:</span>
-<span class="sd">        :return:</span>
+<span class="sd">        :return: induced type</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">t</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_type</span><span class="p">(</span><span class="n">type_name</span><span class="p">))</span>
-        <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">typeof</span><span class="p">:</span>
-            <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">induced_type</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">typeof</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">uri</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">t</span><span class="o">.</span><span class="n">uri</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">uri</span>
-            <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">base</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">t</span><span class="o">.</span><span class="n">base</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">base</span>
-            <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">repr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">t</span><span class="o">.</span><span class="n">repr</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">repr</span>
-        <span class="k">return</span> <span class="n">t</span></div>
+        <span class="n">induced_type</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_type</span><span class="p">(</span><span class="n">type_name</span><span class="p">))</span>
+        <span class="c1"># Resolve each copied ancestor before propagating inheritable metaslots. This</span>
+        <span class="c1"># lets an ancestor&#39;s materialized pattern be inherited while a child&#39;s explicit</span>
+        <span class="c1"># pattern or structured pattern still overrides it through the normal order.</span>
+        <span class="k">for</span> <span class="n">ancestor_name</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">type_ancestors</span><span class="p">(</span><span class="n">type_name</span><span class="p">,</span> <span class="n">reflexive</span><span class="o">=</span><span class="kc">True</span><span class="p">)):</span>
+            <span class="n">type_ancestor</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_type</span><span class="p">(</span><span class="n">ancestor_name</span><span class="p">))</span>
+            <span class="n">type_ancestor</span><span class="o">.</span><span class="n">pattern</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">resolve_pattern</span><span class="p">(</span><span class="n">type_ancestor</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">metaslot_name</span> <span class="ow">in</span> <span class="n">TypeDefinition</span><span class="o">.</span><span class="n">_inherited_slots</span><span class="p">:</span>  <span class="c1"># noqa: SLF001</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">type_ancestor</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">is_empty</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">induced_type</span><span class="p">,</span> <span class="n">metaslot_name</span><span class="p">,</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">induced_type</span></div>
 
 
 <div class="viewcode-block" id="SchemaView.induced_enum">
@@ -3008,28 +3160,74 @@
 
 <div class="viewcode-block" id="SchemaView.materialize_patterns">
 <a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.materialize_patterns">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">materialize_patterns</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Materialize schema by expanding structured patterns into regular expressions based on composite patterns provided in the settings dictionary.&quot;&quot;&quot;</span>
-        <span class="n">resolver</span> <span class="o">=</span> <span class="n">PatternResolver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+    <span class="nd">@deprecated</span><span class="p">(</span>
+        <span class="n">reason</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">&quot;This method mutates asserted schema definitions. Use resolve_pattern() for a single definition, &quot;</span>
+            <span class="s2">&quot;or induced_slot() and induced_type() for induced definitions.&quot;</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">materialize_patterns</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Materialize structured patterns into regular expressions in place.</span>
 
-        <span class="k">def</span><span class="w"> </span><span class="nf">materialize_pattern_into_slot_definition</span><span class="p">(</span><span class="n">slot_definition</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">slot_definition</span><span class="o">.</span><span class="n">structured_pattern</span><span class="p">:</span>
+<span class="sd">        :param imports: include definitions from imported schemas, defaults to True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_materialize_patterns</span><span class="p">(</span><span class="n">imports</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_materialize_patterns</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">imports</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Implement in-place pattern materialization for compatibility callers.&quot;&quot;&quot;</span>
+        <span class="n">schemas_by_id</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">id</span><span class="p">):</span> <span class="n">schema</span> <span class="k">for</span> <span class="n">schema</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_schema</span><span class="p">(</span><span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">)}</span>
+        <span class="n">resolvers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">PatternResolver</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">modified</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">resolver_for_definition</span><span class="p">(</span>
+            <span class="n">element_def</span><span class="p">:</span> <span class="n">SlotDefinition</span> <span class="o">|</span> <span class="n">TypeDefinition</span><span class="p">,</span>
+            <span class="n">owning_class</span><span class="p">:</span> <span class="n">ClassDefinition</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PatternResolver</span><span class="p">:</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">owning_class</span> <span class="k">if</span> <span class="n">owning_class</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">element_def</span>
+            <span class="n">schema_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">from_schema</span><span class="p">)</span> <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">from_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">schema_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">resolvers</span><span class="p">:</span>
+                <span class="n">schema</span> <span class="o">=</span> <span class="n">schemas_by_id</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">schema_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span>
+                <span class="n">resolvers</span><span class="p">[</span><span class="n">schema_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">PatternResolver</span><span class="p">(</span><span class="n">SchemaView</span><span class="p">(</span><span class="n">schema</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">resolvers</span><span class="p">[</span><span class="n">schema_id</span><span class="p">]</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">materialize_pattern_into_definition</span><span class="p">(</span>
+            <span class="n">element_def</span><span class="p">:</span> <span class="n">SlotDefinition</span> <span class="o">|</span> <span class="n">TypeDefinition</span><span class="p">,</span>
+            <span class="n">owning_class</span><span class="p">:</span> <span class="n">ClassDefinition</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">nonlocal</span> <span class="n">modified</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">element_def</span><span class="o">.</span><span class="n">structured_pattern</span><span class="p">:</span>
                 <span class="k">return</span>
-            <span class="n">pattern</span> <span class="o">=</span> <span class="n">slot_definition</span><span class="o">.</span><span class="n">structured_pattern</span><span class="o">.</span><span class="n">syntax</span>
-            <span class="n">slot_definition</span><span class="o">.</span><span class="n">pattern</span> <span class="o">=</span> <span class="n">resolver</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+            <span class="n">structured_pattern</span> <span class="o">=</span> <span class="n">element_def</span><span class="o">.</span><span class="n">structured_pattern</span>
+            <span class="n">pattern</span> <span class="o">=</span> <span class="n">structured_pattern</span><span class="o">.</span><span class="n">syntax</span>
+            <span class="n">resolver</span> <span class="o">=</span> <span class="n">resolver_for_definition</span><span class="p">(</span><span class="n">element_def</span><span class="p">,</span> <span class="n">owning_class</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">structured_pattern</span><span class="o">.</span><span class="n">interpolated</span><span class="p">:</span>
+                <span class="n">pattern</span> <span class="o">=</span> <span class="n">resolver</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pattern</span> <span class="o">=</span> <span class="n">resolver</span><span class="o">.</span><span class="n">escape_uninterpolated</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">structured_pattern</span><span class="o">.</span><span class="n">partial_match</span><span class="p">:</span>
+                <span class="n">pattern</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;^(?:</span><span class="si">{</span><span class="n">pattern</span><span class="si">}</span><span class="s2">)$&quot;</span>
+            <span class="k">if</span> <span class="n">element_def</span><span class="o">.</span><span class="n">pattern</span> <span class="o">!=</span> <span class="n">pattern</span><span class="p">:</span>
+                <span class="n">element_def</span><span class="o">.</span><span class="n">pattern</span> <span class="o">=</span> <span class="n">pattern</span>
+                <span class="n">modified</span> <span class="o">=</span> <span class="kc">True</span>
 
-        <span class="k">for</span> <span class="n">slot_definition</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_slots</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">materialize_pattern_into_slot_definition</span><span class="p">(</span><span class="n">slot_definition</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">slot_definition</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_slots</span><span class="p">(</span><span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">materialize_pattern_into_definition</span><span class="p">(</span><span class="n">slot_definition</span><span class="p">)</span>
 
-        <span class="k">for</span> <span class="n">class_definition</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_classes</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">type_definition</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_types</span><span class="p">(</span><span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">materialize_pattern_into_definition</span><span class="p">(</span><span class="n">type_definition</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">class_definition</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_classes</span><span class="p">(</span><span class="n">imports</span><span class="o">=</span><span class="n">imports</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">class_definition</span><span class="o">.</span><span class="n">slot_usage</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">slot_definition</span> <span class="ow">in</span> <span class="n">class_definition</span><span class="o">.</span><span class="n">slot_usage</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-                    <span class="n">materialize_pattern_into_slot_definition</span><span class="p">(</span><span class="n">slot_definition</span><span class="p">)</span>
+                    <span class="n">materialize_pattern_into_definition</span><span class="p">(</span><span class="n">slot_definition</span><span class="p">,</span> <span class="n">class_definition</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">class_definition</span><span class="o">.</span><span class="n">attributes</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">slot_definition</span> <span class="ow">in</span> <span class="n">class_definition</span><span class="o">.</span><span class="n">attributes</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-                    <span class="n">materialize_pattern_into_slot_definition</span><span class="p">(</span><span class="n">slot_definition</span><span class="p">)</span></div>
+                    <span class="n">materialize_pattern_into_definition</span><span class="p">(</span><span class="n">slot_definition</span><span class="p">,</span> <span class="n">class_definition</span><span class="p">)</span>
 
+        <span class="k">if</span> <span class="n">modified</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_modified</span><span class="p">()</span>
 
 <div class="viewcode-block" id="SchemaView.materialize_derived_schema">
 <a class="viewcode-back" href="../../../developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.materialize_derived_schema">[docs]</a>
@@ -3112,13 +3310,361 @@
     <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
-    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-    <script type="module">
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
-window.addEventListener("load", () => mermaid.run());
-</script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
     </body>
 </html>

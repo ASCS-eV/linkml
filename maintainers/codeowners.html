@@ -6,11 +6,11 @@
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Deprecations" href="deprecation.html"><link rel="prev" title="Contributor Hierarchy" href="contributor-hierarchy.html">
         <link rel="prefetch" href="https://linkml.io/uploads/linkml-logo_color.png" as="image">
 
-    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
         <title>CODEOWNERS - linkml documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=580074bf" />
-    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
     <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
@@ -266,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../generators/python.html">Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/pydantic.html">Pydantic</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/java.html">Java</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generators/golang.html">Go</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/typescript.html">Typescript</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/rust.html">Rust</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqltable.html">SQL DDL</a></li>
@@ -332,6 +333,7 @@
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../cli/index.html">CLI</a><input aria-label="Toggle navigation of CLI" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../cli/linkml.html"><code class="docutils literal notranslate"><span class="pre">linkml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../cli/config.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">config</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../cli/generate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">generate</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../cli/lint.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">lint</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../cli/validate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">validate</span></code></a></li>
@@ -358,6 +360,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../code/deprecation.html">Deprecation Log</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../config/index.html">Configuration</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Maintainers Guide:</span></p>
 <ul class="current">
@@ -418,24 +421,34 @@ file is how we route PRs to the people who actually maintain each area.</p>
 <p>For the underlying GitHub mechanics, see the upstream
 <a class="reference external" href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners">CODEOWNERS documentation</a>.
 This page only covers how LinkML uses it.</p>
-<section id="the-linkml-model-opt-in-stewardship">
-<h2>The LinkML model: opt-in stewardship<a class="headerlink" href="#the-linkml-model-opt-in-stewardship" title="Link to this heading">¶</a></h2>
-<p>LinkML uses an <strong>opt-in</strong> model. The <code class="docutils literal notranslate"><span class="pre">CODEOWNERS</span></code> file contains:</p>
+<section id="the-linkml-model-core-team-default-with-per-area-stewardship">
+<h2>The LinkML model: core-team default with per-area stewardship<a class="headerlink" href="#the-linkml-model-core-team-default-with-per-area-stewardship" title="Link to this heading">¶</a></h2>
+<p>LinkML uses a <strong>default-rule</strong> model. The <code class="docutils literal notranslate"><span class="pre">CODEOWNERS</span></code> file contains:</p>
 <ul class="simple">
-<li><p><strong>No default (<code class="docutils literal notranslate"><span class="pre">*</span></code>) rule.</strong> Paths that no one has claimed are reviewed
-normally, exactly as they were before CODEOWNERS existed. CODEOWNERS does
-not create a new approval gate for the rest of the codebase.</p></li>
+<li><p><strong>A default (<code class="docutils literal notranslate"><span class="pre">*</span></code>) rule</strong> requiring <code class="docutils literal notranslate"><span class="pre">&#64;linkml/core-team</span></code> approval on any path
+not covered by a more specific rule. This closes the gap where a
+write-access holder could merge a PR touching an unclaimed area without any
+core-team sign-off. Because GitHub applies the <em>last</em> matching rule, the
+per-subsystem rules below still take precedence over the default for their
+own paths.</p></li>
 <li><p><strong>Per-generator / per-subsystem rules</strong> for specific directories (e.g.
 <code class="docutils literal notranslate"><span class="pre">packages/linkml/src/linkml/generators/pydanticgen/</span></code>,
 <code class="docutils literal notranslate"><span class="pre">packages/linkml/src/linkml/generators/yarrrmlgen.py</span></code>) where a contributor
-has explicitly volunteered to steward the code. The baseline for
-identifying candidate stewards per generator is
-<a class="reference internal" href="generator-governance.html"><span class="std std-doc">Generator and Validator Governance</span></a>, which
-records contributor history from <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">blame</span></code>.</p></li>
+has explicitly volunteered to steward the code. These override the default
+for their paths. The baseline for identifying candidate stewards per
+generator is <a class="reference internal" href="generator-governance.html"><span class="std std-doc">Generator and Validator Governance</span></a>,
+which records contributor history from <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">blame</span></code>.</p></li>
 <li><p><strong>Governance rules</strong> — <code class="docutils literal notranslate"><span class="pre">CODEOWNERS</span></code> itself and the governance documents in
 <code class="docutils literal notranslate"><span class="pre">docs/maintainers/</span></code> are owned by <code class="docutils literal notranslate"><span class="pre">&#64;linkml/core-team</span></code> to prevent accidental
 self-appointments.</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The default rule only has teeth if the branch protection rule <strong>“Require
+review from Code Owners”</strong> is enabled on <code class="docutils literal notranslate"><span class="pre">main</span></code>. Without it, GitHub records
+the code-owner requirement but does not block merges. Enabling that setting
+requires <a class="reference internal" href="contributor-hierarchy.html"><span class="std std-doc">admin</span></a> access.</p>
+</div>
 <p>Implications:</p>
 <ul class="simple">
 <li><p>Being listed in <code class="docutils literal notranslate"><span class="pre">CODEOWNERS</span></code> does <strong>not</strong> grant repository write access.
@@ -484,6 +497,19 @@ including PRs authored by CODEOWNERS or core developers. The mechanisms
 below — the 1-month fallback, the project-direction override, and the
 stepping-down process — exist within that frame.</p>
 </section>
+</section>
+<section id="experiment-delegating-self-contained-areas">
+<h2>Experiment: delegating self-contained areas<a class="headerlink" href="#experiment-delegating-self-contained-areas" title="Link to this heading">¶</a></h2>
+<p>A few generators are self-contained enough that core-team review adds little.
+Where trusted, established community members know such an area well, we hand
+it to them outright: they review each other’s changes and merge without
+core-team sign-off.
+This does not preclude participants, at their discretion, from occasionally
+explicitly requesting approval from the core-team for some reason.</p>
+<p>The goal is to let those areas move at the pace of the people who care about
+them rather than at the pace of core-team availability. Rules covering them
+are marked <code class="docutils literal notranslate"><span class="pre">EXPERIMENT</span></code> in
+<a class="reference external" href="https://github.com/linkml/linkml/blob/main/.github/CODEOWNERS"><code class="docutils literal notranslate"><span class="pre">.github/CODEOWNERS</span></code></a>.</p>
 </section>
 <section id="avoiding-review-bottlenecks-the-1-month-fallback">
 <h2>Avoiding review bottlenecks: the 1-month fallback<a class="headerlink" href="#avoiding-review-bottlenecks-the-1-month-fallback" title="Link to this heading">¶</a></h2>
@@ -794,10 +820,11 @@ history used to seed per-generator ownership groups</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">CODEOWNERS</a><ul>
-<li><a class="reference internal" href="#the-linkml-model-opt-in-stewardship">The LinkML model: opt-in stewardship</a><ul>
+<li><a class="reference internal" href="#the-linkml-model-core-team-default-with-per-area-stewardship">The LinkML model: core-team default with per-area stewardship</a><ul>
 <li><a class="reference internal" href="#expectations-of-codeowners">Expectations of CODEOWNERS</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#experiment-delegating-self-contained-areas">Experiment: delegating self-contained areas</a></li>
 <li><a class="reference internal" href="#avoiding-review-bottlenecks-the-1-month-fallback">Avoiding review bottlenecks: the 1-month fallback</a><ul>
 <li><a class="reference internal" href="#implementation-note">Implementation note</a></li>
 </ul>

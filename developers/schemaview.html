@@ -6,11 +6,11 @@
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="SchemaBuilder" href="schemabuilder.html"><link rel="prev" title="How to Manage Releases of your LinkML Schema" href="manage-releases.html">
         <link rel="prefetch" href="https://linkml.io/uploads/linkml-logo_color.png" as="image">
 
-    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
         <title>SchemaView - linkml documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=580074bf" />
-    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
     <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
@@ -266,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../generators/python.html">Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/pydantic.html">Pydantic</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/java.html">Java</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generators/golang.html">Go</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/typescript.html">Typescript</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/rust.html">Rust</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqltable.html">SQL DDL</a></li>
@@ -332,6 +333,7 @@
 <ul class="current">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../cli/index.html">CLI</a><input aria-label="Toggle navigation of CLI" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../cli/linkml.html"><code class="docutils literal notranslate"><span class="pre">linkml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../cli/config.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">config</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../cli/generate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">generate</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../cli/lint.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">lint</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="../cli/validate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">validate</span></code></a></li>
@@ -358,6 +360,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../code/deprecation.html">Deprecation Log</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../config/index.html">Configuration</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Maintainers Guide:</span></p>
 <ul>
@@ -416,7 +419,7 @@ dynamically introspecting and manipulating schemas.</p>
 <p>See <a class="reference external" href="https://github.com/linkml/linkml/tree/main/packages/linkml_runtime/notebooks">SchemaView notebooks</a></p>
 <dl class="py class">
 <dt class="sig sig-object py" id="linkml_runtime.utils.schemaview.SchemaView">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">linkml_runtime.utils.schemaview.</span></span><span class="sig-name descname"><span class="pre">SchemaView</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition" title="linkml_runtime.linkml_model.meta.SchemaDefinition"><span class="pre">SchemaDefinition</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">importmap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merge_imports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView" title="Link to this definition">¶</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">linkml_runtime.utils.schemaview.</span></span><span class="sig-name descname"><span class="pre">SchemaView</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition" title="linkml_runtime.linkml_model.meta.SchemaDefinition"><span class="pre">SchemaDefinition</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">importmap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merge_imports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView" title="Link to this definition">¶</a></dt>
 <dd><p>A SchemaView provides a virtual schema layered on top of a schema plus its import closure.</p>
 <p>Most operations are parameterized by <cite>imports</cite>. If this is set to True (default), then the full
 import closure is considered when answering</p>
@@ -704,15 +707,18 @@ into the schema rather than providing dynamic methods.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="linkml_runtime.utils.schemaview.SchemaView.annotation_dict">
-<span class="sig-name descname"><span class="pre">annotation_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">element_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ElementName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">imports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><span class="pre">URIorCURIE</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView.annotation_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.annotation_dict" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">annotation_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">element_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ElementName</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">imports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ClassDefinitionName</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><span class="pre">URIorCURIE</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView.annotation_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.annotation_dict" title="Link to this definition">¶</a></dt>
 <dd><p>Return a dictionary where keys are annotation tags and values are annotation values for any given element.</p>
 <p>Note this will not include higher-order annotations</p>
 <p>See also: <a class="reference external" href="https://github.com/linkml/linkml/issues/296">https://github.com/linkml/linkml/issues/296</a></p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>element_name</strong></p></li>
-<li><p><strong>imports</strong></p></li>
+<li><p><strong>element_name</strong> – The name of the schema element for which to retrieve annotations.</p></li>
+<li><p><strong>imports</strong> – Whether to include the imports closure when looking up for the element.</p></li>
+<li><p><strong>class_name</strong> – If set, <cite>element_name</cite> is assumed to be a slot name, and this method
+will return the annotations carried by the induced slot in the context of the
+indicated class.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -879,6 +885,36 @@ into the schema rather than providing dynamic methods.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>all slot names applicable for a class</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="linkml_runtime.utils.schemaview.SchemaView.compress_uri">
+<span class="sig-name descname"><span class="pre">compress_uri</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">uri</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView.compress_uri"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.compress_uri" title="Link to this definition">¶</a></dt>
+<dd><p>Compress a URI or CURIE to a CURIE string using the schema’s registered prefixes.</p>
+<p>This is the inverse of <a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.expand_curie" title="linkml_runtime.utils.schemaview.SchemaView.expand_curie"><code class="xref py py-meth docutils literal notranslate"><span class="pre">expand_curie()</span></code></a>.</p>
+<p>Resolution order:</p>
+<ol class="arabic simple">
+<li><p>Try to compress <em>uri</em> with
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">curie_for()</span></code>.</p></li>
+<li><p>If compression fails but <em>uri</em> is already a valid CURIE, return it as-is
+(emitting a warning when it looks like a plain <code class="docutils literal notranslate"><span class="pre">http(s)://</span></code> URL to alert
+callers that disambiguation is impossible).</p></li>
+<li><p>If <em>uri</em> is a fully-qualified URI with no matching prefix, raise
+<a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code></a>.</p></li>
+<li><p>If <em>uri</em> is neither a valid URI nor a valid CURIE, raise <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code></a>.</p></li>
+</ol>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>uri</strong> – A URI or CURIE string.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A CURIE string such as <code class="docutils literal notranslate"><span class="pre">&quot;schema:Event&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;ex:something_else&quot;</span></code>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – When <em>uri</em> is a fully-qualified URI whose namespace is not
+registered, or when it is not a syntactically valid URI or CURIE.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1084,6 +1120,36 @@ into the schema rather than providing dynamic methods.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>list of ClassDefinitions modifying the slot of interest</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="linkml_runtime.utils.schemaview.SchemaView.get_curie">
+<span class="sig-name descname"><span class="pre">get_curie</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">element</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ElementName</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Element</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">imports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView.get_curie"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.get_curie" title="Link to this definition">¶</a></dt>
+<dd><p>Return the CURIE for a schema element, compressing full URIs where possible.</p>
+<p>This is the CURIE-returning companion to <a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_uri" title="linkml_runtime.utils.schemaview.SchemaView.get_uri"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_uri()</span></code></a>.  It first resolves
+the element’s declared URI via <a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_uri" title="linkml_runtime.utils.schemaview.SchemaView.get_uri"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_uri()</span></code></a>, then compresses it to a CURIE
+using the schema’s registered prefixes via <a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.compress_uri" title="linkml_runtime.utils.schemaview.SchemaView.compress_uri"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compress_uri()</span></code></a>.</p>
+<p>When the declared URI is already a CURIE (the common case) it is returned
+unchanged.  When no URI is declared, <a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_uri" title="linkml_runtime.utils.schemaview.SchemaView.get_uri"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_uri()</span></code></a> constructs the fallback
+<code class="docutils literal notranslate"><span class="pre">&quot;&lt;default_prefix&gt;:&lt;element_name&gt;&quot;</span></code> CURIE, which is then returned as-is.
+When the URI is a full URI that cannot be compressed, a <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code></a> is
+raised.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>element</strong> – Name of schema element or element object.</p></li>
+<li><p><strong>imports</strong> – Include imports closure when resolving the element.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A CURIE string such as <code class="docutils literal notranslate"><span class="pre">&quot;schema:Event&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;ex:something_else&quot;</span></code>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – When the element’s URI is a fully-qualified URI with no
+matching prefix registered in the schema, or when it is not a valid URI or
+CURIE.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1349,8 +1415,8 @@ element type as a path segment (e.g. <code class="docutils literal notranslate">
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="linkml_runtime.utils.schemaview.SchemaView.importmap">
-<span class="sig-name descname"><span class="pre">importmap</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Mapping</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.importmap" title="Link to this definition">¶</a></dt>
-<dd><p>Optional mapping between schema names and local paths/URLs</p>
+<span class="sig-name descname"><span class="pre">importmap</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Mapping</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.importmap" title="Link to this definition">¶</a></dt>
+<dd><p>Optional mapping between schema names and local paths/URLs, or in-memory schema dicts</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1487,7 +1553,7 @@ to infer missing values, for inheritable slots</p>
 <dd class="field-odd"><p><strong>type_name</strong></p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p></p>
+<dd class="field-even"><p>induced type</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1600,6 +1666,7 @@ where the identifier is not guaranteed to be a valid URI or CURIE</p>
 <ul class="simple">
 <li><p>a URL (specified as either a full URL or a CURIE)</p></li>
 <li><p>a local file path</p></li>
+<li><p>an in-memory schema dict supplied via the importmap</p></li>
 </ul>
 <p>The import should leave off the .yaml suffix.</p>
 <p>If the import is a URL then the import is fetched over the network UNLESS this is a metamodel
@@ -1631,8 +1698,13 @@ or the URL of the source file, if it is a URL.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="linkml_runtime.utils.schemaview.SchemaView.materialize_patterns">
-<span class="sig-name descname"><span class="pre">materialize_patterns</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView.materialize_patterns"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.materialize_patterns" title="Link to this definition">¶</a></dt>
-<dd><p>Materialize schema by expanding structured patterns into regular expressions based on composite patterns provided in the settings dictionary.</p>
+<span class="sig-name descname"><span class="pre">materialize_patterns</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">imports</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView.materialize_patterns"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.materialize_patterns" title="Link to this definition">¶</a></dt>
+<dd><p>Materialize structured patterns into regular expressions in place.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>imports</strong> – include definitions from imported schemas, defaults to True</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -1720,6 +1792,22 @@ then this element is NOT copied.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>all direct parent enum names (is_a)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="linkml_runtime.utils.schemaview.SchemaView.resolve_pattern">
+<span class="sig-name descname"><span class="pre">resolve_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">definition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition" title="linkml_runtime.linkml_model.meta.SlotDefinition"><span class="pre">SlotDefinition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="../code/metamodel.html#linkml_runtime.linkml_model.meta.TypeDefinition" title="linkml_runtime.linkml_model.meta.TypeDefinition"><span class="pre">TypeDefinition</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/linkml_runtime/utils/schemaview.html#SchemaView.resolve_pattern"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml_runtime.utils.schemaview.SchemaView.resolve_pattern" title="Link to this definition">¶</a></dt>
+<dd><p>Return the effective regular-expression pattern for a slot or type definition.</p>
+<p>Structured patterns are resolved using settings from the schema that defined the
+supplied definition. The definition and underlying schemas are not modified.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>definition</strong> – slot or type definition whose pattern should be resolved</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>asserted or materialized regular-expression pattern, if present</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2060,6 +2148,7 @@ LinkML 1.2 allows the use of range expressions, where ranges can be defined as u
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.class_parents"><code class="docutils literal notranslate"><span class="pre">SchemaView.class_parents()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.class_roots"><code class="docutils literal notranslate"><span class="pre">SchemaView.class_roots()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.class_slots"><code class="docutils literal notranslate"><span class="pre">SchemaView.class_slots()</span></code></a></li>
+<li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.compress_uri"><code class="docutils literal notranslate"><span class="pre">SchemaView.compress_uri()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.copy_schema"><code class="docutils literal notranslate"><span class="pre">SchemaView.copy_schema()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.delete_class"><code class="docutils literal notranslate"><span class="pre">SchemaView.delete_class()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.delete_enum"><code class="docutils literal notranslate"><span class="pre">SchemaView.delete_enum()</span></code></a></li>
@@ -2073,6 +2162,7 @@ LinkML 1.2 allows the use of range expressions, where ranges can be defined as u
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_class"><code class="docutils literal notranslate"><span class="pre">SchemaView.get_class()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_classes_by_slot"><code class="docutils literal notranslate"><span class="pre">SchemaView.get_classes_by_slot()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_classes_modifying_slot"><code class="docutils literal notranslate"><span class="pre">SchemaView.get_classes_modifying_slot()</span></code></a></li>
+<li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_curie"><code class="docutils literal notranslate"><span class="pre">SchemaView.get_curie()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_element"><code class="docutils literal notranslate"><span class="pre">SchemaView.get_element()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_elements_applicable_by_identifier"><code class="docutils literal notranslate"><span class="pre">SchemaView.get_elements_applicable_by_identifier()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.get_elements_applicable_by_prefix"><code class="docutils literal notranslate"><span class="pre">SchemaView.get_elements_applicable_by_prefix()</span></code></a></li>
@@ -2111,6 +2201,7 @@ LinkML 1.2 allows the use of range expressions, where ranges can be defined as u
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.permissible_value_ancestors"><code class="docutils literal notranslate"><span class="pre">SchemaView.permissible_value_ancestors()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.permissible_value_descendants"><code class="docutils literal notranslate"><span class="pre">SchemaView.permissible_value_descendants()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.permissible_value_parents"><code class="docutils literal notranslate"><span class="pre">SchemaView.permissible_value_parents()</span></code></a></li>
+<li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.resolve_pattern"><code class="docutils literal notranslate"><span class="pre">SchemaView.resolve_pattern()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.set_modified"><code class="docutils literal notranslate"><span class="pre">SchemaView.set_modified()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.slot_ancestors"><code class="docutils literal notranslate"><span class="pre">SchemaView.slot_ancestors()</span></code></a></li>
 <li><a class="reference internal" href="#linkml_runtime.utils.schemaview.SchemaView.slot_applicable_range_elements"><code class="docutils literal notranslate"><span class="pre">SchemaView.slot_applicable_range_elements()</span></code></a></li>

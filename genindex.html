@@ -5,10 +5,10 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="#"><link rel="search" title="Search" href="search.html">
         <link rel="prefetch" href="https://linkml.io/uploads/linkml-logo_color.png" as="image">
 
-    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 --><title>Index - linkml documentation</title>
+    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 --><title>Index - linkml documentation</title>
 <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=580074bf" />
-    <link rel="stylesheet" type="text/css" href="_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
     <link rel="stylesheet" type="text/css" href="_static/plot_directive.css" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
@@ -264,6 +264,7 @@
 <li class="toctree-l2"><a class="reference internal" href="generators/python.html">Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/pydantic.html">Pydantic</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/java.html">Java</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generators/golang.html">Go</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/typescript.html">Typescript</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/rust.html">Rust</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generators/sqltable.html">SQL DDL</a></li>
@@ -330,6 +331,7 @@
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="cli/index.html">CLI</a><input aria-label="Toggle navigation of CLI" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="cli/linkml.html"><code class="docutils literal notranslate"><span class="pre">linkml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli/config.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">config</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="cli/generate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">generate</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="cli/lint.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">lint</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="cli/validate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">validate</span></code></a></li>
@@ -356,6 +358,7 @@
 <li class="toctree-l2"><a class="reference internal" href="code/deprecation.html">Deprecation Log</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="config/index.html">Configuration</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Maintainers Guide:</span></p>
 <ul>
@@ -448,6 +451,8 @@
     --alphabetical-sort
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-alphabetical-sort">gen-golang command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-alphabetical-sort">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
@@ -558,6 +563,15 @@
 </li>
         </ul></li>
         <li>
+    --check-rules
+
+        <ul>
+          <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-rules">gen-sqlvalidation command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-rules">linkml-generate-(full)-sqlvalidation command line option</a>
+</li>
+        </ul></li>
+        <li>
     --check-unique-keys
 
         <ul>
@@ -619,7 +633,15 @@
     --config-file
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-C">gen-golang command line option</a>
+</li>
+          <li><a href="generators/java.html#cmdoption-gen-java-C">gen-java command line option</a>
+</li>
           <li><a href="generators/project-generator.html#cmdoption-gen-project-C">gen-project command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-C">linkml-generate-(full)-golang command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-C">linkml-generate-(full)-java command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-project-C">linkml-generate-(full)-project command line option</a>
 </li>
@@ -797,6 +819,15 @@
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-emit-frame">gen-jsonld-context command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-emit-frame">linkml-generate-(full)-jsonld-context command line option</a>
+</li>
+        </ul></li>
+        <li>
+    --emit-rules
+
+        <ul>
+          <li><a href="generators/shacl.html#cmdoption-gen-shacl-emit-rules">gen-shacl command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-emit-rules">linkml-generate-(full)-shacl command line option</a>
 </li>
         </ul></li>
         <li>
@@ -997,6 +1028,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-f">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-f">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-f">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-f">gen-graphql command line option</a>
 </li>
@@ -1243,6 +1276,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-im">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-im">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-im">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-im">gen-java command line option</a>
@@ -1447,6 +1482,15 @@
 </li>
         </ul></li>
         <li>
+    --include-null
+
+        <ul>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-include-null">gen-json-schema command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-include-null">linkml-generate-(full)-json-schema command line option</a>
+</li>
+        </ul></li>
+        <li>
     --include-range-class-descendants
 
         <ul>
@@ -1515,6 +1559,15 @@
 </li>
         </ul></li>
         <li>
+    --inline-enums
+
+        <ul>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-e">gen-openapi command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-e">linkml-generate-(full)-openapi command line option</a>
+</li>
+        </ul></li>
+        <li>
     --input-format
 
         <ul>
@@ -1528,6 +1581,15 @@
           <li><a href="generators/yarrrml.html#cmdoption-gen-yarrrml-iterator-template">gen-yarrrml command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-yarrrml-iterator-template">linkml-generate-(full)-yarrrml command line option</a>
+</li>
+        </ul></li>
+        <li>
+    --keep-unreferenced
+
+        <ul>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-k">gen-openapi command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-k">linkml-generate-(full)-openapi command line option</a>
 </li>
         </ul></li>
         <li>
@@ -1571,6 +1633,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-log_level">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-log_level">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-log_level">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-log_level">gen-graphql command line option</a>
 </li>
@@ -1765,6 +1829,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-mergeimports">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-mergeimports">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-mergeimports">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-mergeimports">gen-java command line option</a>
@@ -1931,6 +1997,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-metadata">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-metadata">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-metadata">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-metadata">gen-java command line option</a>
@@ -2074,6 +2142,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-useuris">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-useuris">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-useuris">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-useuris">gen-graphql command line option</a>
 </li>
@@ -2234,6 +2304,8 @@
     --named-slot-types
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-named-slot-types">gen-golang command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-named-slot-types">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
@@ -2259,6 +2331,8 @@
     --no-alphabetical-sort
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-alphabetical-sort">gen-golang command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-alphabetical-sort">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
@@ -2305,6 +2379,15 @@
           <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-required">gen-sqlvalidation command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-required">linkml-generate-(full)-sqlvalidation command line option</a>
+</li>
+        </ul></li>
+        <li>
+    --no-check-rules
+
+        <ul>
+          <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-rules">gen-sqlvalidation command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-rules">linkml-generate-(full)-sqlvalidation command line option</a>
 </li>
         </ul></li>
         <li>
@@ -2359,6 +2442,15 @@
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-emit-frame">gen-jsonld-context command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-emit-frame">linkml-generate-(full)-jsonld-context command line option</a>
+</li>
+        </ul></li>
+        <li>
+    --no-emit-rules
+
+        <ul>
+          <li><a href="generators/shacl.html#cmdoption-gen-shacl-emit-rules">gen-shacl command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-emit-rules">linkml-generate-(full)-shacl command line option</a>
 </li>
         </ul></li>
         <li>
@@ -2534,6 +2626,15 @@
 </li>
         </ul></li>
         <li>
+    --no-include-null
+
+        <ul>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-include-null">gen-json-schema command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-include-null">linkml-generate-(full)-json-schema command line option</a>
+</li>
+        </ul></li>
+        <li>
     --no-include-top-level-diagram
 
         <ul>
@@ -2607,6 +2708,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-mergeimports">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-mergeimports">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-mergeimports">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-mergeimports">gen-graphql command line option</a>
 </li>
@@ -2756,6 +2859,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-metadata">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-metadata">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-metadata">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-metadata">gen-java command line option</a>
@@ -2899,6 +3004,8 @@
     --no-named-slot-types
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-named-slot-types">gen-golang command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-named-slot-types">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
@@ -2906,6 +3013,8 @@
     --no-nullable-primitives
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-nullable-primitives">gen-golang command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-nullable-primitives">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
@@ -2918,6 +3027,8 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-prefixes">linkml-generate-(full)-jsonld-context command line option</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     --no-pydantic
 
@@ -2936,8 +3047,6 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-include-range-class-descendants">linkml-generate-(full)-json-schema command line option</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     --no-raw
 
@@ -3019,6 +3128,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-stacktrace">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-stacktrace">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-stacktrace">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-stacktrace">gen-graphql command line option</a>
 </li>
@@ -3291,9 +3402,24 @@
 </li>
         </ul></li>
         <li>
+    --not-use-curies
+
+        <ul>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-use-curies">gen-json-schema command line option</a>
+</li>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-use-curies">gen-jsonld-context command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-use-curies">linkml-generate-(full)-json-schema command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-use-curies">linkml-generate-(full)-jsonld-context command line option</a>
+</li>
+        </ul></li>
+        <li>
     --nullable-primitives
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-nullable-primitives">gen-golang command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-nullable-primitives">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
@@ -3382,11 +3508,15 @@
     --package
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-package">gen-golang command line option</a>
+</li>
           <li><a href="generators/java.html#cmdoption-gen-java-package">gen-java command line option</a>
 </li>
           <li><a href="generators/pandera.html#cmdoption-gen-pandera-package">gen-pandera command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-gen-pandera-package">linkml-generate-(full)-gen-pandera command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-package">linkml-generate-(full)-golang command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-package">linkml-generate-(full)-java command line option</a>
 </li>
@@ -3395,6 +3525,8 @@
     --package-name
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-package-name">gen-golang command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-package-name">linkml-generate-(full)-golang command line option</a>
 </li>
         </ul></li>
@@ -3635,6 +3767,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-stacktrace">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-stacktrace">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-stacktrace">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-stacktrace">gen-java command line option</a>
@@ -3821,6 +3955,8 @@
     --template-dir
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-template-dir">gen-golang command line option</a>
+</li>
           <li><a href="generators/java.html#cmdoption-gen-java-template-dir">gen-java command line option</a>
 </li>
           <li><a href="generators/pydantic.html#cmdoption-gen-pydantic-template-dir">gen-pydantic command line option</a>
@@ -3945,6 +4081,19 @@
 </li>
         </ul></li>
         <li>
+    --use-curies
+
+        <ul>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-use-curies">gen-json-schema command line option</a>
+</li>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-use-curies">gen-jsonld-context command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-use-curies">linkml-generate-(full)-json-schema command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-use-curies">linkml-generate-(full)-jsonld-context command line option</a>
+</li>
+        </ul></li>
+        <li>
     --use-foreign-keys
 
         <ul>
@@ -3997,6 +4146,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-useuris">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-useuris">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-useuris">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-useuris">gen-graphql command line option</a>
 </li>
@@ -4160,6 +4311,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-v">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-v">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-v">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-v">gen-java command line option</a>
@@ -4298,6 +4451,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-V">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-V">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-V">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-V">gen-graphql command line option</a>
 </li>
@@ -4486,9 +4641,17 @@
     -C
 
         <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-C">gen-golang command line option</a>
+</li>
+          <li><a href="generators/java.html#cmdoption-gen-java-C">gen-java command line option</a>
+</li>
           <li><a href="generators/project-generator.html#cmdoption-gen-project-C">gen-project command line option</a>
 </li>
           <li><a href="data/conversion.html#cmdoption-linkml-convert-C">linkml-convert command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-C">linkml-generate-(full)-golang command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-C">linkml-generate-(full)-java command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-project-C">linkml-generate-(full)-project command line option</a>
 </li>
@@ -4547,6 +4710,15 @@
 </li>
         </ul></li>
         <li>
+    -e
+
+        <ul>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-e">gen-openapi command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-e">linkml-generate-(full)-openapi command line option</a>
+</li>
+        </ul></li>
+        <li>
     -f
 
         <ul>
@@ -4559,6 +4731,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-f">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-f">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-f">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-f">gen-graphql command line option</a>
 </li>
@@ -4724,6 +4898,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-im">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-im">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-im">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-im">gen-java command line option</a>
@@ -4851,7 +5027,11 @@
         <ul>
           <li><a href="generators/jsonld.html#cmdoption-gen-jsonld-k">gen-jsonld command line option</a>
 </li>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-k">gen-openapi command line option</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-k">linkml-generate-(full)-jsonld command line option</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-k">linkml-generate-(full)-openapi command line option</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-plantuml-k">linkml-generate-(full)-plantuml command line option</a>
 </li>
@@ -5021,6 +5201,8 @@
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-V">gen-excel command line option</a>
 </li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-V">gen-golang command line option</a>
+</li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-V">gen-graphql command line option</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-V">gen-java command line option</a>
@@ -5177,6 +5359,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-v">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-v">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-v">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-v">gen-graphql command line option</a>
 </li>
@@ -5406,6 +5590,8 @@
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.all_element">all_element() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.all_elements">all_elements() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.all_enum">all_enum() (linkml_runtime.utils.schemaview.SchemaView method)</a>
@@ -5414,8 +5600,6 @@
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.all_members">all_members (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ClassDefinition.all_of">all_of (linkml_runtime.linkml_model.meta.ClassDefinition attribute)</a>
 
         <ul>
@@ -5478,29 +5662,11 @@
 </li>
         <li><a href="code/utils.html#linkml.utils.schemasynopsis.SchemaSynopsis.applytos">applytos (linkml.utils.schemasynopsis.SchemaSynopsis attribute)</a>
 </li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRangeGenerator.array">array (linkml.generators.pydanticgen.array.ArrayRangeGenerator attribute)</a>
-
-        <ul>
-          <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.array">(linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
-</li>
-        </ul></li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.array_consistent_n_dimensions">array_consistent_n_dimensions() (linkml.generators.pydanticgen.array.ArrayValidator static method)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.array_dimensions_ordinal">array_dimensions_ordinal() (linkml.generators.pydanticgen.array.ArrayValidator static method)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.array_exact_dimensions">array_exact_dimensions() (linkml.generators.pydanticgen.array.ArrayValidator static method)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.array_explicitly_unbounded">array_explicitly_unbounded() (linkml.generators.pydanticgen.array.ArrayValidator static method)</a>
+        <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.array">array (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ArrayExpression">ArrayExpression (class in linkml_runtime.linkml_model.meta)</a>
 </li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRangeGenerator">ArrayRangeGenerator (class in linkml.generators.pydanticgen.array)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRepresentation">ArrayRepresentation (class in linkml.generators.pydanticgen.array)</a>
-</li>
         <li><a href="schemas/arrays.html#index-0">Arrays</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator">ArrayValidator (class in linkml.generators.pydanticgen.array)</a>
 </li>
         <li><a href="developers/schemabuilder.html#linkml_runtime.utils.schema_builder.SchemaBuilder.as_dict">as_dict() (linkml_runtime.utils.schema_builder.SchemaBuilder method)</a>
 </li>
@@ -5660,10 +5826,10 @@
         </ul></li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.class_name_mappings">class_name_mappings() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.PydanticModule.class_names">class_names (linkml.generators.pydanticgen.template.PydanticModule property)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.class_or_type_for">class_or_type_for() (linkml.utils.generator.Generator method)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.class_or_type_name">class_or_type_name() (linkml.utils.generator.Generator method)</a>
@@ -5722,11 +5888,15 @@
 </li>
         <li><a href="developers/sqlstore.html#linkml.utils.sqlutils.SQLStore.compile_native">compile_native() (linkml.utils.sqlutils.SQLStore method)</a>
 </li>
+        <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.compress_uri">compress_uri() (linkml_runtime.utils.schemaview.SchemaView method)</a>
+</li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.EnumDefinition.concepts">concepts (linkml_runtime.linkml_model.meta.EnumDefinition attribute)</a>
 </li>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.ConditionalImport">ConditionalImport (class in linkml.generators.pydanticgen.template)</a>
 </li>
         <li><a href="developers/inference.html#linkml_runtime.utils.inference_utils.Config">Config (class in linkml_runtime.utils.inference_utils)</a>
+</li>
+        <li><a href="config/index.html#linkml.utils.config.GlobalConfig.config_file_is_absolute">config_file_is_absolute() (linkml.utils.config.GlobalConfig method)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.execute_tutorial.Block.content">content (linkml.utils.execute_tutorial.Block attribute)</a>
 </li>
@@ -5846,14 +6016,14 @@
         </ul></li>
         <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.Deprecation">Deprecation (class in linkml.utils.deprecation)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="code/utils.html#linkml.utils.deprecation_warning">deprecation_warning() (in module linkml.utils)</a>
 
         <ul>
           <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.deprecation_warning">(in module linkml.utils.deprecation)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.EnumValue.description">description (linkml.generators.pydanticgen.template.EnumValue attribute)</a>
 
         <ul>
@@ -5875,10 +6045,6 @@
         <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.SemVer.dev_l">dev_l (linkml.utils.deprecation.SemVer attribute)</a>
 </li>
         <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.SemVer.dev_n">dev_n (linkml.utils.deprecation.SemVer attribute)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.dimension_exact_cardinality">dimension_exact_cardinality() (linkml.generators.pydanticgen.array.ArrayValidator static method)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.dimension_ordinal">dimension_ordinal() (linkml.generators.pydanticgen.array.ArrayValidator static method)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.DimensionExpression">DimensionExpression (class in linkml_runtime.linkml_model.meta)</a>
 </li>
@@ -5903,8 +6069,6 @@
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.domain_of">domain_of (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.domain_slots">domain_slots() (linkml.utils.generator.Generator method)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRangeGenerator.dtype">dtype (linkml.generators.pydanticgen.array.ArrayRangeGenerator attribute)</a>
 </li>
         <li><a href="developers/sqlstore.html#linkml.utils.sqlutils.SQLStore.dump">dump() (linkml.utils.sqlutils.SQLStore method)</a>
 
@@ -6426,6 +6590,69 @@
 </li>
         </ul></li>
         <li>
+    gen-golang command line option
+
+        <ul>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-alphabetical-sort">--alphabetical-sort</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-C">--config-file</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-f">--format</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-im">--importmap</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-log_level">--log_level</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-mergeimports">--mergeimports</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-metadata">--metadata</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-useuris">--metauris</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-named-slot-types">--named-slot-types</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-alphabetical-sort">--no-alphabetical-sort</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-mergeimports">--no-mergeimports</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-metadata">--no-metadata</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-named-slot-types">--no-named-slot-types</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-nullable-primitives">--no-nullable-primitives</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-stacktrace">--no-stacktrace</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-nullable-primitives">--nullable-primitives</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-package">--package</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-package-name">--package-name</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-stacktrace">--stacktrace</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-template-dir">--template-dir</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-useuris">--useuris</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-v">--verbose</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-V">--version</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-C">-C</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-f">-f</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-im">-im</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-V">-V</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-v">-v</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-arg-YAMLFILE">YAMLFILE</a>
+</li>
+        </ul></li>
+        <li>
     gen-graphql command line option
 
         <ul>
@@ -6472,6 +6699,8 @@
     gen-java command line option
 
         <ul>
+          <li><a href="generators/java.html#cmdoption-gen-java-C">--config-file</a>
+</li>
           <li><a href="generators/java.html#cmdoption-gen-java-extra-template">--extra-template</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-f">--format</a>
@@ -6524,6 +6753,8 @@
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-visitor">--visitor</a>
 </li>
+          <li><a href="generators/java.html#cmdoption-gen-java-C">-C</a>
+</li>
           <li><a href="generators/java.html#cmdoption-gen-java-f">-f</a>
 </li>
           <li><a href="generators/java.html#cmdoption-gen-java-im">-im</a>
@@ -6549,6 +6780,8 @@
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-d">--include</a>
 </li>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-include-null">--include-null</a>
+</li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-include-range-class-descendants">--include-range-class-descendants</a>
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-indent">--indent</a>
@@ -6567,6 +6800,8 @@
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-expand-subproperty-of">--no-expand-subproperty-of</a>
 </li>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-include-null">--no-include-null</a>
+</li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-materialize-patterns">--no-materialize-patterns</a>
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-mergeimports">--no-mergeimports</a>
@@ -6581,6 +6816,8 @@
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-not-closed">--not-closed</a>
 </li>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-use-curies">--not-use-curies</a>
+</li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-preserve-names">--preserve-names</a>
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-stacktrace">--stacktrace</a>
@@ -6588,6 +6825,8 @@
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-title-from">--title-from</a>
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-t">--top-class</a>
+</li>
+          <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-use-curies">--use-curies</a>
 </li>
           <li><a href="generators/json-schema.html#cmdoption-gen-json-schema-useuris">--useuris</a>
 </li>
@@ -6715,11 +6954,15 @@
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-xsd-anyuri-as-iri">--no-xsd-anyuri-as-iri</a>
 </li>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-use-curies">--not-use-curies</a>
+</li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-o">--output</a>
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-prefixes">--prefixes</a>
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-stacktrace">--stacktrace</a>
+</li>
+          <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-use-curies">--use-curies</a>
 </li>
           <li><a href="generators/jsonld-context.html#cmdoption-gen-jsonld-context-useuris">--useuris</a>
 </li>
@@ -6807,6 +7050,10 @@
 </li>
           <li><a href="generators/openapi.html#cmdoption-gen-openapi-im">--importmap</a>
 </li>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-e">--inline-enums</a>
+</li>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-k">--keep-unreferenced</a>
+</li>
           <li><a href="generators/openapi.html#cmdoption-gen-openapi-log_level">--log_level</a>
 </li>
           <li><a href="generators/openapi.html#cmdoption-gen-openapi-mergeimports">--mergeimports</a>
@@ -6831,9 +7078,13 @@
 </li>
           <li><a href="generators/openapi.html#cmdoption-gen-openapi-V">--version</a>
 </li>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-e">-e</a>
+</li>
           <li><a href="generators/openapi.html#cmdoption-gen-openapi-f">-f</a>
 </li>
           <li><a href="generators/openapi.html#cmdoption-gen-openapi-im">-im</a>
+</li>
+          <li><a href="generators/openapi.html#cmdoption-gen-openapi-k">-k</a>
 </li>
           <li><a href="generators/openapi.html#cmdoption-gen-openapi-t">-t</a>
 </li>
@@ -7054,6 +7305,8 @@
           <li><a href="generators/project-generator.html#cmdoption-gen-project-arg-YAMLFILE">YAMLFILE</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     gen-proto command line option
 
@@ -7095,8 +7348,6 @@
           <li><a href="generators/protobuf.html#cmdoption-gen-proto-arg-YAMLFILE">YAMLFILE</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     gen-pydantic command line option
 
@@ -7333,6 +7584,8 @@
 </li>
           <li><a href="generators/shacl.html#cmdoption-gen-shacl-default-language">--default-language</a>
 </li>
+          <li><a href="generators/shacl.html#cmdoption-gen-shacl-emit-rules">--emit-rules</a>
+</li>
           <li><a href="generators/shacl.html#cmdoption-gen-shacl-include-annotations">--exclude-annotations</a>
 </li>
           <li><a href="generators/shacl.html#cmdoption-gen-shacl-exclude-imports">--exclude-imports</a>
@@ -7356,6 +7609,8 @@
           <li><a href="generators/shacl.html#cmdoption-gen-shacl-metadata">--metadata</a>
 </li>
           <li><a href="generators/shacl.html#cmdoption-gen-shacl-useuris">--metauris</a>
+</li>
+          <li><a href="generators/shacl.html#cmdoption-gen-shacl-emit-rules">--no-emit-rules</a>
 </li>
           <li><a href="generators/shacl.html#cmdoption-gen-shacl-expand-subproperty-of">--no-expand-subproperty-of</a>
 </li>
@@ -7622,6 +7877,8 @@
 </li>
           <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-required">--check-required</a>
 </li>
+          <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-rules">--check-rules</a>
+</li>
           <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-unique-keys">--check-unique-keys</a>
 </li>
           <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-dialect">--dialect</a>
@@ -7647,6 +7904,8 @@
           <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-ranges">--no-check-ranges</a>
 </li>
           <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-required">--no-check-required</a>
+</li>
+          <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-rules">--no-check-rules</a>
 </li>
           <li><a href="generators/sqlvalidation.html#cmdoption-gen-sqlvalidation-check-unique-keys">--no-check-unique-keys</a>
 </li>
@@ -7972,6 +8231,10 @@
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_classes_modifying_slot">get_classes_modifying_slot() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
+        <li><a href="config/index.html#linkml.utils.config.get_config">get_config() (in module linkml.utils.config)</a>
+</li>
+        <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_curie">get_curie() (linkml_runtime.utils.schemaview.SchemaView method)</a>
+</li>
         <li><a href="code/utils.html#linkml.utils.datautils.get_dumper">get_dumper() (in module linkml.utils.datautils)</a>
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_element">get_element() (linkml_runtime.utils.schemaview.SchemaView method)</a>
@@ -7981,8 +8244,6 @@
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_elements_applicable_by_prefix">get_elements_applicable_by_prefix() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_enum">get_enum() (linkml_runtime.utils.schemaview.SchemaView method)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRangeGenerator.get_generator">get_generator() (linkml.generators.pydanticgen.array.ArrayRangeGenerator class method)</a>
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_identifier_slot">get_identifier_slot() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
@@ -8014,6 +8275,12 @@
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.get_uri">get_uri() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
+        <li><a href="generators/common/type_designators.html#linkml.generators.common.type_designators.get_uriorcurie_type_designator_values">get_uriorcurie_type_designator_values() (in module linkml.generators.common.type_designators)</a>
+</li>
+        <li><a href="config/index.html#linkml.utils.config.GlobalConfig">GlobalConfig (class in linkml.utils.config)</a>
+</li>
+        <li><a href="generators/golang.html#linkml.generators.golanggen.GolangGenerator">GolangGenerator (class in linkml.generators.golanggen)</a>
+</li>
         <li><a href="generators/graphql.html#linkml.generators.graphqlgen.GraphqlGenerator">GraphqlGenerator (class in linkml.generators.graphqlgen)</a>
 </li>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.ConditionalImport.group">group (linkml.generators.pydanticgen.template.ConditionalImport property)</a>
@@ -8033,8 +8300,6 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="generators/rust.html#linkml.generators.rustgen.RustGenerator.handwritten_lib">handwritten_lib (linkml.generators.rustgen.RustGenerator attribute)</a>
-</li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRangeGenerator.has_bounded_dimensions">has_bounded_dimensions (linkml.generators.pydanticgen.array.ArrayRangeGenerator property)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
@@ -8142,6 +8407,8 @@
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="config/index.html#linkml.utils.config.LogConfig.inherit_base_level">inherit_base_level() (linkml.utils.config.LogConfig method)</a>
+</li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.inherited">inherited (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.EnumDefinition.inherits">inherits (linkml_runtime.linkml_model.meta.EnumDefinition attribute)</a>
@@ -8253,14 +8520,23 @@
   <h2>K</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li>
+    KEY
+
+        <ul>
+          <li><a href="cli/config.html#cmdoption-linkml-config-get-arg-KEY">linkml-config-get command line option</a>
+</li>
+          <li><a href="cli/config.html#cmdoption-linkml-config-set-arg-KEY">linkml-config-set command line option</a>
+</li>
+        </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.PydanticAttribute.key">key (linkml.generators.pydanticgen.template.PydanticAttribute attribute)</a>
 
         <ul>
           <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.key">(linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ArrayExpression.keywords">keywords (linkml_runtime.linkml_model.meta.ArrayExpression attribute)</a>
 
         <ul>
@@ -8294,6 +8570,22 @@
           <li><a href="cli/linkml.html#cmdoption-linkml-V">--version</a>
 </li>
           <li><a href="cli/linkml.html#cmdoption-linkml-V">-V</a>
+</li>
+        </ul></li>
+        <li>
+    linkml-config-get command line option
+
+        <ul>
+          <li><a href="cli/config.html#cmdoption-linkml-config-get-arg-KEY">KEY</a>
+</li>
+        </ul></li>
+        <li>
+    linkml-config-set command line option
+
+        <ul>
+          <li><a href="cli/config.html#cmdoption-linkml-config-set-arg-KEY">KEY</a>
+</li>
+          <li><a href="cli/config.html#cmdoption-linkml-config-set-arg-VALUE">VALUE</a>
 </li>
         </ul></li>
         <li>
@@ -8729,6 +9021,8 @@
         <ul>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-alphabetical-sort">--alphabetical-sort</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-C">--config-file</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-f">--format</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-im">--importmap</a>
@@ -8757,6 +9051,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-nullable-primitives">--nullable-primitives</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-package">--package</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-package-name">--package-name</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-stacktrace">--stacktrace</a>
@@ -8768,6 +9064,8 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-v">--verbose</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-V">--version</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-C">-C</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-golang-f">-f</a>
 </li>
@@ -8925,6 +9223,8 @@
     linkml-generate-(full)-java command line option
 
         <ul>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-C">--config-file</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-extra-template">--extra-template</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-f">--format</a>
@@ -8977,6 +9277,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-visitor">--visitor</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-C">-C</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-f">-f</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-java-im">-im</a>
@@ -9002,6 +9304,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-d">--include</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-include-null">--include-null</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-include-range-class-descendants">--include-range-class-descendants</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-indent">--indent</a>
@@ -9020,6 +9324,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-expand-subproperty-of">--no-expand-subproperty-of</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-include-null">--no-include-null</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-materialize-patterns">--no-materialize-patterns</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-mergeimports">--no-mergeimports</a>
@@ -9034,6 +9340,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-not-closed">--not-closed</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-use-curies">--not-use-curies</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-preserve-names">--preserve-names</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-stacktrace">--stacktrace</a>
@@ -9041,6 +9349,8 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-title-from">--title-from</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-t">--top-class</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-use-curies">--use-curies</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-json-schema-useuris">--useuris</a>
 </li>
@@ -9168,11 +9478,15 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-xsd-anyuri-as-iri">--no-xsd-anyuri-as-iri</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-use-curies">--not-use-curies</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-o">--output</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-prefixes">--prefixes</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-stacktrace">--stacktrace</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-use-curies">--use-curies</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-jsonld-context-useuris">--useuris</a>
 </li>
@@ -9301,6 +9615,10 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-im">--importmap</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-e">--inline-enums</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-k">--keep-unreferenced</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-log_level">--log_level</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-mergeimports">--mergeimports</a>
@@ -9325,9 +9643,13 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-V">--version</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-e">-e</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-f">-f</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-im">-im</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-k">-k</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-openapi-t">-t</a>
 </li>
@@ -9879,6 +10201,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-default-language">--default-language</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-emit-rules">--emit-rules</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-include-annotations">--exclude-annotations</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-exclude-imports">--exclude-imports</a>
@@ -9902,6 +10226,8 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-metadata">--metadata</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-useuris">--metauris</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-emit-rules">--no-emit-rules</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-shacl-expand-subproperty-of">--no-expand-subproperty-of</a>
 </li>
@@ -10168,6 +10494,8 @@
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-required">--check-required</a>
 </li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-rules">--check-rules</a>
+</li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-unique-keys">--check-unique-keys</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-dialect">--dialect</a>
@@ -10193,6 +10521,8 @@
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-ranges">--no-check-ranges</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-required">--no-check-required</a>
+</li>
+          <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-rules">--no-check-rules</a>
 </li>
           <li><a href="cli/generate.html#cmdoption-linkml-generate-full-sqlvalidation-check-unique-keys">--no-check-unique-keys</a>
 </li>
@@ -10614,6 +10944,13 @@
 </li>
         </ul></li>
         <li>
+    linkml.utils.config
+
+        <ul>
+          <li><a href="config/index.html#module-linkml.utils.config">module</a>
+</li>
+        </ul></li>
+        <li>
     linkml.utils.datautils
 
         <ul>
@@ -10773,6 +11110,8 @@
 </li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.log_level">log_level (linkml.utils.generator.Generator attribute)</a>
 </li>
+        <li><a href="config/index.html#linkml.utils.config.LogConfig">LogConfig (class in linkml.utils.config)</a>
+</li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.logger">logger (linkml.utils.generator.Generator attribute)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.schemaloader.SchemaLoader.logger_warning">logger_warning() (linkml.utils.schemaloader.SchemaLoader method)</a>
@@ -10787,12 +11126,8 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.SemVer.major">major (linkml.utils.deprecation.SemVer attribute)</a>
 </li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRangeGenerator.make">make() (linkml.generators.pydanticgen.array.ArrayRangeGenerator method)</a>
-
-        <ul>
-          <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.NumpydanticArray.make">(linkml.generators.pydanticgen.array.NumpydanticArray method)</a>
+        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.NumpydanticArray.make">make() (linkml.generators.pydanticgen.array.NumpydanticArray method)</a>
 </li>
-        </ul></li>
         <li><a href="generators/pandera.html#linkml.generators.panderagen.PanderaDataframeGenerator.make_multivalued">make_multivalued() (linkml.generators.panderagen.PanderaDataframeGenerator static method)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ArrayExpression.mappings">mappings (linkml_runtime.linkml_model.meta.ArrayExpression attribute)</a>
@@ -10927,8 +11262,6 @@
           <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ArrayExpression.minimum_number_dimensions">(linkml_runtime.linkml_model.meta.ArrayExpression attribute)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.PydanticAttribute.minimum_value">minimum_value (linkml.generators.pydanticgen.template.PydanticAttribute attribute)</a>
 
         <ul>
@@ -10937,6 +11270,8 @@
           <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.TypeDefinition.minimum_value">(linkml_runtime.linkml_model.meta.TypeDefinition attribute)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.SemVer.minor">minor (linkml.utils.deprecation.SemVer attribute)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.EnumDefinition.minus">minus (linkml_runtime.linkml_model.meta.EnumDefinition attribute)</a>
@@ -10992,6 +11327,10 @@
 </li>
           <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.PydanticValidator.model_config">(linkml.generators.pydanticgen.template.PydanticValidator attribute)</a>
 </li>
+          <li><a href="config/index.html#linkml.utils.config.GlobalConfig.model_config">(linkml.utils.config.GlobalConfig attribute)</a>
+</li>
+          <li><a href="config/index.html#linkml.utils.config.LogConfig.model_config">(linkml.utils.config.LogConfig attribute)</a>
+</li>
         </ul></li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.ArrayExpression.modified_by">modified_by (linkml_runtime.linkml_model.meta.ArrayExpression attribute)</a>
 
@@ -11022,6 +11361,8 @@
           <li><a href="generators/rdf.html#module-linkml.generators.rdfgen">linkml.generators.rdfgen</a>
 </li>
           <li><a href="code/utils.html#module-linkml.utils">linkml.utils</a>
+</li>
+          <li><a href="config/index.html#module-linkml.utils.config">linkml.utils.config</a>
 </li>
           <li><a href="code/utils.html#module-linkml.utils.datautils">linkml.utils.datautils</a>
 </li>
@@ -11302,6 +11643,8 @@
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.EnumDefinition.reachable_from">reachable_from (linkml_runtime.linkml_model.meta.EnumDefinition attribute)</a>
 </li>
+        <li><a href="code/utils.html#linkml.utils.generator.read_generator_config">read_generator_config() (in module linkml.utils.generator)</a>
+</li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.readonly">readonly (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
         <li><a href="maintainers/deprecation.html#linkml.utils.deprecation.Deprecation.recommendation">recommendation (linkml.utils.deprecation.Deprecation attribute)</a>
@@ -11365,6 +11708,8 @@
         <li><a href="code/utils.html#linkml.utils.schemaloader.SchemaLoader.resolve">resolve() (linkml.utils.schemaloader.SchemaLoader method)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.mergeutils.resolve_merged_imports">resolve_merged_imports() (in module linkml.utils.mergeutils)</a>
+</li>
+        <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.resolve_pattern">resolve_pattern() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.role">role (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
@@ -11434,6 +11779,8 @@
 </li>
           <li><a href="generators/erdiagram.html#linkml.generators.erdiagramgen.ERDiagramGenerator.serialize">(linkml.generators.erdiagramgen.ERDiagramGenerator method)</a>
 </li>
+          <li><a href="generators/golang.html#linkml.generators.golanggen.GolangGenerator.serialize">(linkml.generators.golanggen.GolangGenerator method)</a>
+</li>
           <li><a href="generators/graphql.html#linkml.generators.graphqlgen.GraphqlGenerator.serialize">(linkml.generators.graphqlgen.GraphqlGenerator method)</a>
 </li>
           <li><a href="generators/java.html#linkml.generators.javagen.JavaGenerator.serialize">(linkml.generators.javagen.JavaGenerator method)</a>
@@ -11493,6 +11840,8 @@
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition.settings">settings (linkml_runtime.linkml_model.meta.SchemaDefinition attribute)</a>
 </li>
+        <li><a href="config/index.html#linkml.utils.config.GlobalConfig.settings_customise_sources">settings_customise_sources() (linkml.utils.config.GlobalConfig class method)</a>
+</li>
         <li><a href="generators/shacl.html#linkml.generators.shaclgen.ShaclGenerator">ShaclGenerator (class in linkml.generators.shaclgen)</a>
 </li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.shared">shared (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
@@ -11521,10 +11870,10 @@
 </li>
         <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.slot_is_true_for_metadata_property">slot_is_true_for_metadata_property() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
-        <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.slot_leaves">slot_leaves() (linkml_runtime.utils.schemaview.SchemaView method)</a>
-</li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.slot_leaves">slot_leaves() (linkml_runtime.utils.schemaview.SchemaView method)</a>
+</li>
         <li><a href="code/utils.html#linkml.utils.generator.Generator.slot_name">slot_name() (linkml.utils.generator.Generator method)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.schemaloader.SchemaLoader.slot_name_for">slot_name_for() (linkml.utils.schemaloader.SchemaLoader static method)</a>
@@ -11797,15 +12146,19 @@
         </ul></li>
         <li><a href="code/utils.html#linkml.utils.typereferences.References.update">update() (linkml.utils.typereferences.References method)</a>
 </li>
+        <li><a href="config/index.html#linkml.utils.config.LogConfig.uppercase_levels">uppercase_levels() (linkml.utils.config.LogConfig class method)</a>
+</li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.TypeDefinition.uri">uri (linkml_runtime.linkml_model.meta.TypeDefinition attribute)</a>
+</li>
+        <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.usage_index">usage_index() (linkml_runtime.utils.schemaview.SchemaView method)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="developers/schemaview.html#linkml_runtime.utils.schemaview.SchemaView.usage_index">usage_index() (linkml_runtime.utils.schemaview.SchemaView method)</a>
-</li>
         <li><a href="code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition.usage_slot_name">usage_slot_name (linkml_runtime.linkml_model.meta.SlotDefinition attribute)</a>
 </li>
         <li><a href="developers/sqlstore.html#linkml.utils.sqlutils.SQLStore.use_memory">use_memory (linkml.utils.sqlutils.SQLStore attribute)</a>
+</li>
+        <li><a href="config/index.html#linkml.utils.config.GlobalConfig.user_dir_exists">user_dir_exists() (linkml.utils.config.GlobalConfig class method)</a>
 </li>
         <li><a href="generators/csv.html#linkml.generators.csvgen.CsvGenerator.uses_schemaloader">uses_schemaloader (linkml.generators.csvgen.CsvGenerator attribute)</a>
 
@@ -11815,6 +12168,8 @@
           <li><a href="generators/linkml.html#linkml.generators.linkmlgen.LinkmlGenerator.uses_schemaloader">(linkml.generators.linkmlgen.LinkmlGenerator attribute)</a>
 </li>
           <li><a href="generators/rdf.html#linkml.generators.rdfgen.RDFGenerator.uses_schemaloader">(linkml.generators.rdfgen.RDFGenerator attribute)</a>
+</li>
+          <li><a href="generators/rust.html#linkml.generators.rustgen.RustGenerator.uses_schemaloader">(linkml.generators.rustgen.RustGenerator attribute)</a>
 </li>
           <li><a href="code/utils.html#linkml.utils.generator.Generator.uses_schemaloader">(linkml.utils.generator.Generator attribute)</a>
 </li>
@@ -11848,18 +12203,14 @@
         <li><a href="code/validator.html#linkml.validator.validate">validate() (in module linkml.validator)</a>
 
         <ul>
-          <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayRangeGenerator.validate">(linkml.generators.pydanticgen.array.ArrayRangeGenerator method)</a>
-</li>
-          <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.validate">(linkml.generators.pydanticgen.array.ArrayValidator class method)</a>
-</li>
           <li><a href="code/validator.html#linkml.validator.Validator.validate">(linkml.validator.Validator method)</a>
 </li>
         </ul></li>
         <li><a href="code/utils.html#linkml.utils.datavalidator.DataValidator.validate_dict">validate_dict() (linkml.utils.datavalidator.DataValidator method)</a>
 </li>
-        <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.array.ArrayValidator.validate_dimension">validate_dimension() (linkml.generators.pydanticgen.array.ArrayValidator class method)</a>
-</li>
         <li><a href="code/validator.html#linkml.validator.validate_file">validate_file() (in module linkml.validator)</a>
+</li>
+        <li><a href="code/utils.html#linkml.utils.generator.Generator.validate_generator_args">validate_generator_args() (linkml.utils.generator.Generator class method)</a>
 </li>
         <li><a href="code/utils.html#linkml.utils.schemaloader.SchemaLoader.validate_item_names">validate_item_names() (linkml.utils.schemaloader.SchemaLoader method)</a>
 </li>
@@ -11871,6 +12222,13 @@
 </li>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.PydanticClass.validators">validators (linkml.generators.pydanticgen.template.PydanticClass property)</a>
 </li>
+        <li>
+    VALUE
+
+        <ul>
+          <li><a href="cli/config.html#cmdoption-linkml-config-set-arg-VALUE">linkml-config-set command line option</a>
+</li>
+        </ul></li>
         <li><a href="generators/pydantic.html#linkml.generators.pydanticgen.template.EnumValue.value">value (linkml.generators.pydanticgen.template.EnumValue attribute)</a>
 </li>
     </ul></td>
@@ -11972,6 +12330,8 @@
           <li><a href="generators/erdiagram.html#cmdoption-gen-erdiagram-arg-YAMLFILE">gen-erdiagram command line option</a>
 </li>
           <li><a href="generators/excel.html#cmdoption-gen-excel-arg-YAMLFILE">gen-excel command line option</a>
+</li>
+          <li><a href="generators/golang.html#cmdoption-gen-golang-arg-YAMLFILE">gen-golang command line option</a>
 </li>
           <li><a href="generators/graphql.html#cmdoption-gen-graphql-arg-YAMLFILE">gen-graphql command line option</a>
 </li>
@@ -12153,13 +12513,361 @@
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=46bd48cc"></script>
     <script src="_static/design-tabs.js?v=f930bc37"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
-    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-    <script type="module">
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
-window.addEventListener("load", () => mermaid.run());
-</script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
     </body>
 </html>

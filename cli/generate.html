@@ -3,14 +3,14 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="linkml lint" href="lint.html"><link rel="prev" title="linkml" href="linkml.html">
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="linkml lint" href="lint.html"><link rel="prev" title="linkml config" href="config.html">
         <link rel="prefetch" href="https://linkml.io/uploads/linkml-logo_color.png" as="image">
 
-    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.09.25 -->
+    <link rel="shortcut icon" href="https://linkml.io/uploads/linkml-logo_color-no-words.png"><!-- Generated with Sphinx 8.2.3 and Furo 2025.12.19 -->
         <title>linkml generate - linkml documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=580074bf" />
-    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
     <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
@@ -266,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../generators/python.html">Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/pydantic.html">Pydantic</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/java.html">Java</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generators/golang.html">Go</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/typescript.html">Typescript</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/rust.html">Rust</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generators/sqltable.html">SQL DDL</a></li>
@@ -332,6 +333,7 @@
 <ul class="current">
 <li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">CLI</a><input aria-label="Toggle navigation of CLI" checked="" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="linkml.html"><code class="docutils literal notranslate"><span class="pre">linkml</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="config.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">config</span></code></a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">generate</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="lint.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">lint</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="validate.html"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">validate</span></code></a></li>
@@ -358,6 +360,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../code/deprecation.html">Deprecation Log</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../config/index.html">Configuration</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Maintainers Guide:</span></p>
 <ul>
@@ -1566,8 +1569,20 @@ if an override is not found.</p>
 </dd></dl>
 
 <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-golang-C">
+<span id="cmdoption-linkml-generate-full-golang-config-file"></span><span class="sig-name descname"><span class="pre">-C</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--config-file</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;config_file&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-golang-C" title="Link to this definition">¶</a></dt>
+<dd><p>Path to a gen-project-style YAML config file setting ‘generator_args: {golang: {package: …}}’. An explicit –package always takes precedence over the config file.</p>
+</dd></dl>
+
+<dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-golang-package-name">
 <span class="sig-name descname"><span class="pre">--package-name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;package_name&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-golang-package-name" title="Link to this definition">¶</a></dt>
+<dd><p>DEPRECATED alias for –package</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-golang-package">
+<span class="sig-name descname"><span class="pre">--package</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;package&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-golang-package" title="Link to this definition">¶</a></dt>
 <dd><p>Override the Go package name (default: derived from schema name)</p>
 </dd></dl>
 
@@ -2062,6 +2077,12 @@ if an override is not found.</p>
 </dd></dl>
 
 <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-java-C">
+<span id="cmdoption-linkml-generate-full-java-config-file"></span><span class="sig-name descname"><span class="pre">-C</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--config-file</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;config_file&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-java-C" title="Link to this definition">¶</a></dt>
+<dd><p>Path to a gen-project-style YAML config file setting ‘generator_args: {java: {package: …}}’. An explicit –package always takes precedence over the config file.</p>
+</dd></dl>
+
+<dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-java-package">
 <span class="sig-name descname"><span class="pre">--package</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;package&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-java-package" title="Link to this definition">¶</a></dt>
 <dd><p>Package name where relevant for generated class files</p>
@@ -2197,6 +2218,17 @@ Note that declaring a slot as inlined: true will always inline the class</p>
 </dd></dl>
 
 <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-json-schema-use-curies">
+<span id="cmdoption-linkml-generate-full-json-schema-not-use-curies"></span><span class="sig-name descname"><span class="pre">--use-curies</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--not-use-curies</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-json-schema-use-curies" title="Link to this definition">¶</a></dt>
+<dd><p>Instead of using the element names, use the corresponding CURIEs, based on the corresponding class_uri/slot_uri</p>
+<dl class="field-list simple">
+<dt class="field-odd">Default<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-json-schema-include-range-class-descendants">
 <span id="cmdoption-linkml-generate-full-json-schema-no-range-class-descendants"></span><span class="sig-name descname"><span class="pre">--include-range-class-descendants</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-range-class-descendants</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-json-schema-include-range-class-descendants" title="Link to this definition">¶</a></dt>
 <dd><p>When handling range constraints, include all descendants of the range class instead of just the range class</p>
@@ -2235,12 +2267,7 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-json-schema-materialize-patterns">
 <span id="cmdoption-linkml-generate-full-json-schema-no-materialize-patterns"></span><span class="sig-name descname"><span class="pre">--materialize-patterns</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-materialize-patterns</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-json-schema-materialize-patterns" title="Link to this definition">¶</a></dt>
-<dd><p>If set, patterns will be materialized in the generated JSON Schema.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Default<span class="colon">:</span></dt>
-<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p>
-</dd>
-</dl>
+<dd><p>Deprecated compatibility option; structured patterns are resolved automatically.</p>
 </dd></dl>
 
 <dl class="std option">
@@ -2258,6 +2285,17 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-json-schema-expand-subproperty-of">
 <span id="cmdoption-linkml-generate-full-json-schema-no-expand-subproperty-of"></span><span class="sig-name descname"><span class="pre">--expand-subproperty-of</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-expand-subproperty-of</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-json-schema-expand-subproperty-of" title="Link to this definition">¶</a></dt>
 <dd><p>If set, expand subproperty_of constraints to enum constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Default<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-json-schema-include-null">
+<span id="cmdoption-linkml-generate-full-json-schema-no-include-null"></span><span class="sig-name descname"><span class="pre">--include-null</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-include-null</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-json-schema-include-null" title="Link to this definition">¶</a></dt>
+<dd><p>If set (default), optional slots also accept an explicit JSON null. Use –no-include-null to forbid explicit null on optional slots.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Default<span class="colon">:</span></dt>
 <dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p>
@@ -2591,6 +2629,17 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
 </dd></dl>
 
 <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-jsonld-context-use-curies">
+<span id="cmdoption-linkml-generate-full-jsonld-context-not-use-curies"></span><span class="sig-name descname"><span class="pre">--use-curies</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--not-use-curies</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-jsonld-context-use-curies" title="Link to this definition">¶</a></dt>
+<dd><p>Use class_uri/slot_uri CURIEs as context keys instead of element names.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Default<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-jsonld-context-V">
 <span id="cmdoption-linkml-generate-full-jsonld-context-version"></span><span class="sig-name descname"><span class="pre">-V</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--version</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-jsonld-context-V" title="Link to this definition">¶</a></dt>
 <dd><p>Show the version and exit.</p>
@@ -2704,7 +2753,7 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-linkml-materialize-patterns">
 <span id="cmdoption-linkml-generate-full-linkml-no-materialize-patterns"></span><span class="sig-name descname"><span class="pre">--materialize-patterns</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-materialize-patterns</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-linkml-materialize-patterns" title="Link to this definition">¶</a></dt>
-<dd><p>Materialize structured patterns as patterns</p>
+<dd><p>Deprecated: materialize structured patterns as patterns</p>
 <dl class="field-list simple">
 <dt class="field-odd">Default<span class="colon">:</span></dt>
 <dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p>
@@ -2726,7 +2775,7 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-linkml-materialize">
 <span id="cmdoption-linkml-generate-full-linkml-no-materialize"></span><span class="sig-name descname"><span class="pre">--materialize</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-materialize</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-linkml-materialize" title="Link to this definition">¶</a></dt>
-<dd><p>Materialize both, induced slots as attributes and structured patterns as patterns</p>
+<dd><p>Materialize induced slots as attributes and use the deprecated structured-pattern materialization behavior</p>
 <dl class="field-list simple">
 <dt class="field-odd">Default<span class="colon">:</span></dt>
 <dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p>
@@ -2925,7 +2974,7 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
 <h4>openapi<a class="headerlink" href="#linkml-generate-full-openapi" title="Link to this heading">¶</a></h4>
 <p>Generate an OpenAPI v3.0.3 spec with resources modelled with LinkML.
 If no OpenAPI template is provided,
-a generic one with placeholders for all the classes in the schema is printed out.</p>
+a generic one with one exemplary class/type schema is printed out.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>linkml<span class="w"> </span>generate<span class="w"> </span><span class="o">(</span>full<span class="o">)</span><span class="w"> </span>openapi<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>YAMLFILE
 </pre></div>
 </div>
@@ -2934,6 +2983,18 @@ a generic one with placeholders for all the classes in the schema is printed out
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-openapi-t">
 <span id="cmdoption-linkml-generate-full-openapi-template"></span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--template</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;template&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-openapi-t" title="Link to this definition">¶</a></dt>
 <dd><p>OpenAPI v3.0.3 template - includes the header, the endpoints and the security schemes</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-openapi-k">
+<span id="cmdoption-linkml-generate-full-openapi-keep-unreferenced"></span><span class="sig-name descname"><span class="pre">-k</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--keep-unreferenced</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-openapi-k" title="Link to this definition">¶</a></dt>
+<dd><p>Keep schemas listed in the template even if not referenced by any endpoint</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-openapi-e">
+<span id="cmdoption-linkml-generate-full-openapi-inline-enums"></span><span class="sig-name descname"><span class="pre">-e</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--inline-enums</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-openapi-e" title="Link to this definition">¶</a></dt>
+<dd><p>Inline enum subschemas into their parent schemas instead of generating separate schema entries</p>
 </dd></dl>
 
 <dl class="std option">
@@ -3847,7 +3908,7 @@ PlantUML code print out only if no directory provided.</p>
 <dd><p>List of array representations to accept for array slots. Default is list of lists.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Options<span class="colon">:</span></dt>
-<dd class="field-odd"><p>list | numpydantic</p>
+<dd class="field-odd"><p>list | numpydantic | json_schema</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4451,6 +4512,17 @@ if an override is not found</p>
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-shacl-message-template">
 <span class="sig-name descname"><span class="pre">--message-template</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;message_template&gt;</span></span><a class="headerlink" href="#cmdoption-linkml-generate-full-shacl-message-template" title="Link to this definition">¶</a></dt>
 <dd><p>Template string for sh:message on each property shape. Placeholders: {name} (slot name), {title} (slot title or name), {description} (slot description), {comments} (slot comments joined with ‘; ‘), {class} (class name), {path} (fully-expanded property IRI). Example: “{name} ({class}): {description} [{comments}]”</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-shacl-emit-rules">
+<span id="cmdoption-linkml-generate-full-shacl-no-emit-rules"></span><span class="sig-name descname"><span class="pre">--emit-rules</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-emit-rules</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-shacl-emit-rules" title="Link to this definition">¶</a></dt>
+<dd><p>Emit sh:sparql constraints from LinkML rules: blocks. When enabled (default), recognised rule patterns (e.g. boolean-guard) are translated into SHACL-SPARQL constraints on the corresponding sh:NodeShape. Use –no-emit-rules to suppress rule generation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Default<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="std option">
@@ -5192,6 +5264,17 @@ is conformant to the same LinkML schema.</p>
 </dd></dl>
 
 <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-linkml-generate-full-sqlvalidation-check-rules">
+<span id="cmdoption-linkml-generate-full-sqlvalidation-no-check-rules"></span><span class="sig-name descname"><span class="pre">--check-rules</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-check-rules</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-sqlvalidation-check-rules" title="Link to this definition">¶</a></dt>
+<dd><p>Generate queries for rule (precondition/postcondition) violations</p>
+<dl class="field-list simple">
+<dt class="field-odd">Default<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-linkml-generate-full-sqlvalidation-include-comments">
 <span id="cmdoption-linkml-generate-full-sqlvalidation-no-include-comments"></span><span class="sig-name descname"><span class="pre">--include-comments</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-include-comments</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-linkml-generate-full-sqlvalidation-include-comments" title="Link to this definition">¶</a></dt>
 <dd><p>Include description of tests in generated query</p>
@@ -5853,14 +5936,14 @@ is conformant to the same LinkML schema.</p>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="linkml.html">
+          <a class="prev-page" href="config.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title"><code class="docutils literal notranslate"><span class="pre">linkml</span></code></div>
+                <div class="title"><code class="docutils literal notranslate"><span class="pre">linkml</span> <span class="pre">config</span></code></div>
                 
               </div>
             </a>
