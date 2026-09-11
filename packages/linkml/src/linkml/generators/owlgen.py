@@ -21,7 +21,7 @@ from linkml import METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
 from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecation_warning
-from linkml.utils.generator import Generator, shared_arguments
+from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
 from linkml.utils.language_tags import LanguageTagResolver
 from linkml_runtime import SchemaView
 from linkml_runtime.linkml_model.meta import (
@@ -122,6 +122,22 @@ class OwlSchemaGenerator(Generator):
     """Suffix to add to the schema name to create the ontology URI, e.g. .owl.ttl"""
 
     # ObjectVars
+    diff_stable: bool = False
+    """Label blank nodes so that unrelated edits leave them untouched.
+
+    Output is already deterministic: RDFC-1.0 guarantees that isomorphic
+    graphs serialize identically. It does not guarantee that *similar*
+    graphs serialize *similarly* — blank nodes are numbered ``c14nN`` in a
+    global order, so adding one class can renumber every blank node after
+    it and rewrite most of the file.
+
+    When ``True``, blank-node labels are instead derived from each node's
+    own neighbourhood via Weisfeiler-Lehman refinement, so an edit relabels
+    only the blank nodes it actually touches. The output stays
+    deterministic and isomorphic either way; only the choice of label
+    changes. Off by default because enabling it relabels existing output.
+    """
+
     metadata_profile: MetadataProfile | None = None
     """Deprecated - use metadata_profiles."""
 
@@ -316,6 +332,10 @@ class OwlSchemaGenerator(Generator):
             self.graph.bind(prefix, self.metamodel.namespaces[prefix])
         for pfx in schema.prefixes.values():
             self.graph.namespace_manager.bind(pfx.prefix_prefix, URIRef(pfx.prefix_reference))
+        if self.normalize_prefixes:
+            normalize_graph_prefixes(
+                graph, {str(v.prefix_prefix): str(v.prefix_reference) for v in schema.prefixes.values()}
+            )
         graph.add((base, RDF.type, OWL.Ontology))
 
         # Add main schema elements
@@ -353,7 +373,7 @@ class OwlSchemaGenerator(Generator):
         """
         self.as_graph()
         fmt = "turtle" if self.format in ["owl", "ttl"] else self.format
-        return canonicalize_rdf_graph(self.graph, output_format=fmt)
+        return canonicalize_rdf_graph(self.graph, output_format=fmt, diff_stable=self.diff_stable)
 
     def add_metadata(self, e: Definition | PermissibleValue, uri: URIRef) -> None:
         """
@@ -1842,6 +1862,16 @@ class OwlSchemaGenerator(Generator):
         "(e.g. en, de, zh-Hans).  When set, rdfs:label, rdfs:comment, "
         "skos:definition and other text annotations are emitted with the "
         "specified language tag.  Element-level in_language overrides this."
+    ),
+)
+@click.option(
+    "--diff-stable/--no-diff-stable",
+    default=False,
+    show_default=True,
+    help=(
+        "Derive blank-node labels from each node's own neighbourhood so that "
+        "unrelated edits leave them unchanged. Output is deterministic either "
+        "way; this makes successive versions of a file diff cleanly."
     ),
 )
 @click.version_option(__version__, "-V", "--version")
