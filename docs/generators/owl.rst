@@ -67,6 +67,26 @@ Mapping
 
 .. note:: The current default settings for ``metaclasses`` and ``type-objects`` may change in the future
 
+Prefix normalization
+^^^^^^^^^^^^^^^^^^^^
+
+Schemas sometimes declare non-standard aliases for well-known namespaces
+(e.g. ``sh1:`` for the SHACL namespace, or a versioned alias for ``skos:``).
+By default these aliases are carried through into the generated artifact.
+
+Use ``--normalize-prefixes`` to remap declared prefixes whose namespace IRI
+matches a well-known vocabulary to that vocabulary's conventional name in the
+output (``owl``, ``rdf``, ``rdfs``, ``skos``, ``sh``, ``xsd``, ...):
+
+.. code:: bash
+
+   gen-owl --normalize-prefixes schema.yaml
+
+The mapping is a static, version-independent table; namespace IRIs that are
+not in the table are left untouched. The option is also available on
+``gen-shacl`` and ``gen-jsonld-context``.
+
+
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -309,6 +329,48 @@ Other examples
 
 - `Biolink <https://bioportal.bioontology.org/ontologies/BIOLINK>`_ :
   translation of Biolink schema to OWL
+
+
+Deterministic output
+^^^^^^^^^^^^^^^^^^^^
+
+``gen-owl`` output is deterministic by default. The graph is canonicalized with
+`RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_ before serialization, so repeated
+runs over the same schema -- and any two isomorphic graphs -- produce
+byte-identical Turtle. No flag is needed, and checked-in artifacts do not churn
+between runs.
+
+RDFC-1.0 numbers blank nodes sequentially (``_:c14n0``, ``_:c14n1``, ...) in
+canonical order. That is stable for a fixed graph, but inserting a single
+statement can shift the numbering of every blank node ordered after it, so an
+unrelated one-line schema edit may rewrite large parts of the file. Pass
+``--diff-stable`` to derive each label from the node's own neighbourhood
+instead, so that only the blank nodes an edit actually touches are renamed:
+
+.. code:: bash
+
+   gen-owl --diff-stable schema.yaml
+
+Both modes are deterministic and yield isomorphic graphs; only the choice of
+label differs. ``--diff-stable`` is off by default because turning it on
+relabels the blank nodes in existing output once.
+
+The same ``--diff-stable/--no-diff-stable`` option is available on ``gen-rdf``,
+``gen-shacl`` and ``gen-shex``.
+
+Graphs that are not standard RDF -- literal predicates, as produced by
+``gen-shacl`` in annotation mode, or relative IRIs such as the metamodel's
+``bibo:status <testing>`` -- cannot be canonicalized under RDFC-1.0. Those fall
+back to plain rdflib serialization, with blank-node labels canonicalized by
+``rdflib.compare.to_canonical_graph``. Those labels are content-derived rather
+than run-local, so the fallback remains reproducible across processes. It emits
+an ``RDFCanonicalizationWarning``, and ``--diff-stable`` has no effect on that
+path -- it warns rather than silently ignoring the request.
+
+Canonicalization itself is implemented by the
+`diffable-rdf <https://github.com/ASCS-eV/diffable-rdf>`_ library;
+``linkml_runtime.utils.rdf_canonicalize.canonicalize_rdf_graph`` is a thin
+adapter that re-emits the library's log warnings as Python warnings.
 
 
 Docs

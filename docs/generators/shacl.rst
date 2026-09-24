@@ -84,6 +84,165 @@ Example Output:
         shacl:targetClass <https://w3id.org/linkml/tests/kitchen_sink/Person> .
 
 
+Class Expressions
+^^^^^^^^^^^^^^^^^
+
+Class-level boolean expressions become the SHACL logical constraint components
+their metamodel definitions map to (`SHACL §4.6
+<https://www.w3.org/TR/shacl/#core-components-logical>`__):
+
+==================  =====================================================
+LinkML              SHACL, on the class's ``sh:NodeShape``
+==================  =====================================================
+``any_of``          ``sh:or`` over the member shapes
+``all_of``          ``sh:and`` over the member shapes
+``exactly_one_of``  ``sh:xone`` over the member shapes
+``none_of``         one ``sh:not`` per member
+==================  =====================================================
+
+Each member becomes an anonymous node shape. ``is_a`` gives ``sh:class``, and
+nested expressions recurse. Each entry of ``slot_conditions`` gives an
+``sh:property`` whose path is that of the slot as induced for the class, so
+``slot_usage`` applies:
+
+* ``required``, ``value_presence`` and the cardinalities give ``sh:minCount`` /
+  ``sh:maxCount``;
+* ``minimum_value`` / ``maximum_value`` give ``sh:minInclusive`` /
+  ``sh:maxInclusive``, and ``equals_number`` gives both, so that ``5`` also
+  matches ``5.0``;
+* ``pattern`` gives ``sh:pattern``;
+* ``equals_string`` and ``equals_string_in`` give ``sh:in``; on an enum slot the
+  values are the permissible values as the enum renders them, the IRI of their
+  ``meaning`` where they have one;
+* ``range`` gives the same class, type or enum constraint as a slot's range.
+
+SHACL allows ``sh:minInclusive``, ``sh:maxInclusive``, ``sh:in`` and
+``sh:pattern`` at most once per shape. Where one condition needs one of them
+twice, for example ``minimum_value`` next to ``equals_number``, the second value
+goes into an ``sh:and`` member of the property shape, where it applies to the
+same values.
+
+A slot condition constrains only the values that are present, so it also holds
+when the slot is absent - unless ``required: true``, ``value_presence: PRESENT``
+or a minimum or exact cardinality of at least 1 requires the slot. Inside
+``none_of``, at any depth, a condition that constrains values requires the slot,
+so that an absent slot is not rejected by the negation - unless the condition
+decides presence itself, through ``required``, ``value_presence`` or a maximum
+or exact cardinality of 0. The JSON Schema generator requires the slot in a
+class's own ``none_of`` for every condition that sets neither ``required`` nor
+``value_presence``.
+
+.. code-block:: yaml
+
+  GeodeticReferenceSystem:
+    slots: [code, name]
+    any_of:
+      - slot_conditions:
+          code:
+            required: true
+      - slot_conditions:
+          name:
+            required: true
+
+.. code-block:: turtle
+
+    ex:GeodeticReferenceSystem a sh:NodeShape ;
+        sh:or ( [ sh:property [ sh:path ex:code ; sh:minCount 1 ] ]
+                [ sh:property [ sh:path ex:name ; sh:minCount 1 ] ] ) ;
+        ...
+
+An expression is attached to the shape of the class that declares it. Like
+every ``sh:targetClass``, it reaches instances of subclasses where the data
+graph states the ``rdfs:subClassOf`` (`SHACL §2.1.3.2
+<https://www.w3.org/TR/shacl/#targetClass>`__); the ``sh:class`` that ``is_a``
+gives recognises instances of subclasses the same way, as it does for a slot's
+range.
+
+An operator whose members use anything else is skipped as a whole and logged as
+a warning, because leaving out one member would change what the operator
+admits. That covers, for example, ``has_member`` or a slot-level ``any_of``
+inside a slot condition, a condition on a name that is not a slot, a condition
+on the identifier slot (the node's IRI rather than a property), and
+``equals_string`` on a slot whose range does not hold strings.
+
+
+Rule constraints (SHACL-SPARQL)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+LinkML `rules <https://linkml.io/linkml/schemas/advanced.html#rules>`_ express
+cross-parameter, conditional validation ("if slot A holds X, slot B must
+..."). Plain per-slot SHACL property shapes cannot express these, so the
+generator translates recognised rule shapes into
+`SHACL-SPARQL constraints <https://www.w3.org/TR/shacl/#sparql-constraints>`_
+(``sh:sparql`` / ``sh:SPARQLConstraint``) on the class's ``sh:NodeShape``.
+Generation is controlled by ``--emit-rules/--no-emit-rules`` (default: on).
+
+Three named patterns are recognised first:
+
+* **Boolean guard** — precondition ``value_presence: PRESENT`` on a value
+  slot, postcondition ``equals_string: "true"`` on a *boolean-range* flag
+  slot: if the value is present, the flag must be true.
+* **Presence implies value** — precondition ``value_presence: PRESENT``,
+  postcondition ``equals_string`` / ``equals_string_in`` on a target slot:
+  if the guard is present, the target must hold one of the allowed values.
+  Enum values resolve to their ``meaning`` IRIs; values without ``meaning``
+  compare as string literals.
+* **Exclusive value** — precondition ``equals_string`` and postcondition
+  ``maximum_cardinality`` on the *same* multivalued slot: if the value is
+  present, the slot has at most N values.
+
+Combinations outside the named patterns are handled by a compositional
+fallback that conjoins the preconditions and negates a single postcondition:
+conditional-required (``required: true``), conditional-absent
+(``value_presence: ABSENT``), numeric threshold preconditions
+(``minimum_value`` / ``maximum_value``), a one-hop nested precondition into
+an inlined child object (``range_expression.slot_conditions``), and
+``has_member`` list membership.
+
+The translation contract is *skip, never mis-translate*: a rule whose
+conditions set any operator outside the translated set (including
+expression-level ``any_of``/``all_of``/``none_of``/``exactly_one_of``), or
+whose slot keys resolve to no slot, is skipped and logged at ``DEBUG``.
+``deactivated`` rules are skipped; ``bidirectional``, ``open_world``, and
+``elseconditions`` warn (the forward direction is emitted).
+
+Example:
+
+.. code-block:: yaml
+
+    classes:
+      Weather:
+        slots: [sun_altitude, daytime]
+        rules:
+          - description: If sun_altitude is present, daytime must be day or twilight.
+            preconditions:
+              slot_conditions:
+                sun_altitude:
+                  value_presence: PRESENT
+            postconditions:
+              slot_conditions:
+                daytime:
+                  equals_string_in: [day, twilight]
+
+generates (abridged):
+
+.. code-block:: turtle
+
+    ex:Weather a sh:NodeShape ;
+        sh:sparql [ a sh:SPARQLConstraint ;
+            sh:message "If sun_altitude is present, daytime must be day or twilight." ;
+            sh:select """SELECT $this WHERE {
+        $this <https://example.org/sun_altitude> ?value .
+        OPTIONAL { $this <https://example.org/daytime> ?target . }
+        FILTER ( !BOUND(?target) || ?target NOT IN (<https://example.org/Day>, <https://example.org/Twilight>) )
+    }""" ] .
+
+``$this`` is pre-bound to each focus node per
+`SHACL §5.3.1 <https://www.w3.org/TR/shacl/#sparql-constraints-prebound>`_.
+Note that SPARQL-based constraints require a SHACL processor with
+SHACL-SPARQL support (e.g. ``pyshacl`` with ``advanced=True``).
+
+
 Command Line
 ^^^^^^^^^^^^
 

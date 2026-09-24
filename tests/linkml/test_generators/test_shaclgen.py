@@ -2784,3 +2784,3172 @@ classes:
     has_boolean = any("BOUND" in q for q in queries)
     assert has_exclusive, "Expected one exclusive-value SPARQL constraint"
     assert has_boolean, "Expected one boolean-guard SPARQL constraint"
+
+
+# ===========================================================================
+# Presence-implies-value pattern tests (enum guard)
+# ===========================================================================
+#
+# The "presence implies value" pattern generalises the boolean guard to
+# enum-valued targets.  It translates a LinkML rule where:
+#   - preconditions: a value slot has value_presence: PRESENT
+#   - postconditions: a target slot has equals_string (single required value)
+#     or equals_string_in (a set of acceptable values)
+#
+# Semantics: "If the value slot is present, the target slot must be present
+# and hold one of the allowed values."  The motivating use case is the aiSim
+# environment model, e.g. "if texture_sky_color is set, sky_model must be
+# TextureSky" and "if overcast_sky_illuminance is set, sky_model must be an
+# overcast model".
+#
+# References:
+#   - W3C SHACL §5 <https://www.w3.org/TR/shacl/#sparql-constraints>
+#   - W3C SHACL §5.3.1 <https://www.w3.org/TR/shacl/#sparql-constraints-prebound>
+# ===========================================================================
+
+_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML = """
+id: https://example.org/presence-implies-value
+name: presence_implies_value_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/presence-implies-value/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  SkyModelEnum:
+    permissible_values:
+      ClearSky:
+        meaning: ex:ClearSky
+      OvercastSky:
+        meaning: ex:OvercastSky
+      MeasuredOvercastSky:
+        meaning: ex:MeasuredOvercastSky
+      TextureSky:
+        meaning: ex:TextureSky
+
+  ModeEnum:
+    permissible_values:
+      Auto:
+        description: Automatic mode (no meaning IRI).
+      Manual:
+        description: Manual mode (no meaning IRI).
+
+slots:
+  sky_model:
+    range: SkyModelEnum
+    slot_uri: ex:sky_model
+  texture_sky_color:
+    range: string
+    slot_uri: ex:texture_sky_color
+  overcast_sky_illuminance:
+    range: float
+    slot_uri: ex:overcast_sky_illuminance
+  mode:
+    range: ModeEnum
+    slot_uri: ex:mode
+  manual_value:
+    range: decimal
+    slot_uri: ex:manual_value
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sky_model
+      - texture_sky_color
+      - overcast_sky_illuminance
+    rules:
+      - description: If texture_sky_color is provided, sky_model must be TextureSky.
+        preconditions:
+          slot_conditions:
+            texture_sky_color:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            sky_model:
+              equals_string: "TextureSky"
+      - description: If overcast_sky_illuminance is provided, sky_model must be an overcast model.
+        preconditions:
+          slot_conditions:
+            overcast_sky_illuminance:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            sky_model:
+              equals_string_in:
+                - OvercastSky
+                - MeasuredOvercastSky
+
+  Device:
+    class_uri: ex:Device
+    slots:
+      - mode
+      - manual_value
+    rules:
+      - description: If manual_value is provided, mode must be Manual (literal fallback).
+        preconditions:
+          slot_conditions:
+            manual_value:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            mode:
+              equals_string: "Manual"
+"""
+
+EX_PIV = rdflib.Namespace("https://example.org/presence-implies-value/")
+
+
+def test_presence_implies_value_generates_sparql():
+    """Presence-implies-value rules produce sh:sparql constraints on the NodeShape."""
+    g = _parse_shacl(_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML)
+
+    shape = EX_PIV.Weather
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 2, f"Expected 2 sh:sparql constraints, got {len(sparql_nodes)}"
+
+    for node in sparql_nodes:
+        assert (node, RDF.type, SH.SPARQLConstraint) in g
+        selects = list(g.objects(node, SH.select))
+        assert len(selects) == 1, "Each constraint must have exactly one sh:select"
+        query = str(selects[0])
+        assert "$this" in query, "SPARQL must use $this pre-bound variable"
+        assert "NOT IN" in query, "presence-implies-value SPARQL must use NOT IN membership test"
+        assert "FILTER" in query, "SPARQL must have a FILTER clause"
+
+
+def test_presence_implies_value_single_uses_enum_iri():
+    """A single equals_string target resolves to the enum meaning IRI."""
+    g = _parse_shacl(_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML)
+
+    shape = EX_PIV.Weather
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    queries = [str(list(g.objects(n, SH.select))[0]) for n in sparql_nodes]
+
+    texture_query = [q for q in queries if "texture_sky_color" in q]
+    assert len(texture_query) == 1, "Expected exactly one texture_sky_color rule"
+    query = texture_query[0]
+
+    # value slot and target slot URIs both present
+    assert str(EX_PIV.texture_sky_color) in query
+    assert str(EX_PIV.sky_model) in query
+    # target value resolves to the TextureSky meaning IRI in angle brackets
+    assert f"<{EX_PIV.TextureSky}>" in query, f"Expected TextureSky IRI, got:\n{query}"
+
+
+def test_presence_implies_value_set_uses_all_iris():
+    """equals_string_in resolves every allowed value to its enum meaning IRI."""
+    g = _parse_shacl(_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML)
+
+    shape = EX_PIV.Weather
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    queries = [str(list(g.objects(n, SH.select))[0]) for n in sparql_nodes]
+
+    overcast_query = [q for q in queries if "overcast_sky_illuminance" in q]
+    assert len(overcast_query) == 1, "Expected exactly one overcast rule"
+    query = overcast_query[0]
+
+    assert f"<{EX_PIV.OvercastSky}>" in query, f"Expected OvercastSky IRI, got:\n{query}"
+    assert f"<{EX_PIV.MeasuredOvercastSky}>" in query, f"Expected MeasuredOvercastSky IRI, got:\n{query}"
+
+
+def test_presence_implies_value_no_meaning_falls_back_to_literal():
+    """When the target enum value lacks a meaning IRI, it is compared as a literal."""
+    g = _parse_shacl(_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML)
+
+    shape = EX_PIV.Device
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert '"Manual"' in query, f"No-meaning enum should use literal '\"Manual\"', got:\n{query}"
+    assert f"<{EX_PIV}Manual>" not in query, "Should not emit as IRI when meaning is absent"
+
+
+def test_presence_implies_value_message_from_description():
+    """Rule description is emitted as sh:message on the SPARQLConstraint."""
+    g = _parse_shacl(_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML)
+
+    shape = EX_PIV.Weather
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    messages = [str(m) for node in sparql_nodes for m in g.objects(node, SH.message)]
+
+    assert any("sky_model must be TextureSky" in m for m in messages), (
+        f"Expected message about TextureSky, got: {messages}"
+    )
+
+
+def test_presence_implies_value_sparql_syntax_valid():
+    """Generated SPARQL for presence-implies-value rules must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML)
+
+    for shape in (EX_PIV.Weather, EX_PIV.Device):
+        sparql_nodes = list(g.objects(shape, SH.sparql))
+        for node in sparql_nodes:
+            query_text = str(list(g.objects(node, SH.select))[0])
+            prepareQuery(query_text)
+
+
+def test_presence_implies_value_pyshacl_end_to_end():
+    """End-to-end: pyshacl passes conforming instances and flags violations."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_PRESENCE_IMPLIES_VALUE_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: guarded slots paired with an allowed sky_model; and an
+    # unguarded instance (no texture/overcast) is unaffected by the rules.
+    conforming_data = """
+    @prefix ex: <https://example.org/presence-implies-value/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wTexture a ex:Weather ;
+        ex:texture_sky_color "0,0,0" ;
+        ex:sky_model ex:TextureSky .
+
+    ex:wOvercast a ex:Weather ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float ;
+        ex:sky_model ex:OvercastSky .
+
+    ex:wMeasured a ex:Weather ;
+        ex:overcast_sky_illuminance "4200.0"^^xsd:float ;
+        ex:sky_model ex:MeasuredOvercastSky .
+
+    ex:wClear a ex:Weather ;
+        ex:sky_model ex:ClearSky .
+    """
+
+    conforms, _, results_text = pyshacl.validate(
+        data_graph=conforming_data,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass SHACL validation:\n{results_text}"
+
+    # Violating: texture_sky_color present but sky_model is ClearSky (not TextureSky).
+    violating_wrong_value = """
+    @prefix ex: <https://example.org/presence-implies-value/> .
+
+    ex:wBad a ex:Weather ;
+        ex:texture_sky_color "0,0,0" ;
+        ex:sky_model ex:ClearSky .
+    """
+    conforms, _, results_text = pyshacl.validate(
+        data_graph=violating_wrong_value,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Wrong-value instance should fail SHACL validation:\n{results_text}"
+
+    # Violating: overcast_sky_illuminance present but sky_model is TextureSky
+    # (not in the allowed overcast set).
+    violating_not_in_set = """
+    @prefix ex: <https://example.org/presence-implies-value/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad2 a ex:Weather ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float ;
+        ex:sky_model ex:TextureSky .
+    """
+    conforms, _, results_text = pyshacl.validate(
+        data_graph=violating_not_in_set,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Not-in-set instance should fail SHACL validation:\n{results_text}"
+
+    # Violating: texture_sky_color present but sky_model entirely absent.
+    violating_missing_target = """
+    @prefix ex: <https://example.org/presence-implies-value/> .
+
+    ex:wBad3 a ex:Weather ;
+        ex:texture_sky_color "0,0,0" .
+    """
+    conforms, _, results_text = pyshacl.validate(
+        data_graph=violating_missing_target,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Missing-target instance should fail SHACL validation:\n{results_text}"
+
+
+# ===========================================================================
+# Compositional fallback: conditional-required pattern (M1)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has equals_string V
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If X = V, then Y must be present."  Emitted as an
+# sh:SPARQLConstraint whose SELECT matches focus nodes where the precondition
+# holds but the required slot is absent (FILTER NOT EXISTS).
+# ===========================================================================
+
+_CONDITIONAL_REQUIRED_SCHEMA_YAML = """
+id: https://example.org/conditional-required
+name: conditional_required_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/conditional-required/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  SkyModelEnum:
+    permissible_values:
+      ClearSky:
+        meaning: ex:ClearSky
+      OvercastSky:
+        meaning: ex:OvercastSky
+      MeasuredOvercastSky:
+        meaning: ex:MeasuredOvercastSky
+
+slots:
+  sky_model:
+    range: SkyModelEnum
+    slot_uri: ex:sky_model
+  overcast_sky_illuminance:
+    range: float
+    slot_uri: ex:overcast_sky_illuminance
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sky_model
+      - overcast_sky_illuminance
+    rules:
+      - description: The MeasuredOvercastSky model requires the sky illuminance.
+        preconditions:
+          slot_conditions:
+            sky_model:
+              equals_string: MeasuredOvercastSky
+        postconditions:
+          slot_conditions:
+            overcast_sky_illuminance:
+              required: true
+"""
+
+EX_CR = rdflib.Namespace("https://example.org/conditional-required/")
+
+
+def test_conditional_required_generates_sparql():
+    """equals_string precondition + required postcondition → one sh:sparql constraint."""
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+
+    shape = EX_CR.Weather
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    node = sparql_nodes[0]
+    assert (node, RDF.type, SH.SPARQLConstraint) in g
+    query = str(list(g.objects(node, SH.select))[0])
+
+    assert "$this" in query, "SPARQL must use $this pre-bound variable (SHACL §5.3.1)"
+    assert "FILTER NOT EXISTS" in query, "required violation must use FILTER NOT EXISTS"
+    # precondition references the enum meaning IRI and the trigger slot
+    assert f"<{EX_CR.MeasuredOvercastSky}>" in query, f"precondition must use the enum IRI, got:\n{query}"
+    assert str(EX_CR.sky_model) in query
+    assert str(EX_CR.overcast_sky_illuminance) in query
+
+
+def test_conditional_required_message_from_description():
+    """Rule description is emitted as sh:message."""
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+    messages = [str(m) for node in g.objects(EX_CR.Weather, SH.sparql) for m in g.objects(node, SH.message)]
+    assert any("requires the sky illuminance" in m for m in messages), messages
+
+
+def test_conditional_required_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_CONDITIONAL_REQUIRED_SCHEMA_YAML)
+    for node in g.objects(EX_CR.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_conditional_required_pyshacl_end_to_end():
+    """End-to-end: pyshacl passes conforming instances and flags the violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_CONDITIONAL_REQUIRED_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: MeasuredOvercastSky WITH illuminance; ClearSky needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/conditional-required/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wMeasured a ex:Weather ;
+        ex:sky_model ex:MeasuredOvercastSky ;
+        ex:overcast_sky_illuminance "4200.0"^^xsd:float .
+
+    ex:wClear a ex:Weather ;
+        ex:sky_model ex:ClearSky .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: MeasuredOvercastSky WITHOUT the required illuminance.
+    violating = """
+    @prefix ex: <https://example.org/conditional-required/> .
+
+    ex:wBad a ex:Weather ;
+        ex:sky_model ex:MeasuredOvercastSky .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"MeasuredOvercastSky without illuminance should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: conditional-absent pattern (M2)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has equals_string V
+#   - postconditions: slot Y has value_presence: ABSENT
+#
+# Semantics: "If X = V, then Y must NOT be present" (inapplicable slot).
+# Emitted as an sh:SPARQLConstraint whose SELECT matches focus nodes where the
+# precondition holds and the forbidden slot is present.
+# ===========================================================================
+
+_CONDITIONAL_ABSENT_SCHEMA_YAML = """
+id: https://example.org/conditional-absent
+name: conditional_absent_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/conditional-absent/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  SkyModelEnum:
+    permissible_values:
+      ClearSky:
+        meaning: ex:ClearSky
+      OvercastSky:
+        meaning: ex:OvercastSky
+
+slots:
+  sky_model:
+    range: SkyModelEnum
+    slot_uri: ex:sky_model
+  overcast_sky_illuminance:
+    range: float
+    slot_uri: ex:overcast_sky_illuminance
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sky_model
+      - overcast_sky_illuminance
+    rules:
+      - description: ClearSky makes overcast_sky_illuminance inapplicable.
+        preconditions:
+          slot_conditions:
+            sky_model:
+              equals_string: ClearSky
+        postconditions:
+          slot_conditions:
+            overcast_sky_illuminance:
+              value_presence: ABSENT
+"""
+
+EX_CA = rdflib.Namespace("https://example.org/conditional-absent/")
+
+
+def test_conditional_absent_generates_sparql():
+    """equals_string precondition + value_presence ABSENT → one sh:sparql constraint."""
+    g = _parse_shacl(_CONDITIONAL_ABSENT_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_CA.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "$this" in query
+    # violation = precondition holds AND the forbidden slot is present; the
+    # forbidden-slot triple must NOT be wrapped in NOT EXISTS.
+    assert "FILTER NOT EXISTS" not in query, f"conditional-absent must not use NOT EXISTS, got:\n{query}"
+    assert f"<{EX_CA.ClearSky}>" in query
+    assert str(EX_CA.overcast_sky_illuminance) in query
+
+
+def test_conditional_absent_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_CONDITIONAL_ABSENT_SCHEMA_YAML)
+    for node in g.objects(EX_CA.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_conditional_absent_pyshacl_end_to_end():
+    """End-to-end: pyshacl passes conforming instances and flags the violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_CONDITIONAL_ABSENT_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: ClearSky without illuminance; OvercastSky may set illuminance.
+    conforming = """
+    @prefix ex: <https://example.org/conditional-absent/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wClear a ex:Weather ;
+        ex:sky_model ex:ClearSky .
+
+    ex:wOvercast a ex:Weather ;
+        ex:sky_model ex:OvercastSky ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: ClearSky WITH the inapplicable illuminance.
+    violating = """
+    @prefix ex: <https://example.org/conditional-absent/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:sky_model ex:ClearSky ;
+        ex:overcast_sky_illuminance "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"ClearSky with illuminance should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: numeric threshold precondition (M3)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X has maximum_value N (or minimum_value)
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If X <= N, then Y must be present."  The threshold becomes a
+# SPARQL FILTER; combined here with the M1 required violation.
+# ===========================================================================
+
+_THRESHOLD_SCHEMA_YAML = """
+id: https://example.org/threshold
+name: threshold_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/threshold/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  meteorological_optical_range:
+    range: float
+    slot_uri: ex:meteorological_optical_range
+  fog_note:
+    range: string
+    slot_uri: ex:fog_note
+
+classes:
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - meteorological_optical_range
+      - fog_note
+    rules:
+      - description: In fog (optical range at or below 4000) a fog note is required.
+        preconditions:
+          slot_conditions:
+            meteorological_optical_range:
+              maximum_value: 4000
+        postconditions:
+          slot_conditions:
+            fog_note:
+              required: true
+"""
+
+EX_THR = rdflib.Namespace("https://example.org/threshold/")
+
+
+def test_threshold_precondition_generates_sparql():
+    """maximum_value precondition emits a numeric FILTER on the trigger slot."""
+    g = _parse_shacl(_THRESHOLD_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_THR.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "<= 4000" in query, f"threshold must emit '<= 4000', got:\n{query}"
+    assert "FILTER NOT EXISTS" in query, "required postcondition violation must use NOT EXISTS"
+    assert str(EX_THR.meteorological_optical_range) in query
+    assert str(EX_THR.fog_note) in query
+
+
+def test_threshold_precondition_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_THRESHOLD_SCHEMA_YAML)
+    for node in g.objects(EX_THR.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_threshold_precondition_pyshacl_end_to_end():
+    """End-to-end: below-threshold requires the note; above-threshold does not."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_THRESHOLD_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: foggy (400) with a note; clear (5000) needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/threshold/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wFog a ex:Weather ;
+        ex:meteorological_optical_range "400.0"^^xsd:float ;
+        ex:fog_note "reduced visibility" .
+
+    ex:wClear a ex:Weather ;
+        ex:meteorological_optical_range "5000.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: foggy (400) without the required note.
+    violating = """
+    @prefix ex: <https://example.org/threshold/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:meteorological_optical_range "400.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Fog without the required note should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: nested range_expression precondition (M4)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  slot X (inlined child) has range_expression on an inner
+#     slot (e.g. sun_position.elevation <= 0)
+#   - postconditions: slot Y has required: true
+#
+# Semantics: "If the child's inner value satisfies the condition, then Y must
+# be present."  The SPARQL binds the child node with one extra hop.
+# ===========================================================================
+
+_NESTED_SCHEMA_YAML = """
+id: https://example.org/nested
+name: nested_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/nested/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  sun_position:
+    range: SunPosition
+    inlined: true
+    slot_uri: ex:sun_position
+  elevation:
+    range: float
+    slot_uri: ex:elevation
+  headlight_note:
+    range: string
+    slot_uri: ex:headlight_note
+
+classes:
+  SunPosition:
+    class_uri: ex:SunPosition
+    slots:
+      - elevation
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - sun_position
+      - headlight_note
+    rules:
+      - description: When the sun is at or below the horizon a headlight note is required.
+        preconditions:
+          slot_conditions:
+            sun_position:
+              range_expression:
+                slot_conditions:
+                  elevation:
+                    maximum_value: 0.0
+        postconditions:
+          slot_conditions:
+            headlight_note:
+              required: true
+"""
+
+EX_NEST = rdflib.Namespace("https://example.org/nested/")
+
+
+def test_nested_precondition_generates_sparql():
+    """A nested range_expression precondition emits a two-hop graph pattern."""
+    g = _parse_shacl(_NESTED_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_NEST.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert str(EX_NEST.sun_position) in query, "must traverse the container slot"
+    assert str(EX_NEST.elevation) in query, "must traverse the inner slot"
+    assert "<= 0.0" in query, f"inner threshold must appear, got:\n{query}"
+    assert "FILTER NOT EXISTS" in query
+    assert str(EX_NEST.headlight_note) in query
+
+
+def test_nested_precondition_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_NESTED_SCHEMA_YAML)
+    for node in g.objects(EX_NEST.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_nested_precondition_pyshacl_end_to_end():
+    """End-to-end: sun below horizon requires the note; above horizon does not."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_NESTED_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: night (elevation -90) with a note; day (45) needs nothing.
+    conforming = """
+    @prefix ex: <https://example.org/nested/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wNight a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "-90.0"^^xsd:float ] ;
+        ex:headlight_note "on" .
+
+    ex:wDay a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "45.0"^^xsd:float ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: night (elevation -90) without the required note.
+    violating = """
+    @prefix ex: <https://example.org/nested/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:wBad a ex:Weather ;
+        ex:sun_position [ a ex:SunPosition ; ex:elevation "-90.0"^^xsd:float ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Night without a headlight note should fail:\n{txt}"
+
+
+# ===========================================================================
+# Compositional fallback: has_member list-membership postcondition (M5)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  any supported precondition (here value_presence PRESENT)
+#   - postconditions: multivalued slot has_member with a nested
+#     range_expression constraining the member's inner slots
+#
+# Semantics: "If the precondition holds, the list must contain a member
+# matching the inner conditions."  Violation = no such member (FILTER NOT
+# EXISTS over the members).  Inner enum values resolve against the member
+# class (LightControlGroup), which disambiguates the reused `type` slot.
+# ===========================================================================
+
+_HAS_MEMBER_SCHEMA_YAML = """
+id: https://example.org/has-member
+name: has_member_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/has-member/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  LightGroupEnum:
+    permissible_values:
+      Vehicle:
+        meaning: ex:Vehicle
+      StreetLight:
+        meaning: ex:StreetLight
+  LightTypeEnum:
+    permissible_values:
+      low_beam_headlight:
+        meaning: ex:low_beam_headlight
+      front_fog_light:
+        meaning: ex:front_fog_light
+
+slots:
+  fog_declared:
+    range: string
+    slot_uri: ex:fog_declared
+  enabled_light_control_groups:
+    range: LightControlGroup
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+    slot_uri: ex:enabled_light_control_groups
+  group:
+    range: LightGroupEnum
+    slot_uri: ex:group
+  type:
+    range: LightTypeEnum
+    slot_uri: ex:type
+
+classes:
+  LightControlGroup:
+    class_uri: ex:LightControlGroup
+    slots:
+      - group
+      - type
+  Weather:
+    class_uri: ex:Weather
+    slots:
+      - fog_declared
+      - enabled_light_control_groups
+    rules:
+      - description: When fog is declared, a front fog light group must be enabled.
+        preconditions:
+          slot_conditions:
+            fog_declared:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            enabled_light_control_groups:
+              has_member:
+                range_expression:
+                  slot_conditions:
+                    group:
+                      equals_string: Vehicle
+                    type:
+                      equals_string: front_fog_light
+"""
+
+EX_HM = rdflib.Namespace("https://example.org/has-member/")
+
+
+def test_has_member_generates_sparql():
+    """has_member postcondition emits a FILTER NOT EXISTS over list members."""
+    g = _parse_shacl(_HAS_MEMBER_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_HM.Weather, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "FILTER NOT EXISTS" in query, "list-membership violation must use FILTER NOT EXISTS"
+    assert str(EX_HM.enabled_light_control_groups) in query
+    assert str(EX_HM.group) in query and str(EX_HM.type) in query
+    # inner enum values resolve against the member class (LightControlGroup),
+    # so the reused `type` slot picks LightTypeEnum, not another enum.
+    assert f"<{EX_HM.Vehicle}>" in query, f"group value must be the enum IRI, got:\n{query}"
+    assert f"<{EX_HM.front_fog_light}>" in query, f"type value must be the enum IRI, got:\n{query}"
+
+
+def test_has_member_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_HAS_MEMBER_SCHEMA_YAML)
+    for node in g.objects(EX_HM.Weather, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_has_member_pyshacl_end_to_end():
+    """End-to-end: fog requires a front-fog-light member; otherwise it fails."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_HAS_MEMBER_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    # Conforming: fog declared WITH a front-fog-light group; and no fog at all.
+    conforming = """
+    @prefix ex: <https://example.org/has-member/> .
+
+    ex:wFog a ex:Weather ;
+        ex:fog_declared "yes" ;
+        ex:enabled_light_control_groups
+            [ a ex:LightControlGroup ; ex:group ex:Vehicle ; ex:type ex:front_fog_light ] .
+
+    ex:wNoFog a ex:Weather .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Violating: fog declared but only a low-beam group (no front fog light).
+    violating = """
+    @prefix ex: <https://example.org/has-member/> .
+
+    ex:wBad a ex:Weather ;
+        ex:fog_declared "yes" ;
+        ex:enabled_light_control_groups
+            [ a ex:LightControlGroup ; ex:group ex:Vehicle ; ex:type ex:low_beam_headlight ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Fog without a front-fog-light group should fail:\n{txt}"
+
+
+# ===========================================================================
+# Rule-converter robustness regressions (review hardening)
+#
+# These guard three defects found while reviewing the rule converters:
+#   1. A single precondition combining minimum_value + maximum_value dropped
+#      all but the first bound (silent under-constraint / false positives).
+#   2. A slot_usage `slot_uri` (or enum `range`) override made the SPARQL body
+#      query the *base* IRI while `sh:path` used the *induced* IRI, so the
+#      constraint silently never fired (false negative).
+#   3. An `equals_string` value containing a quote/backslash produced invalid,
+#      unparsable SPARQL (broken artifact / injection).
+# ===========================================================================
+
+_COMBINED_BOUNDS_SCHEMA_YAML = """
+id: https://example.org/combined-bounds
+name: combined_bounds_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/combined-bounds/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  reading_value:
+    range: integer
+    slot_uri: ex:reading_value
+  reading_note:
+    range: string
+    slot_uri: ex:reading_note
+
+classes:
+  Reading:
+    class_uri: ex:Reading
+    slots:
+      - reading_value
+      - reading_note
+    rules:
+      - description: A mid-range reading requires an explanatory note.
+        preconditions:
+          slot_conditions:
+            reading_value:
+              minimum_value: 10
+              maximum_value: 20
+        postconditions:
+          slot_conditions:
+            reading_note:
+              required: true
+"""
+
+EX_CB = rdflib.Namespace("https://example.org/combined-bounds/")
+
+
+def test_rule_precondition_combines_min_and_max_bounds():
+    """A precondition with both minimum_value and maximum_value must emit both
+    bounds; the pre-fix first-match dispatch kept only the maximum."""
+    g = _parse_shacl(_COMBINED_BOUNDS_SCHEMA_YAML)
+
+    nodes = list(g.objects(EX_CB.Reading, SH.sparql))
+    assert len(nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(nodes)}"
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+    assert ">= 10" in query, f"lower bound must be emitted, got:\n{query}"
+    assert "<= 20" in query, f"upper bound must be emitted, got:\n{query}"
+
+
+def test_rule_combined_bounds_pyshacl_end_to_end():
+    """End-to-end: only values inside [10, 20] trigger the required note.
+
+    The below-threshold case is the key assertion — without the lower bound it
+    would be flagged as a violation."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_COMBINED_BOUNDS_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    conforming = """
+    @prefix ex: <https://example.org/combined-bounds/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:mid a ex:Reading ; ex:reading_value 15 ; ex:reading_note "in range" .
+    ex:low a ex:Reading ; ex:reading_value 5 .
+    ex:high a ex:Reading ; ex:reading_value 25 .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Out-of-range readings must not require a note:\n{txt}"
+
+    violating = """
+    @prefix ex: <https://example.org/combined-bounds/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:bad a ex:Reading ; ex:reading_value 15 .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"A mid-range reading without a note must fail:\n{txt}"
+
+
+_SLOT_URI_OVERRIDE_SCHEMA_YAML = """
+id: https://example.org/slot-uri-override
+name: slot_uri_override_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/slot-uri-override/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  trigger:
+    range: string
+    slot_uri: ex:GLOBAL_trigger
+  dependent:
+    range: string
+    slot_uri: ex:GLOBAL_dependent
+
+classes:
+  Scene:
+    class_uri: ex:Scene
+    slots:
+      - trigger
+      - dependent
+    slot_usage:
+      trigger:
+        slot_uri: ex:LOCAL_trigger
+      dependent:
+        slot_uri: ex:LOCAL_dependent
+    rules:
+      - description: If the trigger is present the dependent slot is required.
+        preconditions:
+          slot_conditions:
+            trigger:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            dependent:
+              required: true
+"""
+
+EX_OVR = rdflib.Namespace("https://example.org/slot-uri-override/")
+
+
+def test_rule_slot_uri_override_matches_sh_path():
+    """The SPARQL body must use the same induced (class-local) IRIs as sh:path.
+
+    A slot_usage slot_uri override changes sh:path; if the SPARQL keeps the base
+    IRI the query targets a property the data never uses and never fires."""
+    g = _parse_shacl(_SLOT_URI_OVERRIDE_SCHEMA_YAML)
+
+    paths = {str(o) for o in g.objects(None, SH.path)}
+    assert str(EX_OVR.LOCAL_trigger) in paths
+    assert str(EX_OVR.LOCAL_dependent) in paths
+
+    nodes = list(g.objects(EX_OVR.Scene, SH.sparql))
+    assert len(nodes) == 1
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+    assert str(EX_OVR.LOCAL_trigger) in query, f"SPARQL must use the induced IRI, got:\n{query}"
+    assert str(EX_OVR.LOCAL_dependent) in query, f"SPARQL must use the induced IRI, got:\n{query}"
+    assert "GLOBAL_" not in query, f"SPARQL must not fall back to the base slot_uri, got:\n{query}"
+
+
+def test_rule_slot_uri_override_pyshacl_end_to_end():
+    """End-to-end: the constraint actually fires on data that uses the induced
+    (LOCAL) IRIs.  Before the fix the SPARQL queried the base IRIs, so a missing
+    dependent slot slipped through as conforming."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_SLOT_URI_OVERRIDE_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    conforming = """
+    @prefix ex: <https://example.org/slot-uri-override/> .
+
+    ex:ok a ex:Scene ; ex:LOCAL_trigger "t" ; ex:LOCAL_dependent "d" .
+    ex:noTrigger a ex:Scene ; ex:LOCAL_dependent "d" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Trigger-with-dependent (and no-trigger) must pass:\n{txt}"
+
+    violating = """
+    @prefix ex: <https://example.org/slot-uri-override/> .
+
+    ex:bad a ex:Scene ; ex:LOCAL_trigger "t" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Trigger present without the required dependent must fail:\n{txt}"
+
+
+_ENUM_NARROWING_SCHEMA_YAML = """
+id: https://example.org/enum-narrowing
+name: enum_narrowing_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/enum-narrowing/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  BaseMode:
+    permissible_values:
+      Active:
+        meaning: ex:GLOBAL_Active
+  SceneMode:
+    permissible_values:
+      Active:
+        meaning: ex:LOCAL_Active
+
+slots:
+  activator:
+    range: string
+    slot_uri: ex:activator
+  mode:
+    range: BaseMode
+    slot_uri: ex:mode
+
+classes:
+  Scene:
+    class_uri: ex:Scene
+    slots:
+      - activator
+      - mode
+    slot_usage:
+      mode:
+        range: SceneMode
+    rules:
+      - description: If an activator is present the mode must be Active.
+        preconditions:
+          slot_conditions:
+            activator:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            mode:
+              equals_string: Active
+"""
+
+EX_EN = rdflib.Namespace("https://example.org/enum-narrowing/")
+
+
+def test_rule_enum_range_narrowed_by_slot_usage():
+    """A slot_usage range override to a class-specific enum must resolve the
+    value's meaning against the induced (narrowed) enum, not the base range."""
+    g = _parse_shacl(_ENUM_NARROWING_SCHEMA_YAML)
+
+    nodes = list(g.objects(EX_EN.Scene, SH.sparql))
+    assert len(nodes) == 1
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+    assert str(EX_EN.LOCAL_Active) in query, f"must resolve the narrowed enum meaning, got:\n{query}"
+    assert "GLOBAL_Active" not in query, f"must not resolve the base enum meaning, got:\n{query}"
+
+
+_ESCAPING_SCHEMA_YAML = """
+id: https://example.org/escaping
+name: escaping_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/escaping/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+slots:
+  trigger:
+    range: string
+    slot_uri: ex:trigger
+  label:
+    range: string
+    slot_uri: ex:label
+
+classes:
+  Item:
+    class_uri: ex:Item
+    slots:
+      - trigger
+      - label
+    rules:
+      - description: If a trigger is present the label must equal the quoted marker.
+        preconditions:
+          slot_conditions:
+            trigger:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            label:
+              equals_string: 'a"b\\\\c'
+"""
+
+EX_ESC = rdflib.Namespace("https://example.org/escaping/")
+
+
+def test_rule_equals_string_special_chars_escaped():
+    """An equals_string value with a quote and backslash must be escaped so the
+    generated SPARQL stays syntactically valid (no injection / broken query)."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_ESCAPING_SCHEMA_YAML)
+    nodes = list(g.objects(EX_ESC.Item, SH.sparql))
+    assert len(nodes) == 1
+    query = str(list(g.objects(nodes[0], SH.select))[0])
+
+    # Would raise ParseException on the unescaped `... = "a"b\c"` form.
+    prepareQuery(query)
+    assert '\\"' in query, f"double quote must be escaped, got:\n{query}"
+    assert "\\\\" in query, f"backslash must be escaped, got:\n{query}"
+
+
+# ===========================================================================
+# Audit-fix regression tests: operator exactness, nested-slot resolution,
+# numeric bound gating, elseconditions warning
+# ===========================================================================
+
+_PIV_EXTRA_PRE_SCHEMA_YAML = """
+id: https://example.org/piv-extra-pre
+name: piv_extra_pre
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/piv-extra-pre/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  temp:
+    range: integer
+    slot_uri: ex:temp
+  mode:
+    range: string
+    slot_uri: ex:mode
+classes:
+  Device:
+    class_uri: ex:Device
+    slots: [temp, mode]
+    rules:
+      - description: Above 100 the mode must be High (extra precondition operator).
+        preconditions:
+          slot_conditions:
+            temp:
+              value_presence: PRESENT
+              minimum_value: 100
+        postconditions:
+          slot_conditions:
+            mode:
+              equals_string: "High"
+"""
+
+
+def test_rule_extra_precondition_operator_skipped():
+    """A precondition combining PRESENT with a threshold must not dispatch to
+    presence-implies-value: dropping the threshold widens the trigger."""
+    g = _parse_shacl(_PIV_EXTRA_PRE_SCHEMA_YAML)
+    shape = URIRef("https://example.org/piv-extra-pre/Device")
+    assert list(g.objects(shape, SH.sparql)) == [], "rule with an untranslated conjunct must be skipped"
+
+
+def test_rule_extra_precondition_operator_pyshacl_end_to_end():
+    """A device below the threshold satisfies the rule vacuously and must conform."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_PIV_EXTRA_PRE_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+    data = """
+    @prefix ex: <https://example.org/piv-extra-pre/> .
+
+    ex:cool a ex:Device ; ex:temp 50 ; ex:mode "Low" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=data,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Below-threshold device must not be flagged:\n{txt}"
+
+
+_POST_BOTH_EQUALS_SCHEMA_YAML = """
+id: https://example.org/post-both-equals
+name: post_both_equals
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/post-both-equals/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  guard:
+    slot_uri: ex:guard
+  target:
+    slot_uri: ex:target
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [guard, target]
+    rules:
+      - preconditions:
+          slot_conditions:
+            guard:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            target:
+              equals_string: "a"
+              equals_string_in: ["b", "c"]
+"""
+
+
+def test_rule_post_with_both_equals_forms_skipped():
+    """equals_string and equals_string_in set together is ambiguous — skip,
+    do not let one form silently win."""
+    g = _parse_shacl(_POST_BOTH_EQUALS_SCHEMA_YAML)
+    shape = URIRef("https://example.org/post-both-equals/Thing")
+    assert list(g.objects(shape, SH.sparql)) == []
+
+
+_MIXED_SCALAR_SCHEMA_YAML = """
+id: https://example.org/mixed-scalar
+name: mixed_scalar
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/mixed-scalar/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  code:
+    slot_uri: ex:code
+  note:
+    slot_uri: ex:note
+classes:
+  Obs:
+    class_uri: ex:Obs
+    slots: [code, note]
+    rules:
+      - preconditions:
+          slot_conditions:
+            code:
+              equals_string: fog
+              pattern: "^f"
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+"""
+
+
+def test_rule_recognized_plus_unrecognized_operator_skipped():
+    """A condition mixing a supported operator (equals_string) with an
+    unsupported one (pattern) must skip — translating only the supported part
+    widens the trigger."""
+    g = _parse_shacl(_MIXED_SCALAR_SCHEMA_YAML)
+    shape = URIRef("https://example.org/mixed-scalar/Obs")
+    assert list(g.objects(shape, SH.sparql)) == []
+
+
+_EXPR_ANY_OF_SCHEMA_YAML = """
+id: https://example.org/expr-any-of
+name: expr_any_of
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/expr-any-of/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  code:
+    slot_uri: ex:code
+  other:
+    slot_uri: ex:other
+  note:
+    slot_uri: ex:note
+classes:
+  Obs:
+    class_uri: ex:Obs
+    slots: [code, other, note]
+    rules:
+      - preconditions:
+          slot_conditions:
+            code:
+              equals_string: fog
+          any_of:
+            - slot_conditions:
+                other:
+                  equals_string: x
+            - slot_conditions:
+                other:
+                  equals_string: y
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+"""
+
+
+def test_rule_expression_level_any_of_skipped():
+    """Expression-level any_of on the preconditions cannot be honoured by any
+    converter; dropping the branch widens the trigger, so the rule is skipped."""
+    g = _parse_shacl(_EXPR_ANY_OF_SCHEMA_YAML)
+    shape = URIRef("https://example.org/expr-any-of/Obs")
+    assert list(g.objects(shape, SH.sparql)) == []
+
+
+def test_rule_expression_level_any_of_pyshacl_end_to_end():
+    """An instance whose any_of branch is unmet satisfies the rule vacuously
+    and must conform."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_EXPR_ANY_OF_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+    data = """
+    @prefix ex: <https://example.org/expr-any-of/> .
+
+    ex:o a ex:Obs ; ex:code "fog" ; ex:other "z" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=data,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Instance with unmet any_of branch must not be flagged:\n{txt}"
+
+
+_POST_MIXED_SCHEMA_YAML = """
+id: https://example.org/post-mixed
+name: post_mixed
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/post-mixed/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  guard:
+    slot_uri: ex:guard
+  target:
+    slot_uri: ex:target
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [guard, target]
+    rules:
+      - preconditions:
+          slot_conditions:
+            guard:
+              equals_string: on
+        postconditions:
+          slot_conditions:
+            target:
+              required: true
+              pattern: "^x"
+"""
+
+
+def test_rule_post_mixed_operators_skipped():
+    """A postcondition combining required with an untranslated operator must
+    skip — checking only required weakens the postcondition."""
+    g = _parse_shacl(_POST_MIXED_SCHEMA_YAML)
+    shape = URIRef("https://example.org/post-mixed/Thing")
+    assert list(g.objects(shape, SH.sparql)) == []
+
+
+_ABSENT_COMBINED_SCHEMA_YAML = """
+id: https://example.org/absent-combined
+name: absent_combined
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/absent-combined/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  count:
+    range: integer
+    slot_uri: ex:count
+  note:
+    slot_uri: ex:note
+classes:
+  Obs:
+    class_uri: ex:Obs
+    slots: [count, note]
+    rules:
+      - preconditions:
+          slot_conditions:
+            count:
+              value_presence: ABSENT
+              minimum_value: 5
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+"""
+
+
+def test_rule_absent_combined_with_bound_skipped():
+    """value_presence ABSENT combined with another operator must skip: the
+    triple-binding translation would invert the declared trigger."""
+    g = _parse_shacl(_ABSENT_COMBINED_SCHEMA_YAML)
+    shape = URIRef("https://example.org/absent-combined/Obs")
+    assert list(g.objects(shape, SH.sparql)) == []
+
+
+_STRING_TRUE_SCHEMA_YAML = """
+id: https://example.org/string-true
+name: string_true
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/string-true/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  opt:
+    slot_uri: ex:opt
+  status:
+    range: string
+    slot_uri: ex:status
+classes:
+  Conf:
+    class_uri: ex:Conf
+    slots: [opt, status]
+    rules:
+      - description: If opt is present, status must be the string "true".
+        preconditions:
+          slot_conditions:
+            opt:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            status:
+              equals_string: "true"
+"""
+
+
+def test_rule_equals_true_on_string_slot_uses_piv():
+    """equals_string "true" on a NON-boolean slot must dispatch to
+    presence-implies-value (string comparison), not the boolean guard."""
+    g = _parse_shacl(_STRING_TRUE_SCHEMA_YAML)
+    shape = URIRef("https://example.org/string-true/Conf")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "NOT IN" in query, f"string-range 'true' must be a string comparison, got:\n{query}"
+    assert '"true"' in query, "the comparison term must be the string literal"
+
+
+def test_rule_equals_true_on_string_slot_pyshacl_end_to_end():
+    """status "true" (string) satisfies the rule; the boolean-guard hijack used
+    to flag it."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_STRING_TRUE_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+    conforming = """
+    @prefix ex: <https://example.org/string-true/> .
+
+    ex:ok a ex:Conf ; ex:opt "x" ; ex:status "true" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"status 'true' satisfies the rule and must conform:\n{txt}"
+
+    violating = """
+    @prefix ex: <https://example.org/string-true/> .
+
+    ex:bad a ex:Conf ; ex:opt "x" ; ex:status "other" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"status 'other' violates the rule:\n{txt}"
+
+
+_INNER_OVERRIDE_SCHEMA_YAML = """
+id: https://example.org/inner-override
+name: inner_override
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/inner-override/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  sun_position:
+    range: SunPosition
+    inlined: true
+    slot_uri: ex:sun_position
+  elevation:
+    range: float
+    slot_uri: ex:elevation
+  headlight_note:
+    slot_uri: ex:headlight_note
+classes:
+  SunPosition:
+    class_uri: ex:SunPosition
+    slots: [elevation]
+    slot_usage:
+      elevation:
+        slot_uri: ex:localElevation
+  Scene:
+    class_uri: ex:Scene
+    slots: [sun_position, headlight_note]
+    rules:
+      - description: Below the horizon a headlight note is required.
+        preconditions:
+          slot_conditions:
+            sun_position:
+              range_expression:
+                slot_conditions:
+                  elevation:
+                    maximum_value: 0
+        postconditions:
+          slot_conditions:
+            headlight_note:
+              required: true
+"""
+
+
+def test_rule_nested_inner_slot_uri_resolved_on_range_class():
+    """The inner slot of a nested precondition lives on the container's range
+    class; a slot_usage slot_uri override there must be honoured (sh:path /
+    SPARQL-body parity one hop down)."""
+    g = _parse_shacl(_INNER_OVERRIDE_SCHEMA_YAML)
+    shape = URIRef("https://example.org/inner-override/Scene")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "https://example.org/inner-override/localElevation" in query, (
+        f"inner slot must use the range class's induced slot_uri, got:\n{query}"
+    )
+    assert "https://example.org/inner-override/elevation" not in query, (
+        "the base slot_uri must not leak into the member pattern"
+    )
+
+
+def test_rule_nested_inner_slot_uri_override_pyshacl_end_to_end():
+    """A night scene without the required note must be flagged — with the
+    base-URI mistranslation the constraint silently never fired."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_INNER_OVERRIDE_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+    # The float is typed explicitly so the sh:datatype property constraint is
+    # satisfied and the outcome discriminates on the rule constraint alone.
+    violating = """
+    @prefix ex: <https://example.org/inner-override/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:night a ex:Scene ; ex:sun_position ex:sp .
+    ex:sp a ex:SunPosition ; ex:localElevation "-5.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Night scene without headlight note must fail:\n{txt}"
+
+    conforming = """
+    @prefix ex: <https://example.org/inner-override/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+    ex:noon a ex:Scene ; ex:sun_position ex:sp2 .
+    ex:sp2 a ex:SunPosition ; ex:localElevation "45.0"^^xsd:float .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Daytime scene needs no headlight note:\n{txt}"
+
+
+_INNER_COLLISION_SCHEMA_YAML = """
+id: https://example.org/inner-collision
+name: inner_collision
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/inner-collision/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  marker_flag:
+    slot_uri: ex:marker_flag
+  items:
+    range: Item
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+    slot_uri: ex:items
+  type:
+    slot_uri: ex:defaultType
+classes:
+  Item:
+    class_uri: ex:Item
+    slots: [type]
+    slot_usage:
+      type:
+        slot_uri: ex:itemType
+  Box:
+    class_uri: ex:Box
+    slots: [marker_flag, items, type]
+    slot_usage:
+      type:
+        slot_uri: ex:boxType
+    rules:
+      - description: A flagged box must contain a marker item.
+        preconditions:
+          slot_conditions:
+            marker_flag:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            items:
+              has_member:
+                range_expression:
+                  slot_conditions:
+                    type:
+                      equals_string: marker
+"""
+
+
+def test_rule_has_member_inner_slot_not_shadowed_by_outer_class():
+    """An inner slot name that also exists on the OUTER class with a different
+    slot_usage URI must still resolve against the member class."""
+    g = _parse_shacl(_INNER_COLLISION_SCHEMA_YAML)
+    shape = URIRef("https://example.org/inner-collision/Box")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "https://example.org/inner-collision/itemType" in query, (
+        f"member condition must use the member class's slot URI, got:\n{query}"
+    )
+    assert "boxType" not in query, "the outer class's slot_usage URI must not shadow the member's"
+
+
+def test_rule_has_member_inner_slot_collision_pyshacl_end_to_end():
+    """A conforming box (marker item present via the member class's predicate)
+    must conform — the outer-class shadowing made FILTER NOT EXISTS vacuous."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_INNER_COLLISION_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+    conforming = """
+    @prefix ex: <https://example.org/inner-collision/> .
+
+    ex:b a ex:Box ; ex:marker_flag "y" ; ex:items ex:i1 .
+    ex:i1 a ex:Item ; ex:itemType "marker" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Box with a marker item must conform:\n{txt}"
+
+
+_CONTAINER_NARROWED_SCHEMA_YAML = """
+id: https://example.org/container-narrowed
+name: container_narrowed
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/container-narrowed/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+enums:
+  BaseKindEnum:
+    permissible_values:
+      special:
+        meaning: ex:BASE_special
+  SpecialKindEnum:
+    permissible_values:
+      special:
+        meaning: ex:SPECIAL_special
+slots:
+  part:
+    range: BasePart
+    inlined: true
+    slot_uri: ex:part
+  kind:
+    range: BaseKindEnum
+    slot_uri: ex:kind
+  label_note:
+    slot_uri: ex:label_note
+classes:
+  BasePart:
+    class_uri: ex:BasePart
+    slots: [kind]
+  SpecialPart:
+    class_uri: ex:SpecialPart
+    is_a: BasePart
+    slot_usage:
+      kind:
+        range: SpecialKindEnum
+  Assembly:
+    class_uri: ex:Assembly
+    slots: [part, label_note]
+    slot_usage:
+      part:
+        range: SpecialPart
+    rules:
+      - description: A special part requires a label note.
+        preconditions:
+          slot_conditions:
+            part:
+              range_expression:
+                slot_conditions:
+                  kind:
+                    equals_string: special
+        postconditions:
+          slot_conditions:
+            label_note:
+              required: true
+"""
+
+
+def test_rule_container_range_narrowing_resolves_inner_enum():
+    """A slot_usage range-narrowing of the CONTAINER slot must resolve inner
+    enum values against the narrowed range class's enum."""
+    g = _parse_shacl(_CONTAINER_NARROWED_SCHEMA_YAML)
+    shape = URIRef("https://example.org/container-narrowed/Assembly")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "SPECIAL_special" in query, f"inner enum must resolve via the narrowed range, got:\n{query}"
+    assert "BASE_special" not in query, "the base range's enum must not be used"
+
+
+_NON_NUMERIC_BOUNDS_SCHEMA_YAML = """
+id: https://example.org/non-numeric-bounds
+name: non_numeric_bounds
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/non-numeric-bounds/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  v:
+    range: integer
+    slot_uri: ex:v
+  note:
+    slot_uri: ex:note
+classes:
+  Obs:
+    class_uri: ex:Obs
+    slots: [v, note]
+    rules:
+      - preconditions:
+          slot_conditions:
+            v:
+              minimum_value: "abc"
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+      - preconditions:
+          slot_conditions:
+            v:
+              minimum_value: 2020-01-01
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+      - preconditions:
+          slot_conditions:
+            v:
+              maximum_value: .nan
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+      - preconditions:
+          slot_conditions:
+            v:
+              minimum_value: true
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+"""
+
+
+def test_rule_non_numeric_bounds_skipped():
+    """Non-numeric threshold bounds (string, date, NaN, boolean) must skip the
+    rule: raw interpolation produced unparsable SPARQL (poisoning the whole
+    shapes graph) or silently-wrong arithmetic (2020-01-01 == 2018)."""
+    g = _parse_shacl(_NON_NUMERIC_BOUNDS_SCHEMA_YAML)
+    shape = URIRef("https://example.org/non-numeric-bounds/Obs")
+    assert list(g.objects(shape, SH.sparql)) == []
+
+
+def test_rule_non_numeric_bounds_shapes_graph_still_validates():
+    """The generated shapes graph must remain usable by pyshacl — one bad bound
+    used to raise a ParseException for every validation run."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_NON_NUMERIC_BOUNDS_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+    data = """
+    @prefix ex: <https://example.org/non-numeric-bounds/> .
+
+    ex:o a ex:Obs ; ex:v 1 .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=data,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Shapes graph must stay parseable and the data conform:\n{txt}"
+
+
+def test_has_member_zero_members_pyshacl_end_to_end():
+    """A node meeting the precondition with ZERO members violates has_member
+    ('must contain a matching member'); locks the semantics in."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_HAS_MEMBER_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+    violating = """
+    @prefix ex: <https://example.org/has-member/> .
+
+    ex:wZero a ex:Weather ; ex:fog_declared "fog" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=violating,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"Zero members cannot contain the required member:\n{txt}"
+
+
+_ALIAS_KEY_SCHEMA_YAML = """
+id: https://example.org/alias-key
+name: alias_key
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/alias-key/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  my slot:
+    slot_uri: ex:customMySlot
+  note:
+    slot_uri: ex:note
+classes:
+  Obs:
+    class_uri: ex:Obs
+    slots: ["my slot", note]
+    rules:
+      - description: Underscored alias key must resolve to the declared slot.
+        preconditions:
+          slot_conditions:
+            my_slot:
+              equals_string: trigger
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+"""
+
+
+def test_rule_alias_form_slot_key_resolves_override():
+    """A rule key written `my_slot` for a slot named `my slot` must resolve to
+    that slot's URI (sh:path parity) instead of fabricating a default-prefix
+    predicate that makes the constraint vacuous."""
+    g = _parse_shacl(_ALIAS_KEY_SCHEMA_YAML)
+    shape = URIRef("https://example.org/alias-key/Obs")
+    sparql_nodes = list(g.objects(shape, SH.sparql))
+    assert len(sparql_nodes) == 1
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "https://example.org/alias-key/customMySlot" in query, (
+        f"alias-form key must resolve to the declared slot_uri, got:\n{query}"
+    )
+    assert "https://example.org/alias-key/my_slot" not in query, (
+        "the fabricated default-prefix predicate must not be emitted"
+    )
+
+
+_UNKNOWN_KEY_SCHEMA_YAML = """
+id: https://example.org/unknown-key
+name: unknown_key
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/unknown-key/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  code:
+    slot_uri: ex:code
+  note:
+    slot_uri: ex:note
+classes:
+  Obs:
+    class_uri: ex:Obs
+    slots: [code, note]
+    rules:
+      - description: A rule keyed on a nonexistent slot must be skipped.
+        preconditions:
+          slot_conditions:
+            no_such_slot:
+              equals_string: trigger
+        postconditions:
+          slot_conditions:
+            note:
+              required: true
+"""
+
+
+def test_rule_unknown_slot_key_skipped():
+    """A rule whose condition keys a slot that does not exist must be skipped:
+    fabricating a default-prefix predicate would emit a constraint that can
+    never fire (or, for has_member, always fires)."""
+    g = _parse_shacl(_UNKNOWN_KEY_SCHEMA_YAML)
+    shape = URIRef("https://example.org/unknown-key/Obs")
+    assert list(g.objects(shape, SH.sparql)) == []
+
+
+# ---------------------------------------------------------------------------
+# pattern inside any_of branches
+# ---------------------------------------------------------------------------
+
+
+def test_any_of_with_pattern(input_path):
+    """Test that pattern constraints inside any_of branches emit sh:pattern.
+
+    Exercises three cases:
+    1. PatternOnlyBranch: any_of with a pattern-only branch (no range)
+    2. RangeWithPattern: any_of with range + pattern on the same branch
+    3. MixedBranches: combination of range-only, pattern-only, and range+pattern
+    """
+    shacl = ShaclGenerator(input_path("shaclgen/any_of_pattern.yaml"), mergeimports=True).serialize()
+    g = rdflib.Graph()
+    g.parse(data=shacl)
+
+    def get_or_branch_nodes(class_uri: str, slot_local: str) -> list[rdflib.BNode]:
+        """Return the list of BNodes inside sh:or for a given class property."""
+        class_ref = URIRef(class_uri)
+        for prop_node in g.objects(class_ref, SH.property):
+            paths = list(g.objects(prop_node, SH.path))
+            if any(slot_local in str(p) for p in paths):
+                for or_head in g.objects(prop_node, SH["or"]):
+                    return list(Collection(g, or_head))
+        return []
+
+    prefix = "https://w3id.org/linkml/examples/any_of_pattern/"
+
+    # Case 1: PatternOnlyBranch — license slot has 3 branches:
+    #   [enum sh:in], [sh:nodeKind sh:IRI], [sh:pattern "^LicenseRef-..."]
+    branches = get_or_branch_nodes(f"{prefix}PatternOnlyBranch", "license")
+    assert len(branches) == 3, f"Expected 3 branches, got {len(branches)}"
+    # Find the branch with sh:pattern
+    pattern_branches = [b for b in branches if list(g.objects(b, SH.pattern))]
+    assert len(pattern_branches) == 1, f"Expected 1 pattern branch, got {len(pattern_branches)}"
+    pattern_val = str(list(g.objects(pattern_branches[0], SH.pattern))[0])
+    assert pattern_val == "^LicenseRef-[a-zA-Z0-9\\-\\.]+$"
+    # The pattern-only branch should NOT have sh:datatype or sh:class
+    assert list(g.objects(pattern_branches[0], SH.datatype)) == []
+    assert list(g.objects(pattern_branches[0], SH["class"])) == []
+
+    # Case 2: RangeWithPattern — identifier slot has 2 branches:
+    #   [sh:datatype xsd:string + sh:pattern "^[A-Z]{2}-[0-9]{4}$"], [sh:datatype xsd:integer]
+    branches = get_or_branch_nodes(f"{prefix}RangeWithPattern", "identifier")
+    assert len(branches) == 2, f"Expected 2 branches, got {len(branches)}"
+    # Find branch with both datatype and pattern
+    combo_branches = [b for b in branches if list(g.objects(b, SH.datatype)) and list(g.objects(b, SH.pattern))]
+    assert len(combo_branches) == 1, f"Expected 1 combo branch, got {len(combo_branches)}"
+    assert str(list(g.objects(combo_branches[0], SH.pattern))[0]) == "^[A-Z]{2}-[0-9]{4}$"
+    # The other branch (integer) should NOT have sh:pattern
+    int_branches = [b for b in branches if b not in combo_branches]
+    assert list(g.objects(int_branches[0], SH.pattern)) == []
+
+    # Case 3: MixedBranches — code slot has 3 branches:
+    #   [sh:datatype xsd:integer], [sh:pattern "^CUSTOM-.*$"], [sh:datatype xsd:string + sh:pattern "^STD-[0-9]+$"]
+    branches = get_or_branch_nodes(f"{prefix}MixedBranches", "code")
+    assert len(branches) == 3, f"Expected 3 branches, got {len(branches)}"
+    # Exactly 2 branches should have sh:pattern
+    pattern_branches = [b for b in branches if list(g.objects(b, SH.pattern))]
+    assert len(pattern_branches) == 2, f"Expected 2 pattern branches, got {len(pattern_branches)}"
+    # Collect the patterns
+    patterns = sorted(str(list(g.objects(b, SH.pattern))[0]) for b in pattern_branches)
+    assert patterns == ["^CUSTOM-.*$", "^STD-[0-9]+$"]
+    # The integer-only branch should have no pattern
+    no_pattern = [b for b in branches if not list(g.objects(b, SH.pattern))]
+    assert len(no_pattern) == 1
+    assert list(g.objects(no_pattern[0], SH.datatype)) == [URIRef("http://www.w3.org/2001/XMLSchema#integer")]
+
+
+def test_any_of_with_pattern_pyshacl_end_to_end(input_path):
+    """End-to-end: pyshacl accepts values matching an ``any_of`` pattern branch and rejects others.
+
+    This is the behavioural regression guard for the fix. Without ``sh:pattern`` on the
+    branch node, a pattern-only branch serialises as an empty shape ``[ ]``, which every
+    value node trivially satisfies — so ``sh:or`` would accept *anything* and the
+    non-conforming assertions below would fail.
+    """
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(input_path("shaclgen/any_of_pattern.yaml"), mergeimports=True).serialize()
+
+    def conforms(data_ttl: str) -> tuple[bool, str]:
+        ok, _, text = pyshacl.validate(
+            data_graph=data_ttl,
+            shacl_graph=shacl_ttl,
+            data_graph_format="turtle",
+            shacl_graph_format="turtle",
+        )
+        return ok, text
+
+    prefixes = """
+    @prefix ex: <https://w3id.org/linkml/examples/any_of_pattern/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+    """
+
+    # Case 1: pattern-only branch. "MIT" satisfies the enum branch, an IRI satisfies the
+    # uri branch, and "LicenseRef-..." may only satisfy the pattern-only branch.
+    for value in ('"MIT"', "<https://example.org/licenses/custom>", '"LicenseRef-My-Custom.1"'):
+        ok, text = conforms(f"{prefixes}\nex:l1 a ex:PatternOnlyBranch ; ex:license {value} .")
+        assert ok, f"license {value} should conform:\n{text}"
+    # No branch matches: not an enum member, not an IRI, and does not match the pattern.
+    ok, _ = conforms(f'{prefixes}\nex:l2 a ex:PatternOnlyBranch ; ex:license "NotALicenseRef" .')
+    assert not ok, "A value matching no any_of branch must be rejected"
+
+    # Case 2: range + pattern on the same branch — both must hold for that branch.
+    ok, text = conforms(f'{prefixes}\nex:i1 a ex:RangeWithPattern ; ex:identifier "AB-1234" .')
+    assert ok, f"identifier 'AB-1234' should conform:\n{text}"
+    ok, text = conforms(f'{prefixes}\nex:i2 a ex:RangeWithPattern ; ex:identifier "42"^^xsd:integer .')
+    assert ok, f"identifier 42 should conform via the integer branch:\n{text}"
+    ok, _ = conforms(f'{prefixes}\nex:i3 a ex:RangeWithPattern ; ex:identifier "ab-1234" .')
+    assert not ok, "A string violating the branch pattern must be rejected"
+
+    # Case 3: mixed branches — each branch accepts only its own values.
+    for value in ('"7"^^xsd:integer', '"CUSTOM-anything"', '"STD-42"'):
+        ok, text = conforms(f"{prefixes}\nex:c1 a ex:MixedBranches ; ex:code {value} .")
+        assert ok, f"code {value} should conform:\n{text}"
+    ok, _ = conforms(f'{prefixes}\nex:c2 a ex:MixedBranches ; ex:code "STD-xyz" .')
+    assert not ok, "A value matching no any_of branch must be rejected"
+
+
+# ---------------------------------------------------------------------------
+# Class expressions → sh:or / sh:and / sh:xone / sh:not
+# ---------------------------------------------------------------------------
+
+EX_CE = rdflib.Namespace("https://example.org/class-expressions/")
+
+_CLASS_EXPRESSION_HEADER = """
+id: https://example.org/class-expressions
+name: class_expressions
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/class-expressions/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+"""
+
+_REFERENCE_SYSTEM_SCHEMA = (
+    _CLASS_EXPRESSION_HEADER
+    + """
+slots:
+  codeEPSG:
+    range: integer
+  coordinateSystemName: {{}}
+classes:
+  ReferenceSystem:
+    class_uri: ex:ReferenceSystem
+    slots: [codeEPSG, coordinateSystemName]
+    {operator}:
+      - slot_conditions:
+          codeEPSG:
+            required: true
+      - slot_conditions:
+          coordinateSystemName:
+            required: true
+"""
+)
+
+_LOGICAL_PREDICATES = (SH["or"], SH["and"], SH.xone, SH["not"])
+
+
+def _list_members(g, shape, predicate):
+    """Members of the single SHACL list that *shape* has for *predicate*."""
+    lists = list(g.objects(shape, predicate))
+    assert len(lists) == 1, f"expected one {predicate} list on {shape}, got {len(lists)}"
+    return list(Collection(g, lists[0]))
+
+
+def _condition(g, member, path):
+    """The property shape for *path* inside the member shape *member*."""
+    shapes = [p for p in g.objects(member, SH.property) if (p, SH.path, path) in g]
+    assert len(shapes) == 1, f"expected one condition on {path}, got {len(shapes)}"
+    return shapes[0]
+
+
+def _conforms(shacl_ttl: str, data_ttl: str) -> bool:
+    """Validate *data_ttl*; meta_shacl makes pyshacl fail on an ill-formed shapes graph."""
+    import pyshacl
+
+    conforms, _, _ = pyshacl.validate(
+        data_graph=data_ttl,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+        meta_shacl=True,
+    )
+    return conforms
+
+
+@pytest.mark.parametrize(
+    "operator,predicate",
+    [("any_of", SH["or"]), ("all_of", SH["and"]), ("exactly_one_of", SH.xone)],
+)
+def test_class_expression_list_operator_generates_logical_constraint(operator, predicate):
+    """any_of, all_of and exactly_one_of become sh:or, sh:and and sh:xone over the member shapes."""
+    g = _parse_shacl(_REFERENCE_SYSTEM_SCHEMA.format(operator=operator))
+
+    members = _list_members(g, EX_CE.ReferenceSystem, predicate)
+    assert len(members) == 2
+    for member, path in zip(members, (EX_CE.codeEPSG, EX_CE.coordinateSystemName)):
+        condition = _condition(g, member, path)
+        assert (condition, SH.minCount, Literal(1)) in g
+        assert (member, SH.targetClass, None) not in g
+    others = set(_LOGICAL_PREDICATES) - {predicate}
+    assert not any((EX_CE.ReferenceSystem, p, None) in g for p in others)
+
+
+def test_class_expression_none_of_generates_one_sh_not_per_member():
+    """none_of becomes one sh:not per member; the negated constraints all apply (SHACL §2.1.1)."""
+    g = _parse_shacl(_REFERENCE_SYSTEM_SCHEMA.format(operator="none_of"))
+
+    negated = list(g.objects(EX_CE.ReferenceSystem, SH["not"]))
+    assert len(negated) == 2
+    paths = {path for member in negated for p in g.objects(member, SH.property) for path in g.objects(p, SH.path)}
+    assert paths == {EX_CE.codeEPSG, EX_CE.coordinateSystemName}
+
+
+@pytest.mark.parametrize(
+    "operator,properties,expected",
+    [
+        ("any_of", 'ex:codeEPSG 4326 ; ex:coordinateSystemName "WGS 84"', True),
+        ("any_of", "ex:codeEPSG 4326", True),
+        ("any_of", "", False),
+        ("exactly_one_of", "ex:codeEPSG 4326", True),
+        ("exactly_one_of", 'ex:codeEPSG 4326 ; ex:coordinateSystemName "WGS 84"', False),
+        ("exactly_one_of", "", False),
+        ("all_of", 'ex:codeEPSG 4326 ; ex:coordinateSystemName "WGS 84"', True),
+        ("all_of", "ex:codeEPSG 4326", False),
+        ("none_of", "", True),
+        ("none_of", "ex:codeEPSG 4326", False),
+    ],
+)
+def test_class_expression_pyshacl_end_to_end(operator, properties, expected):
+    """End-to-end: each operator admits exactly the instances the metamodel says it holds for."""
+    shacl_ttl = ShaclGenerator(_REFERENCE_SYSTEM_SCHEMA.format(operator=operator), mergeimports=False).serialize()
+    data = f"""
+    @prefix ex: <https://example.org/class-expressions/> .
+    ex:rs a ex:ReferenceSystem {";" if properties else ""} {properties} .
+    """
+    assert _conforms(shacl_ttl, data) is expected
+
+
+_FORMAT_PROFILES_SCHEMA = (
+    _CLASS_EXPRESSION_HEADER
+    + """
+slots:
+  fileFormat: {}
+  formatType: {}
+  version: {}
+  hasChannel:
+    range: Channel
+    multivalued: true
+    inlined: true
+classes:
+  Channel:
+    class_uri: ex:Channel
+  Format:
+    class_uri: ex:Format
+    slots: [fileFormat, formatType, version, hasChannel]
+    any_of:
+      - description: A single-channel trace.
+        slot_conditions:
+          fileFormat:
+            equals_string_in: [OSI, TXTH]
+          formatType:
+            required: true
+          version:
+            required: true
+      - description: A multi-channel container.
+        slot_conditions:
+          fileFormat:
+            required: true
+            equals_string: MCAP
+          hasChannel:
+            required: true
+"""
+)
+
+
+@pytest.mark.parametrize(
+    "properties,expected",
+    [
+        ('ex:fileFormat "OSI" ; ex:formatType "SensorView" ; ex:version "3.7.0"', True),
+        ('ex:fileFormat "MCAP" ; ex:hasChannel ex:ch', True),
+        ('ex:fileFormat "MCAP" ; ex:formatType "SensorView" ; ex:version "3.7.0"', False),
+        ('ex:fileFormat "OSI" ; ex:formatType "SensorView" ; ex:hasChannel ex:ch', False),
+    ],
+)
+def test_class_expression_any_of_profiles_pyshacl_end_to_end(properties, expected):
+    """End-to-end: a class-level any_of selects between two complete profiles of a class."""
+    shacl_ttl = ShaclGenerator(_FORMAT_PROFILES_SCHEMA, mergeimports=False).serialize()
+    data = f"""
+    @prefix ex: <https://example.org/class-expressions/> .
+    ex:ch a ex:Channel .
+    ex:f a ex:Format ; {properties} .
+    """
+    assert _conforms(shacl_ttl, data) is expected
+
+
+def test_class_expression_member_metadata():
+    """A member's title and description annotate its shape, as they do for a class's NodeShape."""
+    g = _parse_shacl(_FORMAT_PROFILES_SCHEMA)
+
+    comments = {str(c) for m in _list_members(g, EX_CE.Format, SH["or"]) for c in g.objects(m, RDFS.comment)}
+    assert comments == {"A single-channel trace.", "A multi-channel container."}
+
+
+_CONDITIONS_SCHEMA = (
+    _CLASS_EXPRESSION_HEADER
+    + """
+enums:
+  ColourEnum:
+    permissible_values:
+      red: {}
+      blue: {}
+slots:
+  label: {}
+  size:
+    range: integer
+  count:
+    multivalued: true
+  exact:
+    multivalued: true
+  colour: {}
+  target: {}
+  note: {}
+classes:
+  Target:
+    class_uri: ex:Target
+  Thing:
+    class_uri: ex:Thing
+    slots: [label, size, count, exact, colour, target, note]
+    all_of:
+      - title: every condition
+        slot_conditions:
+          label:
+            description: Starts upper case.
+            required: true
+            pattern: "^[A-Z]"
+            equals_string_in: [Alpha, Beta]
+          size:
+            minimum_value: 1
+            maximum_value: 10
+            equals_number: 5
+          count:
+            required: true
+            minimum_cardinality: 2
+            maximum_cardinality: 4
+          exact:
+            exact_cardinality: 3
+          colour:
+            range: ColourEnum
+          target:
+            value_presence: PRESENT
+            range: Target
+          note:
+            value_presence: ABSENT
+"""
+)
+
+
+def test_class_expression_slot_condition_fields():
+    """Each supported slot-condition field maps to the SHACL constraint the slot loop uses for it."""
+    g = _parse_shacl(_CONDITIONS_SCHEMA)
+    (member,) = _list_members(g, EX_CE.Thing, SH["and"])
+    assert (member, RDFS.label, Literal("every condition")) in g
+
+    def values(path, predicate):
+        return set(g.objects(_condition(g, member, path), predicate))
+
+    def in_list(path):
+        (node,) = values(path, SH["in"])
+        return list(Collection(g, node))
+
+    assert values(EX_CE.label, SH.minCount) == {Literal(1)}
+    assert values(EX_CE.label, SH.pattern) == {Literal("^[A-Z]")}
+    assert values(EX_CE.label, SH.description) == {Literal("Starts upper case.")}
+    assert in_list(EX_CE.label) == [Literal("Alpha"), Literal("Beta")]
+
+    # equals_number is a value comparison; SHACL allows one sh:minInclusive and one
+    # sh:maxInclusive per shape, so next to the bounds it moves into an sh:and member
+    assert values(EX_CE.size, SH.minInclusive) == {Literal(1)}
+    assert values(EX_CE.size, SH.maxInclusive) == {Literal(10)}
+    (and_node,) = values(EX_CE.size, SH["and"])
+    repeated = {(p, o) for m in Collection(g, and_node) for p, o in g.predicate_objects(m)}
+    assert repeated == {(SH.minInclusive, Literal(5)), (SH.maxInclusive, Literal(5))}
+    assert values(EX_CE.size, SH["in"]) == set()
+    assert values(EX_CE.size, SH.minCount) == set()
+    assert values(EX_CE.size, SH.hasValue) == set()
+
+    # required and a cardinality give one sh:minCount, the stricter of the two
+    assert values(EX_CE["count"], SH.minCount) == {Literal(2)}
+    assert values(EX_CE["count"], SH.maxCount) == {Literal(4)}
+    assert values(EX_CE.exact, SH.minCount) == {Literal(3)}
+    assert values(EX_CE.exact, SH.maxCount) == {Literal(3)}
+
+    assert in_list(EX_CE.colour) == [Literal("red"), Literal("blue")]
+
+    assert values(EX_CE.target, SH.minCount) == {Literal(1)}
+    assert values(EX_CE.target, SH["class"]) == {EX_CE.Target}
+    assert values(EX_CE.target, SH.nodeKind) == {SH.BlankNodeOrIRI}
+
+    assert values(EX_CE.note, SH.maxCount) == {Literal(0)}
+    assert values(EX_CE.note, SH.minCount) == set()
+
+
+@pytest.mark.parametrize(
+    "condition,properties,expected",
+    [
+        # outside none_of a value constraint says nothing about presence
+        ("any_of", "", True),
+        ("any_of", 'ex:label "b"', False),
+        # inside none_of it requires the slot, so an absent slot is not rejected
+        ("none_of", "", True),
+        ("none_of", 'ex:label "A"', False),
+        ("none_of", 'ex:label "B"', True),
+    ],
+)
+def test_class_expression_presence_semantics(condition, properties, expected):
+    """A condition holds vacuously for an absent slot, except under none_of, as in the JSON Schema generator."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + f"""
+slots:
+  label: {{}}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [label]
+    {condition}:
+      - slot_conditions:
+          label:
+            {"pattern: '^[A-Z]'" if condition == "any_of" else "equals_string: A"}
+"""
+    )
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False).serialize()
+    data = f"""
+    @prefix ex: <https://example.org/class-expressions/> .
+    ex:t a ex:Thing {";" if properties else ""} {properties} .
+    """
+    assert _conforms(shacl_ttl, data) is expected
+
+
+def test_class_expression_nested_and_is_a():
+    """Nested expressions recurse into the member shape; is_a gives sh:class."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  a: {}
+  b: {}
+  c: {}
+classes:
+  Marker:
+    class_uri: ex:Marker
+  Thing:
+    class_uri: ex:Thing
+    slots: [a, b, c]
+    any_of:
+      - all_of:
+          - slot_conditions:
+              a:
+                required: true
+          - slot_conditions:
+              b:
+                required: true
+      - is_a: Marker
+        slot_conditions:
+          c:
+            required: true
+"""
+    )
+    # open shapes: the instance is also a Marker, whose own shape declares no slots
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False, closed=False).serialize()
+    g = rdflib.Graph().parse(data=shacl_ttl)
+    first, second = _list_members(g, EX_CE.Thing, SH["or"])
+    assert len(_list_members(g, first, SH["and"])) == 2
+    assert (second, SH["class"], EX_CE.Marker) in g
+
+    prefix = "@prefix ex: <https://example.org/class-expressions/> ."
+    assert _conforms(shacl_ttl, f'{prefix} ex:t a ex:Thing ; ex:a "1" ; ex:b "2" .')
+    assert not _conforms(shacl_ttl, f'{prefix} ex:t a ex:Thing ; ex:a "1" .')
+    assert _conforms(shacl_ttl, f'{prefix} ex:t a ex:Thing, ex:Marker ; ex:c "3" .')
+    assert not _conforms(shacl_ttl, f'{prefix} ex:t a ex:Thing ; ex:c "3" .')
+
+
+def test_class_expression_reaches_subclass_instances_through_the_target():
+    """The constraint sits on the declaring class's shape only and reaches subclass instances via sh:targetClass."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  a: {}
+  b: {}
+classes:
+  Parent:
+    class_uri: ex:Parent
+    slots: [a, b]
+    any_of:
+      - slot_conditions:
+          a:
+            required: true
+      - slot_conditions:
+          b:
+            required: true
+  Child:
+    class_uri: ex:Child
+    is_a: Parent
+"""
+    )
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False, closed=False).serialize()
+    g = rdflib.Graph().parse(data=shacl_ttl)
+    assert (EX_CE.Parent, SH["or"], None) in g
+    assert (EX_CE.Child, SH["or"], None) not in g
+
+    data = """
+    @prefix ex: <https://example.org/class-expressions/> .
+    @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+    ex:Child rdfs:subClassOf ex:Parent .
+    ex:c a ex:Child .
+    """
+    assert not _conforms(shacl_ttl, data)
+
+
+def test_class_expression_untranslatable_operator_skipped_with_warning(caplog):
+    """An operator with an untranslatable member is skipped whole, with a warning; the others are kept."""
+    import logging
+
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  tags:
+    multivalued: true
+  a: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [tags, a]
+    any_of:
+      - slot_conditions:
+          tags:
+            has_member:
+              equals_string: x
+      - slot_conditions:
+          a:
+            required: true
+    none_of:
+      - slot_conditions:
+          a:
+            equals_string: forbidden
+"""
+    )
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.shaclgen"):
+        g = _parse_shacl(schema)
+
+    assert (EX_CE.Thing, SH["or"], None) not in g
+    assert (EX_CE.Thing, SH["not"], None) in g
+    assert any(
+        "any_of" in rec.message and "has_member" in rec.message and "tags" in rec.message for rec in caplog.records
+    )
+
+
+def test_class_expression_condition_on_identifier_skipped_with_warning(caplog):
+    """An identifier is the node's IRI, not a property arc, so a condition on it is not translated."""
+    import logging
+
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  id:
+    identifier: true
+  a: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [id, a]
+    exactly_one_of:
+      - slot_conditions:
+          id:
+            pattern: "^ex:"
+      - slot_conditions:
+          a:
+            required: true
+"""
+    )
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.shaclgen"):
+        g = _parse_shacl(schema)
+
+    assert (EX_CE.Thing, SH.xone, None) not in g
+    assert any("exactly_one_of" in rec.message and "identifier" in rec.message for rec in caplog.records)
+
+
+def test_class_expression_absent_leaves_node_shapes_unchanged():
+    """Without class-level expressions no node shape gets a logical constraint; slot-level any_of is unaffected."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  value:
+    any_of:
+      - range: integer
+      - range: string
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [value]
+"""
+    )
+    g = _parse_shacl(schema)
+
+    for shape in g.subjects(SH.targetClass, None):
+        assert not any((shape, p, None) in g for p in _LOGICAL_PREDICATES)
+    (value_shape,) = [p for p in g.objects(EX_CE.Thing, SH.property) if (p, SH.path, EX_CE.value) in g]
+    assert (value_shape, SH["or"], None) in g
+
+
+def test_class_expression_condition_path_is_the_slot_induced_for_the_class():
+    """A condition's sh:path is the one the class's own property shape uses, slot_usage and attributes included."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  code:
+    slot_uri: ex:baseCode
+  exact mappings:
+    slot_uri: ex:exactMatch
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [code, exact mappings]
+    slot_usage:
+      code:
+        slot_uri: ex:thingCode
+    attributes:
+      loc:
+        slot_uri: ex:thingLoc
+    any_of:
+      - slot_conditions:
+          code:
+            required: true
+      - slot_conditions:
+          exact_mappings:
+            required: true
+      - slot_conditions:
+          loc:
+            required: true
+  Other:
+    class_uri: ex:Other
+    attributes:
+      loc:
+        slot_uri: ex:otherLoc
+"""
+    )
+    g = _parse_shacl(schema)
+
+    class_paths = {path for p in g.objects(EX_CE.Thing, SH.property) for path in g.objects(p, SH.path)}
+    condition_paths = [
+        path
+        for member in _list_members(g, EX_CE.Thing, SH["or"])
+        for p in g.objects(member, SH.property)
+        for path in g.objects(p, SH.path)
+    ]
+    assert condition_paths and set(condition_paths) <= class_paths
+    assert set(condition_paths) == {EX_CE.thingCode, EX_CE.exactMatch, EX_CE.thingLoc}
+
+
+def test_class_expression_nested_none_of_requires_the_slot():
+    """A none_of nested in another operator requires the slot too, so it reads like a class's own none_of."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  label: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [label]
+    all_of:
+      - none_of:
+          - slot_conditions:
+              label:
+                equals_string: A
+"""
+    )
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False).serialize()
+    prefix = "@prefix ex: <https://example.org/class-expressions/> ."
+    assert _conforms(shacl_ttl, f"{prefix} ex:t a ex:Thing .")
+    assert _conforms(shacl_ttl, f'{prefix} ex:t a ex:Thing ; ex:label "B" .')
+    assert not _conforms(shacl_ttl, f'{prefix} ex:t a ex:Thing ; ex:label "A" .')
+
+
+@pytest.mark.parametrize(
+    "condition,properties,expected",
+    [
+        # a cardinality is taken literally inside none_of: "not at most zero values" means present
+        ("maximum_cardinality: 0", "", False),
+        ("maximum_cardinality: 0", 'ex:tag "x"', True),
+        ("maximum_cardinality: 1", 'ex:tag "x"', False),
+        ("maximum_cardinality: 1", 'ex:tag "x", "y"', True),
+    ],
+)
+def test_class_expression_none_of_takes_cardinality_literally(condition, properties, expected):
+    """Inside none_of only a condition silent on presence and cardinality is made to require the slot."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + f"""
+slots:
+  tag:
+    multivalued: true
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [tag]
+    none_of:
+      - slot_conditions:
+          tag:
+            {condition}
+"""
+    )
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False).serialize()
+    data = f"""
+    @prefix ex: <https://example.org/class-expressions/> .
+    ex:t a ex:Thing {";" if properties else ""} {properties} .
+    """
+    assert _conforms(shacl_ttl, data) is expected
+
+
+def test_class_expression_equals_string_on_enum_uses_the_meaning():
+    """equals_string on an enum slot compares against the permissible value as _add_enum renders it."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+enums:
+  FormatEnum:
+    permissible_values:
+      OSI:
+        meaning: ex:OSI
+      MCAP: {}
+slots:
+  fileFormat:
+    range: FormatEnum
+  hasChannel: {}
+classes:
+  Format:
+    class_uri: ex:Format
+    slots: [fileFormat, hasChannel]
+    any_of:
+      - slot_conditions:
+          fileFormat:
+            equals_string: OSI
+      - slot_conditions:
+          fileFormat:
+            equals_string: MCAP
+          hasChannel:
+            required: true
+"""
+    )
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False).serialize()
+    g = rdflib.Graph().parse(data=shacl_ttl)
+    first, second = _list_members(g, EX_CE.Format, SH["or"])
+    (osi_in,) = g.objects(_condition(g, first, EX_CE.fileFormat), SH["in"])
+    assert list(Collection(g, osi_in)) == [EX_CE.OSI]
+    (mcap_in,) = g.objects(_condition(g, second, EX_CE.fileFormat), SH["in"])
+    assert list(Collection(g, mcap_in)) == [Literal("MCAP")]
+
+    prefix = "@prefix ex: <https://example.org/class-expressions/> ."
+    assert _conforms(shacl_ttl, f"{prefix} ex:f a ex:Format ; ex:fileFormat ex:OSI .")
+    assert not _conforms(shacl_ttl, f'{prefix} ex:f a ex:Format ; ex:fileFormat "MCAP" .')
+
+
+@pytest.mark.parametrize("value,expected", [("5.0", True), ("5", True), ("6.0", False)])
+def test_class_expression_equals_number_compares_values(value, expected):
+    """equals_number matches the value, whatever numeric datatype carries it."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  size:
+    range: float
+  label: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [size, label]
+    any_of:
+      - slot_conditions:
+          size:
+            equals_number: 5
+      - slot_conditions:
+          label:
+            required: true
+"""
+    )
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False, closed=False).serialize()
+    # sh:datatype xsd:float on the class's own property shape would reject an xsd:decimal,
+    # so every value is given as xsd:float
+    data = f"""
+    @prefix ex: <https://example.org/class-expressions/> .
+    @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+    ex:t a ex:Thing ; ex:size "{value}"^^xsd:float .
+    """
+    assert _conforms(shacl_ttl, data) is expected
+
+
+_UNTRANSLATABLE_CONDITIONS = {
+    # an identifier is the node's IRI; here it becomes one only through slot_usage
+    "identifier": """
+slots:
+  id: {}
+  a: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [id, a]
+    slot_usage:
+      id:
+        identifier: true
+    any_of:
+      - slot_conditions:
+          id:
+            required: true
+      - slot_conditions:
+          a:
+            required: true
+""",
+    "'undefined', which is not a slot": """
+slots:
+  a: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [a]
+    any_of:
+      - slot_conditions:
+          undefined:
+            required: true
+      - slot_conditions:
+          a:
+            required: true
+""",
+    "does not hold strings": """
+slots:
+  count:
+    range: integer
+  a: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [count, a]
+    any_of:
+      - slot_conditions:
+          count:
+            equals_string: "5"
+      - slot_conditions:
+          a:
+            required: true
+""",
+}
+
+
+@pytest.mark.parametrize("reason", list(_UNTRANSLATABLE_CONDITIONS))
+def test_class_expression_untranslatable_condition_skipped_with_warning(caplog, reason):
+    """A condition on an identifier, on no slot, or equals_string on a non-string range is not translated."""
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.shaclgen"):
+        g = _parse_shacl(_CLASS_EXPRESSION_HEADER + _UNTRANSLATABLE_CONDITIONS[reason])
+
+    assert (EX_CE.Thing, SH["or"], None) not in g
+    assert any("any_of" in rec.message and reason in rec.message for rec in caplog.records)
+
+
+def test_class_expression_is_a_with_native_names_uses_sh_node():
+    """With native names, is_a references the member class's shape, suffix included, as a range does."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  a: {}
+classes:
+  Marker:
+    class_uri: ex:Marker
+  Thing:
+    class_uri: ex:Thing
+    slots: [a]
+    any_of:
+      - is_a: Marker
+      - slot_conditions:
+          a:
+            required: true
+"""
+    )
+    g = _parse_shacl(schema, use_class_uri_names=False, suffix="Shape")
+
+    (first, _) = _list_members(g, EX_CE.ThingShape, SH["or"])
+    assert set(g.objects(first, SH.node)) == {EX_CE.MarkerShape}
+    assert (first, SH["class"], None) not in g
+
+
+_REPEATED_PARAMETERS_SCHEMA = (
+    _CLASS_EXPRESSION_HEADER
+    + """
+types:
+  Code:
+    typeof: string
+    pattern: "^[A-Z]+$"
+enums:
+  LetterEnum:
+    permissible_values:
+      A: {}
+      B: {}
+      C: {}
+slots:
+  size:
+    range: integer
+  label: {}
+  letter: {}
+  code: {}
+  other: {}
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [size, label, letter, code, other]
+    any_of:
+      - slot_conditions:
+          size:
+            minimum_value: 3
+            equals_number: 5
+          label:
+            equals_string: A
+            equals_string_in: [A, B]
+          letter:
+            range: LetterEnum
+            equals_string: B
+          code:
+            range: Code
+            pattern: "^AB"
+      - slot_conditions:
+          other:
+            required: true
+"""
+)
+
+
+@pytest.mark.parametrize(
+    "properties,expected",
+    [
+        ('ex:size 5 ; ex:label "A" ; ex:letter "B" ; ex:code "ABC"', True),
+        ("ex:size 4", False),
+        ('ex:label "B"', False),
+        ('ex:letter "A"', False),
+        ('ex:code "ABc"', False),
+        ('ex:code "XY"', False),
+        ('ex:size 4 ; ex:other "x"', True),
+    ],
+)
+def test_class_expression_repeated_parameters_stay_well_formed(properties, expected):
+    """A parameter SHACL allows once per shape, needed twice by one condition, goes into sh:and.
+
+    _conforms runs pyshacl with meta_shacl, which fails on an ill-formed shapes graph.
+    """
+    shacl_ttl = ShaclGenerator(_REPEATED_PARAMETERS_SCHEMA, mergeimports=False).serialize()
+    data = f"""
+    @prefix ex: <https://example.org/class-expressions/> .
+    ex:t a ex:Thing ; {properties} .
+    """
+    assert _conforms(shacl_ttl, data) is expected
+
+
+@pytest.mark.parametrize(
+    "extra,properties,expected",
+    [
+        ("", "", True),
+        ("maximum_cardinality: 5", "", True),
+        ("minimum_cardinality: 0", "", True),
+        ("maximum_cardinality: 5", 'ex:tag "A"', False),
+        ("maximum_cardinality: 5", 'ex:tag "B"', True),
+    ],
+)
+def test_class_expression_none_of_presence_is_monotonic(extra, properties, expected):
+    """Inside none_of, a cardinality that an absent slot satisfies does not flip an absent slot to rejected."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + f"""
+slots:
+  tag:
+    multivalued: true
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [tag]
+    none_of:
+      - slot_conditions:
+          tag:
+            equals_string: A
+            {extra}
+"""
+    )
+    shacl_ttl = ShaclGenerator(schema, mergeimports=False).serialize()
+    data = f"""
+    @prefix ex: <https://example.org/class-expressions/> .
+    ex:t a ex:Thing {";" if properties else ""} {properties} .
+    """
+    assert _conforms(shacl_ttl, data) is expected
