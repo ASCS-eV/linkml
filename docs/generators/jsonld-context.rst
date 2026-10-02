@@ -151,6 +151,8 @@ Docs
 Command Line
 ^^^^^^^^^^^^
 
+``--normalize-prefixes`` is described under :ref:`prefix-normalization`.
+
 .. currentmodule:: linkml.generators.jsonldcontextgen
 
 .. click:: linkml.generators.jsonldcontextgen:cli
