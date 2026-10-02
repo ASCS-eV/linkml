@@ -7,6 +7,8 @@ of a specified parent slot. These utilities provide shared logic for:
 - Collecting and deduplicating slot hierarchy values
 """
 
+from rdflib.namespace import XSD
+
 from linkml_runtime.linkml_model.meta import SlotDefinition
 from linkml_runtime.utils.formatutils import underscore
 from linkml_runtime.utils.schemaview import SchemaView
@@ -15,9 +17,27 @@ from linkml_runtime.utils.schemaview import SchemaView
 CURIE_TYPES: frozenset[str] = frozenset({"uriorcurie", "curie"})
 URI_TYPES: frozenset[str] = frozenset({"uri"})
 
-# Types whose XSD mapping is xsd:anyURI (not xsd:string).
-# ``curie`` maps to xsd:string and is deliberately excluded.
-_ANYURI_TYPES: frozenset[str] = frozenset({"uri", "uriorcurie"})
+
+def is_xsd_anyuri_range(sv: SchemaView, range_type: str | None) -> bool:
+    """Whether a URI-family type's effective datatype is ``xsd:anyURI``.
+
+    LinkML's standard ``uri`` and ``uriorcurie`` types and their descendants
+    participate in the existing literal-to-IRI option. String-derived types do
+    not. Resolve the datatype before comparing so prefix aliases and explicit
+    datatype overrides have the same meaning in every generator.
+
+    The roots are defined at https://w3id.org/linkml/types. The runtime dumper
+    implements the same small rule independently because the two packages may
+    be released separately; real serialization tests check their agreement.
+    """
+    if range_type not in sv.all_types():
+        return False
+    typ = sv.induced_type(range_type)
+    return (
+        bool(typ.uri)
+        and sv.expand_curie(typ.uri) == str(XSD.anyURI)
+        and any(ancestor in ("uri", "uriorcurie") for ancestor in sv.type_ancestors(range_type))
+    )
 
 
 def is_uri_range(sv: SchemaView, range_type: str | None) -> bool:
@@ -62,35 +82,6 @@ def is_curie_range(sv: SchemaView, range_type: str | None) -> bool:
     if range_type in sv.all_types():
         type_ancestors = set(sv.type_ancestors(range_type))
         if type_ancestors & CURIE_TYPES:
-            return True
-
-    return False
-
-
-def is_xsd_anyuri_range(sv: SchemaView, range_type: str | None) -> bool:
-    """Check if range type resolves to ``xsd:anyURI``.
-
-    Returns True for ``uri``, ``uriorcurie``, and types that inherit from them.
-    Returns False for ``curie`` (which maps to ``xsd:string``).
-
-    This is the correct predicate for the ``--xsd-anyuri-as-iri`` flag: only
-    types whose XSD representation is ``xsd:anyURI`` should be promoted from
-    literal to IRI semantics.  ``curie`` is a compact string representation
-    that resolves to ``xsd:string`` and must not be affected.
-
-    :param sv: SchemaView for type ancestry lookup
-    :param range_type: The range type to check
-    :return: True if range type maps to xsd:anyURI
-    """
-    if range_type is None:
-        return False
-
-    if range_type in _ANYURI_TYPES:
-        return True
-
-    if range_type in sv.all_types():
-        type_ancestors = set(sv.type_ancestors(range_type))
-        if type_ancestors & _ANYURI_TYPES:
             return True
 
     return False

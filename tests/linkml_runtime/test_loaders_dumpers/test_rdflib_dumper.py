@@ -9,7 +9,7 @@ from rdflib.namespace import RDF, SKOS, XSD
 
 from linkml_runtime import DataNotFoundError, MappingError
 from linkml_runtime.dumpers import rdflib_dumper, yaml_dumper
-from linkml_runtime.linkml_model import Prefix
+from linkml_runtime.linkml_model import Prefix, SchemaDefinition
 from linkml_runtime.loaders import rdflib_loader, yaml_loader
 from linkml_runtime.utils.schemaview import SchemaView
 from tests.linkml_runtime.test_loaders_dumpers import INPUT_DIR, OUTPUT_DIR
@@ -31,6 +31,31 @@ from tests.linkml_runtime.test_loaders_dumpers.models.phenopackets import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.mark.parametrize("datatype", ["xsd:anyURI", "xs:anyURI", str(XSD.anyURI)])
+@pytest.mark.parametrize("parent, is_iri", [("uri", True), ("uriorcurie", True), ("string", False), ("curie", False)])
+def test_derived_uri_representation(datatype: str, parent: str, is_iri: bool) -> None:
+    """Type ancestry and expanded datatype jointly determine the serialized RDF term."""
+    schema = SchemaView(
+        SchemaDefinition(
+            **{
+                "id": "https://example.org/schema",
+                "name": "uri_representation",
+                "imports": ["linkml:types"],
+                "prefixes": {"linkml": "https://w3id.org/linkml/", "ex": "https://example.org/", "xs": str(XSD)},
+                "types": {"Parent": {"typeof": parent, "uri": datatype}, "Child": {"typeof": "Parent"}},
+            }
+        )
+    )
+    value = "ex:resource"
+    term = rdflib_dumper.inject_triples(value, schema, Graph(), "Child")
+    expected = URIRef("https://example.org/resource") if is_iri else Literal(value, datatype=XSD.anyURI)
+    assert term == expected
+    graph = Graph()
+    graph.add((URIRef("https://example.org/s"), URIRef("https://example.org/p"), term))
+    reparsed = Graph().parse(data=graph.serialize(format="turtle"), format="turtle")
+    assert reparsed.value(URIRef("https://example.org/s"), URIRef("https://example.org/p")) == expected
 
 
 INPUT_PATH = Path(INPUT_DIR)
