@@ -1502,7 +1502,7 @@ linkml:imported_from a owl:ObjectProperty,
 linkml:in_language a owl:ObjectProperty,
         linkml:SlotDefinition ;
     rdfs:label "in_language" ;
-    dcterms:conformsTo "https://www.rfc-editor.org/rfc/bcp/bcp47.txt" ;
+    dcterms:conformsTo <https://www.rfc-editor.org/rfc/bcp/bcp47.txt> ;
     rdfs:range linkml:String ;
     skos:definition "the primary language used in the sources" ;
     skos:inScheme linkml:meta ;
@@ -4785,7 +4785,7 @@ linkml:ClassDefinition a owl:Class,
 
 linkml:meta a owl:Ontology ;
     rdfs:label "meta" ;
-    dcterms:license "https://creativecommons.org/publicdomain/zero/1.0/" ;
+    dcterms:license <https://creativecommons.org/publicdomain/zero/1.0/> ;
     dcterms:title "LinkML Schema Metamodel" ;
     skos:definition """The metamodel for schemas defined using the Linked Data Modeling Language framework.
 

@@ -86,6 +86,39 @@ The mapping is a static, version-independent table; namespace IRIs that are
 not in the table are left untouched. The option is also available on
 ``gen-shacl`` and ``gen-jsonld-context``.
 
+Metadata values that are IRIs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Schema metadata and ``annotations`` become annotation triples on the ontology, class or
+property. Their values are literals, except for properties whose value is a resource by
+their own specification: the OWL ontology properties ``owl:versionIRI``,
+``owl:priorVersion``, ``owl:backwardCompatibleWith`` and ``owl:incompatibleWith``;
+``rdfs:seeAlso`` and ``rdfs:isDefinedBy``; the DCMI terms that relate a resource to
+another (``dcterms:license``, ``dcterms:conformsTo``, ``dcterms:references``,
+``dcterms:source``, ``dcterms:relation`` and its sub-properties); and
+``prov:wasDerivedFrom``, ``prov:wasRevisionOf`` and ``prov:hadPrimarySource``.
+
+A value of one of these is emitted as an IRI when it is an absolute IRI or a CURIE with a
+declared prefix; any other value stays a literal:
+
+.. code-block:: yaml
+
+    id: https://example.org/onto/v2
+    license: https://www.eclipse.org/legal/epl-2.0/
+    annotations:
+      owl:versionInfo: v2
+      owl:priorVersion: ex:onto/v1
+      prov:wasDerivedFrom: https://example.org/releases/tag/v2.0.0
+
+.. code-block:: turtle
+
+    <https://example.org/onto/v2> a owl:Ontology ;
+        owl:versionInfo "v2" ;
+        owl:priorVersion <https://example.org/onto/v1> ;
+        prov:wasDerivedFrom <https://example.org/releases/tag/v2.0.0> ;
+        dcterms:license <https://www.eclipse.org/legal/epl-2.0/> .
+
+``dcterms:identifier`` stays a literal: DCMI gives it the range ``rdfs:Literal``.
 
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
