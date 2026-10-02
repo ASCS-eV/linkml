@@ -27,6 +27,10 @@ ex:s2 a owl:ObjectProperty , linkml:SlotDefinition ;
 	skos:prefLabel "source" .
 ex:sample\/example163c a owl:Ontology ;
 	rdfs:label "example163c" .
+rdfs:label a owl:AnnotationProperty .
+skos:definition a owl:AnnotationProperty .
+skos:inScheme a owl:AnnotationProperty .
+skos:prefLabel a owl:AnnotationProperty .
 _:c14n0 a owl:Restriction ;
 	owl:minCardinality 0 ;
 	owl:onProperty ex:s1 .

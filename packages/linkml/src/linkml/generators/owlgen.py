@@ -11,6 +11,7 @@ from typing import Any, ClassVar, TypeAlias, TypeVar
 
 import click
 import rdflib
+from jsonasobj2 import as_dict
 from rdflib import DCTERMS, OWL, RDF, XSD, BNode, Graph, Literal, URIRef
 from rdflib.collection import Collection
 from rdflib.namespace import RDFS, SKOS
@@ -19,6 +20,7 @@ from rdflib.plugin import plugins as rdflib_plugins
 
 from linkml import METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
+from linkml.generators.common.annotations import declared_annotation
 from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecation_warning
 from linkml.utils.generator import Generator, shared_arguments
@@ -32,6 +34,7 @@ from linkml_runtime.linkml_model.meta import (
     ClassDefinitionName,
     ClassRule,
     Definition,
+    Element,
     EnumDefinition,
     EnumDefinitionName,
     PermissibleValue,
@@ -258,6 +261,181 @@ class OwlSchemaGenerator(Generator):
     # is technical and must never be language-tagged.
     _LANGUAGE_TAGGABLE_RANGES: ClassVar[frozenset[str]] = frozenset({"string", "ncname"})
 
+    # OWL 2 Structural Specification sections 5.3--5.5 and 5.8.1.
+    _PROPERTY_ROLES: ClassVar[frozenset[URIRef]] = frozenset(
+        {OWL.AnnotationProperty, OWL.ObjectProperty, OWL.DatatypeProperty}
+    )
+    # Complete list in OWL 2 section 5.5, Table 5. Reserved namespaces: section 2.4, Table 2.
+    _BUILTIN_ANNOTATION_PROPERTIES: ClassVar[frozenset[URIRef]] = frozenset(
+        {
+            RDFS.label,
+            RDFS.comment,
+            RDFS.seeAlso,
+            RDFS.isDefinedBy,
+            OWL.deprecated,
+            OWL.versionInfo,
+            OWL.priorVersion,
+            OWL.backwardCompatibleWith,
+            OWL.incompatibleWith,
+        }
+    )
+
+    def _explicit_property_role(self, slot: SlotDefinition) -> URIRef | None:
+        """Resolve the existing implements mapping by IRI, rejecting contradictory roles."""
+        roles = {URIRef(self.schemaview.expand_curie(value)) for value in slot.implements} & self._PROPERTY_ROLES
+        if len(roles) > 1:
+            raise ValueError(f"Conflicting OWL property roles for slot {slot.name!r}: {sorted(map(str, roles))}")
+        return next(iter(roles), None)
+
+    def _register_property_role(self, predicate: URIRef, role: URIRef, origin: str, explicit: bool = False) -> None:
+        """Track roles by output IRI across definitions, imports and annotation emissions."""
+        if role == OWL.AnnotationProperty and self._reserved_annotation_predicate(predicate):
+            raise ValueError(f"Unsupported structural predicate {predicate} as annotation property on {origin}")
+        previous = self._property_roles.setdefault(predicate, {})
+        explicit_role = self._explicit_property_iris.get(predicate)
+        ordinary_origins = self._ordinary_property_origins.get(predicate, set())
+        annotation_collision = bool(previous.keys() - {role}) and (
+            role == OWL.AnnotationProperty or OWL.AnnotationProperty in previous
+        )
+        if (
+            annotation_collision
+            or (role == OWL.AnnotationProperty and ordinary_origins)
+            or (explicit and explicit_role is not None and explicit_role != role)
+        ):
+            uses = "; ".join(f"{kind} from {', '.join(sorted(origins))}" for kind, origins in previous.items())
+            if ordinary_origins:
+                uses += f"; ordinary logical property from {', '.join(sorted(ordinary_origins))}"
+            raise ValueError(
+                f"Conflicting OWL property roles for {predicate}: {uses}; {role} from {origin}. "
+                "Metadata slots intended as annotations require implements: [owl:AnnotationProperty]."
+            )
+        previous.setdefault(role, set()).add(origin)
+        if explicit:
+            self._explicit_property_iris[predicate] = role
+
+    def _effective_slot(self, slot: SlotDefinition, cls: ClassDefinition | None = None) -> SlotDefinition:
+        """Resolve a slot in its owning class without conflating same-name attributes."""
+        sv = self.schemaview
+        if cls is not None and slot.name in sv.class_slots(cls.name):
+            return SlotDefinition(**as_dict(sv.induced_slot(slot.name, cls.name)))
+        if slot.name in sv.all_slots(attributes=False):
+            return SlotDefinition(**as_dict(sv.induced_slot(slot.name)))
+        return slot
+
+    def _index_property_roles(self) -> None:
+        """Include available imported definitions even when emitting owl:imports."""
+        self._property_roles: dict[URIRef, dict[URIRef, set[str]]] = {}
+        self._explicit_property_iris: dict[URIRef, URIRef] = {}
+        self._ordinary_property_origins: dict[URIRef, set[str]] = {}
+        self._legacy_annotation_candidates: dict[URIRef, set[str]] = {}
+        for predicate in self._BUILTIN_ANNOTATION_PROPERTIES:
+            self._register_property_role(predicate, OWL.AnnotationProperty, "OWL 2 built-in annotation property")
+        sv = self.schemaview
+        for slot in sv.all_slots(attributes=False).values():
+            effective = self._effective_slot(slot)
+            self._index_slot_role(effective if self._explicit_property_role(effective) else slot, f"slot {slot.name}")
+        for cls in sv.all_classes().values():
+            for slot in cls.attributes.values():
+                effective = self._effective_slot(slot, cls)
+                self._index_slot_role(
+                    effective if self._explicit_property_role(effective) else slot,
+                    f"class {cls.name}, slot {slot.name}",
+                )
+            # Ordinary contextual ranges do not redeclare global property roles.
+            for slot in cls.slot_usage.values():
+                if slot.implements:
+                    self._index_slot_role(self._effective_slot(slot, cls), f"class {cls.name}, slot {slot.name}")
+        for predicate in self._ordinary_property_origins:
+            if OWL.AnnotationProperty in self._property_roles.get(predicate, {}):
+                self._register_property_role(
+                    predicate, OWL.AnnotationProperty, "annotation role in schema/import closure"
+                )
+
+    def _index_slot_role(self, slot: SlotDefinition, origin: str) -> None:
+        """Defer expression-only inferred roles until their literal map has been populated."""
+        predicate = self._prop_uri(slot)
+        if self._explicit_property_role(slot) is None and predicate not in self._BUILTIN_ANNOTATION_PROPERTIES:
+            # Even an expression-only imported slot has a logical projection. Keep
+            # that intent without guessing OP versus DP before range translation.
+            self._ordinary_property_origins.setdefault(predicate, set()).add(origin)
+        if (
+            self._explicit_property_role(slot)
+            or predicate in self._BUILTIN_ANNOTATION_PROPERTIES
+            or slot.range
+            or self.schemaview.schema.default_range
+            or self.type_objects
+        ):
+            self._register_property_role(
+                self._prop_uri(slot),
+                self.slot_owl_type(slot),
+                origin,
+                explicit=self._explicit_property_role(slot) is not None,
+            )
+
+    def _has_logical_property_intent(self, predicate: URIRef) -> bool:
+        """Recognize logical declarations and uses without guessing an inferred OP versus DP role."""
+        return predicate in self._ordinary_property_origins or bool(
+            self._property_roles.get(predicate, {}).keys() & {OWL.ObjectProperty, OWL.DatatypeProperty}
+        )
+
+    def _emit_annotation(
+        self, subject: URIRef, predicate: URIRef, value: OWL_VALUE, origin: str, *, legacy: bool = False
+    ) -> None:
+        """Declare strict annotations immediately and defer unknown legacy roles until all logical uses are known."""
+        if self._reserved_annotation_predicate(predicate):
+            raise ValueError(f"Unsupported structural predicate {predicate} in annotation on {origin}")
+        if legacy and self._has_logical_property_intent(predicate):
+            # Undeclared LinkML annotations historically also carried RDF metadata
+            # on ordinary schema properties. Preserve that projection and its terms;
+            # it is not an explicit request for an OWL annotation-property role.
+            self.graph.add((subject, predicate, value))
+            return
+        if legacy and OWL.AnnotationProperty not in self._property_roles.get(predicate, {}):
+            self._legacy_annotation_candidates.setdefault(predicate, set()).add(origin)
+            self.graph.add((subject, predicate, value))
+            return
+        self._register_property_role(predicate, OWL.AnnotationProperty, origin)
+        self.graph.add((predicate, RDF.type, OWL.AnnotationProperty))
+        self.graph.add((subject, predicate, value))
+
+    def _finalize_legacy_annotations(self) -> None:
+        """Declare legacy predicates as APs only after ruling out actual logical uses during generation."""
+        for predicate, origins in self._legacy_annotation_candidates.items():
+            if self._has_logical_property_intent(predicate):
+                continue
+            for origin in origins:
+                self._register_property_role(predicate, OWL.AnnotationProperty, origin)
+            self.graph.add((predicate, RDF.type, OWL.AnnotationProperty))
+
+    def _reserved_annotation_predicate(self, predicate: URIRef) -> bool:
+        """Apply OWL 2's reserved namespace boundary and its nine built-in AP exceptions."""
+        return predicate not in self._BUILTIN_ANNOTATION_PROPERTIES and any(
+            str(predicate).startswith(str(vocabulary)) for vocabulary in (RDF, RDFS, XSD, OWL)
+        )
+
+    def _require_logical_property(self, predicate: URIRef, use: str) -> None:
+        """Reject APs and remember logical intent so later AP declarations cannot bypass the guard."""
+        origins = self._property_roles.get(predicate, {}).get(OWL.AnnotationProperty)
+        if origins is not None:
+            raise ValueError(f"Annotation property {predicate} cannot be used in {use} ({', '.join(sorted(origins))})")
+        self._ordinary_property_origins.setdefault(predicate, set()).add(use)
+
+    def _check_annotation_slot(self, slot: SlotDefinition) -> None:
+        """Reject explicit logical uses while retaining ordinary LinkML validation constraints."""
+        for field_name in (
+            "inverse",
+            "symmetric",
+            "asymmetric",
+            "transitive",
+            "reflexive",
+            "irreflexive",
+            "designates_type",
+            "has_member",
+            "all_members",
+        ):
+            if getattr(slot, field_name, None):
+                self._require_logical_property(self._prop_uri(slot), field_name)
+
     def __post_init__(self) -> None:
         # Resolver must be assigned before ``super().__post_init__()`` so that
         # any hook the parent invokes during initialisation can safely call
@@ -312,6 +490,7 @@ class OwlSchemaGenerator(Generator):
         # initialize the rdflib Graph where all axiom triples will be added
         graph = Graph(identifier=base)
         self.graph = graph
+        self._index_property_roles()
         for prefix in self.metamodel.schema.emit_prefixes:
             self.graph.bind(prefix, self.metamodel.namespaces[prefix])
         for pfx in schema.prefixes.values():
@@ -322,7 +501,7 @@ class OwlSchemaGenerator(Generator):
         for cls in sv.all_classes(imports=mergeimports).values():
             self.add_class(cls)
             for a in cls.attributes.values():
-                self.add_slot(a, attribute=True)
+                self.add_slot(a, attribute=True, owning_class=cls)
         for slot in sv.all_slots(imports=mergeimports, attributes=False).values():
             self.add_slot(slot, attribute=False)
         for typ in sv.all_types(imports=mergeimports).values():
@@ -342,6 +521,7 @@ class OwlSchemaGenerator(Generator):
 
         # Add metadata as annotation properties
         self.add_metadata(schema, base)
+        self._finalize_legacy_annotations()
         return graph
 
     def serialize(self, **kwargs: Any) -> str:
@@ -419,10 +599,20 @@ class OwlSchemaGenerator(Generator):
                     # from ``xsd:string`` to ``rdf:langString`` and break
                     # downstream string equality / SHACL ``sh:in`` matching.
                     obj = Literal(v)
-                self.graph.add((uri, metaslot_uri, obj))
+                self._emit_annotation(uri, metaslot_uri, obj, f"metadata {metaslot_name} on {uri}", legacy=True)
 
+        self._add_annotations(e, uri)
+
+    def _add_annotations(self, e: Element | PermissibleValue, uri: URIRef) -> None:
+        """Emit explicit annotations on any generated schema resource."""
+        this_sv = self.schemaview
+        lang = self._resolve_language(e)
         for k, v in e.annotations.items():
             if isinstance(v, dict) or isinstance(v, list):
+                continue
+            declared = declared_annotation(this_sv, e, k, v.value, lang, anyuri_as_iri=self.xsd_anyuri_as_iri)
+            if declared is not None:
+                self._emit_annotation(uri, *declared, f"annotation {k} on {uri}")
                 continue
             if ":" not in k:
                 default_prefix = this_sv.schema.default_prefix
@@ -432,6 +622,8 @@ class OwlSchemaGenerator(Generator):
                 k_uri = this_sv.expand_curie(k)
             else:
                 k_uri = this_sv.expand_curie(k)
+                if self._reserved_annotation_predicate(URIRef(k_uri)):
+                    raise ValueError(f"Unsupported structural predicate {k_uri} in annotation on {uri}")
                 if k_uri == k:
                     k_uri = None
             if k_uri:
@@ -439,7 +631,7 @@ class OwlSchemaGenerator(Generator):
                     obj = self._literal(v.value, e)
                 else:
                     obj = Literal(v.value)
-                self.graph.add((uri, URIRef(k_uri), obj))
+                self._emit_annotation(uri, URIRef(k_uri), obj, f"annotation {k} on {uri}", legacy=True)
 
     def add_class(self, cls: ClassDefinition) -> None:
         """
@@ -500,12 +692,11 @@ class OwlSchemaGenerator(Generator):
             if cls.is_a is None:
                 if len(cls.mixins) == 0:
                     # Any class that is not a mixin and is a root serves as a potential entry point
-                    self.graph.add(
-                        (
-                            self.graph.identifier,
-                            URIRef("http://purl.obolibrary.org/obo/IAO_0000700"),
-                            cls_uri,
-                        )
+                    self._emit_annotation(
+                        self.graph.identifier,
+                        URIRef("http://purl.obolibrary.org/obo/IAO_0000700"),
+                        cls_uri,
+                        f"OLS root class {cls.name}",
                     )
         if cls.class_uri:
             # If a class_ur is assigned, and it is different from model class_uri, then
@@ -513,7 +704,10 @@ class OwlSchemaGenerator(Generator):
             mapped_uri = sv.get_uri(cls, expand=True, native=not self.use_native_uris)
             if cls_uri != mapped_uri:
                 p = OWL.equivalentClass if self.assert_equivalent_classes else SKOS.exactMatch
-                self.graph.add((URIRef(cls_uri), p, URIRef(mapped_uri)))
+                if p == SKOS.exactMatch:
+                    self._emit_annotation(cls_uri, p, URIRef(mapped_uri), f"class mapping {cls.name}", legacy=True)
+                else:
+                    self.graph.add((cls_uri, p, URIRef(mapped_uri)))
         subject_expr = URIRef(cls_uri)
         if self.mixins_as_expressions and cls.mixin:
             subject_expr = self._some_values_from(self._metaslot_uri("mixins"), subject_expr)
@@ -522,20 +716,25 @@ class OwlSchemaGenerator(Generator):
         # then create an axiom: (t some C) subClassOf C.
         type_designator = sv.get_type_designator_slot(cls.name)
         if type_designator:
-            td_prop = self._prop_uri(type_designator.name)
+            td_prop = self._prop_uri(self._effective_slot(type_designator, cls))
+            self._require_logical_property(td_prop, f"type designator on {cls.name}")
             restr = self._some_values_from(td_prop, subject_expr)
             self.graph.add((restr, RDFS.subClassOf, subject_expr))
         # unique key constraints are mapped to OWL hasKey
         if cls.unique_keys:
             for uk in cls.unique_keys.values():
-                uk_props = [self._prop_uri(slot) for slot in uk.unique_key_slots]
+                uk_props = [self._prop_uri(sv.induced_slot(slot, cls.name)) for slot in uk.unique_key_slots]
+                for prop in uk_props:
+                    self._require_logical_property(prop, f"unique key on {cls.name}")
                 uk_props_listnode = BNode()
                 Collection(self.graph, uk_props_listnode, uk_props)
                 self.graph.add((subject_expr, OWL.hasKey, uk_props_listnode))
 
         def condition_to_bnode(expr: AnonymousClassExpression) -> OWL_EXPRESSION | None:
             # inner function: translate a LinkML class expression to an OWL class expression.
-            ixn_listnode = self.transform_class_expression(expr, quantifier_predicate=OWL.someValuesFrom)
+            ixn_listnode = self.transform_class_expression(
+                expr, quantifier_predicate=OWL.someValuesFrom, owning_class=cls
+            )
             if not ixn_listnode:
                 return None
             if expr.is_a:
@@ -646,6 +845,7 @@ class OwlSchemaGenerator(Generator):
         self,
         cls: ClassDefinition | AnonymousClassExpression | None,
         quantifier_predicate: URIRef = OWL.allValuesFrom,
+        owning_class: ClassDefinition | None = None,
     ) -> OWL_EXPRESSION | None:
         """
         Transform a LinkML class expression into an OWL expression.
@@ -662,15 +862,19 @@ class OwlSchemaGenerator(Generator):
             cls = AnonymousClassExpression()
         graph = self.graph
         sv = self.schemaview
+        if isinstance(cls, ClassDefinition):
+            owning_class = cls
         own_slots = self.get_own_slots(cls)
         owl_exprs: list[OWL_EXPRESSION] = []
         if cls.any_of:
-            any_of_expr = self._union_of([self.transform_class_expression(x) for x in cls.any_of])
+            any_of_expr = self._union_of(
+                [self.transform_class_expression(x, owning_class=owning_class) for x in cls.any_of]
+            )
             if any_of_expr:
                 owl_exprs.append(any_of_expr)
         if cls.exactly_one_of:
             sub_exprs: list[OWL_EXPRESSION] = self._present(
-                self.transform_class_expression(x) for x in cls.exactly_one_of
+                self.transform_class_expression(x, owning_class=owning_class) for x in cls.exactly_one_of
             )
             if isinstance(cls, ClassDefinition):
                 cls_uri = self._class_uri(cls.name)
@@ -680,11 +884,13 @@ class OwlSchemaGenerator(Generator):
             else:
                 sub_sub_exprs: list[OWL_EXPRESSION] = []
                 for i, x in enumerate(cls.exactly_one_of):
-                    operand_expr = self.transform_class_expression(x)
+                    operand_expr = self.transform_class_expression(x, owning_class=owning_class)
                     if not operand_expr:
                         continue
                     rest = cls.exactly_one_of[0:i] + cls.exactly_one_of[i + 1 :]
-                    neg_expr = self._complement_of_union_of([self.transform_class_expression(nx) for nx in rest])
+                    neg_expr = self._complement_of_union_of(
+                        [self.transform_class_expression(nx, owning_class=owning_class) for nx in rest]
+                    )
                     pos_expr = self._intersection_of([operand_expr, neg_expr])
                     if pos_expr:
                         sub_sub_exprs.append(pos_expr)
@@ -693,19 +899,33 @@ class OwlSchemaGenerator(Generator):
                     owl_exprs.append(union_expr)
                 # owl_exprs.extend(sub_exprs)
         if cls.all_of:
-            all_of_expr = self._intersection_of([self.transform_class_expression(x) for x in cls.all_of])
+            all_of_expr = self._intersection_of(
+                [self.transform_class_expression(x, owning_class=owning_class) for x in cls.all_of]
+            )
             if all_of_expr:
                 owl_exprs.append(all_of_expr)
         if cls.none_of:
-            none_of_expr = self._complement_of_union_of([self.transform_class_expression(x) for x in cls.none_of])
+            none_of_expr = self._complement_of_union_of(
+                [self.transform_class_expression(x, owning_class=owning_class) for x in cls.none_of]
+            )
             if none_of_expr:
                 owl_exprs.append(none_of_expr)
         for slot in own_slots:
+            effective = self._effective_slot(slot, owning_class)
+            if self.slot_owl_type(effective) == OWL.AnnotationProperty:
+                self._check_annotation_slot(effective)
+                if isinstance(cls, AnonymousClassExpression) or slot.name in cls.slot_conditions:
+                    self._require_logical_property(self._prop_uri(effective), "anonymous or rule slot condition")
+                # AP projection intentionally omits LinkML instance constraints in OWL.
+                continue
             if slot.name:
-                owltypes = self.slot_node_owltypes(sv.get_slot(slot.name), owning_class=cls)
+                if isinstance(cls, AnonymousClassExpression):
+                    owltypes = self.slot_node_owltypes(effective, owning_class=owning_class)
+                else:
+                    owltypes = self.slot_node_owltypes(sv.get_slot(slot.name), owning_class=cls)
             else:
                 owltypes = self.slot_node_owltypes(slot, owning_class=cls)
-            x = self.transform_class_slot_expression(cls, slot, slot, owltypes)
+            x = self.transform_class_slot_expression(cls, slot, slot, owltypes, owning_class=owning_class)
             if not x:
                 range = sv.schema.default_range
                 if range and OWL.Thing not in owltypes:
@@ -720,7 +940,8 @@ class OwlSchemaGenerator(Generator):
                         # x = self._class_uri(range)
                 else:
                     x = OWL.Thing
-            slot_uri = self._prop_uri(slot)
+            slot_uri = self._prop_uri(effective if isinstance(cls, AnonymousClassExpression) else slot)
+            self._require_logical_property(slot_uri, "class slot restriction")
             if slot.name in sv.all_slots():
                 top_slot = sv.get_slot(slot.name)
             else:
@@ -785,7 +1006,9 @@ class OwlSchemaGenerator(Generator):
                     owl_exprs.append(self._add_cardinality_restriction(slot_uri, OWL.maxCardinality, max_card))
 
             if slot.has_member:
-                has_member_expr = self.transform_class_slot_expression(cls, slot.has_member, slot)
+                has_member_expr = self.transform_class_slot_expression(
+                    cls, slot.has_member, slot, owning_class=owning_class
+                )
                 if has_member_expr:
                     owl_exprs.append(self._some_values_from(slot_uri, has_member_expr))
         return self._intersection_of(owl_exprs)
@@ -830,6 +1053,8 @@ class OwlSchemaGenerator(Generator):
         slot: SlotDefinition | AnonymousSlotExpression,
         main_slot: SlotDefinition | None = None,
         owl_types: set[OWL_TYPE] | None = None,
+        *,
+        owning_class: ClassDefinition | None = None,
     ) -> OWL_EXPRESSION | None:
         """
         Take a ClassExpression and SlotExpression combination and transform to a node.
@@ -838,6 +1063,7 @@ class OwlSchemaGenerator(Generator):
         :param slot:
         :param main_slot:
         :param owl_types:
+        :param owning_class: owner of the slot declaration, including in anonymous rule conditions
         :return:
         """
         sv = self.schemaview
@@ -845,6 +1071,11 @@ class OwlSchemaGenerator(Generator):
             if not isinstance(slot, SlotDefinition):
                 raise ValueError(f"Must pass main slot for {slot}")
             main_slot = slot
+
+        if isinstance(cls, ClassDefinition):
+            owning_class = cls
+        effective = self._effective_slot(main_slot, owning_class)
+        self._require_logical_property(self._prop_uri(effective), "slot expression")
 
         owl_exprs: list[OWL_EXPRESSION] = []
 
@@ -855,7 +1086,9 @@ class OwlSchemaGenerator(Generator):
                     owl_exprs.append(range_expr)
 
         if slot.all_members:
-            all_members_expr = self.transform_class_slot_expression(cls, slot.all_members, main_slot, owl_types)
+            all_members_expr = self.transform_class_slot_expression(
+                cls, slot.all_members, main_slot, owl_types, owning_class=owning_class
+            )
             if all_members_expr:
                 owl_exprs.append(all_members_expr)
 
@@ -865,7 +1098,9 @@ class OwlSchemaGenerator(Generator):
             if not slot_definitions:
                 return None
             rdflib_nodes: list[OWL_EXPRESSION] = self._present(
-                self.transform_class_slot_expression(cls, slot_expression, main_slot, owl_types)
+                self.transform_class_slot_expression(
+                    cls, slot_expression, main_slot, owl_types, owning_class=owning_class
+                )
                 for slot_expression in slot_definitions
             )
             return rdflib_nodes or None
@@ -879,12 +1114,17 @@ class OwlSchemaGenerator(Generator):
         if slot.exactly_one_of:
             disj_exprs: list[OWL_EXPRESSION] = []
             for i, operand in enumerate(slot.exactly_one_of):
-                operand_expr = self.transform_class_slot_expression(cls, operand, main_slot, owl_types)
+                operand_expr = self.transform_class_slot_expression(
+                    cls, operand, main_slot, owl_types, owning_class=owning_class
+                )
                 if not operand_expr:
                     continue
                 rest = slot.exactly_one_of[0:i] + slot.exactly_one_of[i + 1 :]
                 neg_expr = self._complement_of_union_of(
-                    [self.transform_class_slot_expression(cls, x, main_slot, owl_types) for x in rest],
+                    [
+                        self.transform_class_slot_expression(cls, x, main_slot, owl_types, owning_class=owning_class)
+                        for x in rest
+                    ],
                     owl_types=owl_types,
                 )
                 pos_expr = self._intersection_of(
@@ -922,7 +1162,9 @@ class OwlSchemaGenerator(Generator):
         is_literal = None
         if owl_types:
             is_literal = RDFS.Datatype in owl_types
-        constraints_exprs, constraints_owltypes = self.add_constraints(slot, is_literal=is_literal)
+        constraints_exprs, constraints_owltypes = self.add_constraints(
+            slot, is_literal=is_literal, owning_class=owning_class
+        )
         this_owl_types.update(constraints_owltypes)
         owl_exprs.extend(constraints_exprs)
         this_expr = self._intersection_of(owl_exprs, owl_types=this_owl_types)
@@ -934,7 +1176,14 @@ class OwlSchemaGenerator(Generator):
         self,
         element: SlotDefinition | AnonymousSlotExpression | TypeDefinition | AnonymousTypeExpression,
         is_literal: bool | None = None,
+        *,
+        owning_class: ClassDefinition | None = None,
     ) -> tuple[list[OWL_EXPRESSION], set[OWL_TYPE]]:
+        """Translate value constraints for logical properties and datatypes."""
+        if isinstance(element, SlotDefinition):
+            self._require_logical_property(
+                self._prop_uri(self._effective_slot(element, owning_class)), "value constraint"
+            )
         owl_types: set[OWL_TYPE] = set()
         owl_exprs: list[OWL_EXPRESSION] = []
         graph = self.graph
@@ -1021,16 +1270,31 @@ class OwlSchemaGenerator(Generator):
             return f".*({inner}).*"
         return inner
 
-    def add_slot(self, slot: SlotDefinition, attribute: bool = False) -> None:
+    def add_slot(
+        self, slot: SlotDefinition, attribute: bool = False, owning_class: ClassDefinition | None = None
+    ) -> None:
+        """Emit the effective property declaration and role-appropriate axioms."""
         # determine if this is a slot that has been induced by slot_usage; if so
         # the meaning of the slot is context-specific and should not be used for
         # global properties
 
-        slot_uri = self._prop_uri(slot)
+        effective = self._effective_slot(slot, owning_class)
+        slot_uri = self._prop_uri(
+            effective if self._explicit_property_role(effective) == OWL.AnnotationProperty else slot
+        )
 
         # Slots may be modeled as Object or Datatype Properties
         # if type_objects is True, then ALL slots are ObjectProperties
-        self.graph.add((slot_uri, RDF.type, self.slot_owl_type(slot)))
+        role = self._explicit_property_role(effective) or self.slot_owl_type(slot)
+        self._register_property_role(slot_uri, role, f"slot {slot.name}")
+        self.graph.add((slot_uri, RDF.type, role))
+        if role == OWL.AnnotationProperty:
+            slot = effective
+            self._check_annotation_slot(slot)
+            self.add_metadata(slot, slot_uri)
+            if not attribute:
+                self._add_annotation_property_axioms(slot)
+            return
         if self.metaclasses:
             # add metaclass which this property instantiates -- induces punning
             self.graph.add(
@@ -1063,7 +1327,9 @@ class OwlSchemaGenerator(Generator):
         if slot.domain:
             self.graph.add((slot_uri, RDFS.domain, self._class_uri(slot.domain)))
         if slot.inverse:
-            self.graph.add((slot_uri, OWL.inverseOf, self._prop_uri(slot.inverse)))
+            inverse_uri = self._prop_uri(self._effective_slot(self.schemaview.get_slot(slot.inverse)))
+            self._require_logical_property(inverse_uri, f"inverse of {slot.name}")
+            self.graph.add((slot_uri, OWL.inverseOf, inverse_uri))
         characteristics = {
             "symmetric": OWL.SymmetricProperty,
             "asymmetric": OWL.AsymmetricProperty,
@@ -1076,15 +1342,47 @@ class OwlSchemaGenerator(Generator):
                 self.graph.add((slot_uri, RDF.type, uri))
 
         if slot.is_a:
-            self.graph.add((slot_uri, RDFS.subPropertyOf, self._prop_uri(slot.is_a)))
+            parent_uri = self._prop_uri(self._effective_slot(self.schemaview.get_slot(slot.is_a)))
+            self._require_logical_property(parent_uri, f"logical subproperty {slot.name}")
+            self.graph.add((slot_uri, RDFS.subPropertyOf, parent_uri))
         for mixin in slot.mixins:
-            self.graph.add((slot_uri, RDFS.subPropertyOf, self._prop_uri(mixin)))
+            parent_uri = self._prop_uri(self._effective_slot(self.schemaview.get_slot(mixin)))
+            self._require_logical_property(parent_uri, f"logical subproperty {slot.name}")
+            self.graph.add((slot_uri, RDFS.subPropertyOf, parent_uri))
+
+    def _add_annotation_property_axioms(self, slot: SlotDefinition) -> None:
+        """Emit named-IRI domain/range and annotation subproperties, without logical validation."""
+        if slot.range_expression or slot.any_of or slot.all_of or slot.none_of or slot.exactly_one_of:
+            raise ValueError(
+                f"Annotation property {self._prop_uri(slot)} requires a named IRI range, not an expression"
+            )
+        uri = self._prop_uri(slot)
+        if slot.domain:
+            self.graph.add((uri, RDFS.domain, self._class_uri(slot.domain)))
+        if slot.range:
+            sv = self.schemaview
+            if slot.range in sv.all_types():
+                range_uri = self._type_uri(slot.range, native=False)
+            elif slot.range in sv.all_classes():
+                range_uri = self._class_uri(slot.range)
+            elif slot.range in sv.all_enums():
+                range_uri = self._enum_uri(slot.range)
+            else:
+                raise ValueError(f"Unknown annotation property range {slot.range!r} on {slot.name}")
+            self.graph.add((uri, RDFS.range, range_uri))
+        for parent in ([slot.is_a] if slot.is_a else []) + slot.mixins:
+            parent_slot = self._effective_slot(self.schemaview.get_slot(parent))
+            parent_uri = self._prop_uri(parent_slot)
+            self._register_property_role(parent_uri, OWL.AnnotationProperty, f"annotation subproperty {slot.name}")
+            self.graph.add((parent_uri, RDF.type, OWL.AnnotationProperty))
+            self.graph.add((uri, RDFS.subPropertyOf, parent_uri))
 
     def add_type(self, typ: TypeDefinition) -> None:
         type_uri = self._type_uri(typ.name)
         if typ.from_schema == "https://w3id.org/linkml/types":
             return
 
+        self._add_annotations(typ, type_uri)
         if self.metaclasses:
             self.graph.add(
                 (
@@ -1101,8 +1399,9 @@ class OwlSchemaGenerator(Generator):
             else:
                 if not self.top_value_uri:
                     self.top_value_uri = self.metamodel.namespaces[METAMODEL_NAMESPACE_NAME]["topValue"]
-                    self.graph.add((self.top_value_uri, RDF.type, OWL.DatatypeProperty))
-                    self.graph.add((self.top_value_uri, RDFS.label, Literal("value")))
+                self._register_property_role(self.top_value_uri, OWL.DatatypeProperty, "type-object value property")
+                self.graph.add((self.top_value_uri, RDF.type, OWL.DatatypeProperty))
+                self._emit_annotation(self.top_value_uri, RDFS.label, Literal("value"), "type-object value label")
                 restr = BNode()
                 self.graph.add((restr, RDF.type, OWL.Restriction))
                 self.graph.add((restr, OWL.qualifiedCardinality, Literal(1)))
@@ -1199,17 +1498,11 @@ class OwlSchemaGenerator(Generator):
             else:
                 pv_node = self._permissible_value_uri(pv, enum_uri, e)
             pv_uris.append(pv_node)
-            g.add(
-                (
-                    enum_uri,
-                    self.metamodel.namespaces[METAMODEL_NAMESPACE_NAME]["permissible_values"],
-                    pv_node,
-                )
-            )
+            self._add_permissible_value_metadata(enum_uri, pv_node, e.name)
             if not isinstance(pv_node, Literal):
                 self.add_metadata(pv, pv_node)
                 g.add((pv_node, RDF.type, pv_owl_type))
-                g.add((pv_node, RDFS.label, self._literal(pv.text, pv)))
+                self._emit_annotation(pv_node, RDFS.label, self._literal(pv.text, pv), f"permissible value {pv.text}")
                 # TODO: make this configurable
                 # self._add_element_properties(pv_uri, pv)
                 if self.metaclasses:
@@ -1256,10 +1549,29 @@ class OwlSchemaGenerator(Generator):
                         owl_types={owl_type for owl_type in owl_types if owl_type is not None},
                     )
             for pv_node in pv_uris:
-                # this would normally be entailed, but we assert here so it is visible
-                # without reasoning
+                # Assert membership so it is visible without reasoning.
                 if not isinstance(pv_node, Literal):
-                    g.add((pv_node, sub_pred, enum_uri))
+                    if sub_pred == DCTERMS.isPartOf:
+                        self._emit_annotation(pv_node, sub_pred, enum_uri, f"enum membership {e.name}", legacy=True)
+                    else:
+                        g.add((pv_node, sub_pred, enum_uri))
+
+    def _add_permissible_value_metadata(self, enum_uri: URIRef, value: OWL_VALUE, enum_name: str) -> None:
+        """Preserve an explicit LinkML data relation, otherwise emit enum membership metadata."""
+        predicate = self.metamodel.namespaces[METAMODEL_NAMESPACE_NAME]["permissible_values"]
+        declared = self._property_roles.get(predicate)
+        if declared is None or OWL.AnnotationProperty in declared:
+            self._emit_annotation(enum_uri, predicate, value, f"permissible value of {enum_name}")
+        else:
+            # When generating the metamodel itself, this is an existing schema data
+            # property. Class/individual punning preserves the original relation.
+            expected = OWL.DatatypeProperty if isinstance(value, Literal) else OWL.ObjectProperty
+            if expected not in declared:
+                raise ValueError(
+                    f"Conflicting OWL property roles for {predicate}: incompatible permissible value of {enum_name}"
+                )
+            self._register_property_role(predicate, expected, f"permissible value of {enum_name}")
+            self.graph.add((enum_uri, predicate, value))
 
     def _is_vacuous_avf_filler(self, top_slot: SlotDefinition, x: URIRef | BNode) -> bool:
         """Return True when an ``owl:allValuesFrom x`` restriction is vacuous.
@@ -1390,6 +1702,7 @@ class OwlSchemaGenerator(Generator):
                 triples.extend(graph.triples((obj, None, None)))
 
     def _some_values_from(self, property_uri: URIRef, filler: OWL_EXPRESSION) -> BNode:
+        self._require_logical_property(property_uri, "existential restriction")
         if not property_uri:
             raise ValueError(f"Property is required, filler: {filler}")
         if not filler:
@@ -1401,6 +1714,7 @@ class OwlSchemaGenerator(Generator):
         return node
 
     def _has_value(self, property_uri: URIRef, filler: OWL_VALUE) -> BNode:
+        self._require_logical_property(property_uri, "has-value restriction")
         node = BNode()
         self.graph.add((node, RDF.type, OWL.Restriction))
         self.graph.add((node, OWL.onProperty, property_uri))
@@ -1410,6 +1724,7 @@ class OwlSchemaGenerator(Generator):
     def _add_cardinality_restriction(
         self, property_uri: URIRef, cardinality_property: URIRef, cardinality: int
     ) -> BNode:
+        self._require_logical_property(property_uri, "cardinality restriction")
         node = BNode()
         self.graph.add((node, RDF.type, OWL.Restriction))
         self.graph.add((node, cardinality_property, Literal(cardinality)))
@@ -1428,6 +1743,7 @@ class OwlSchemaGenerator(Generator):
         return node
 
     def _swrl_abox_atom(self, pred_ref: OWL_EXPRESSION, arg1: str, arg2: str) -> BNode:
+        self._require_logical_property(pred_ref, "SWRL property atom")
         node = BNode()
         self.graph.add((node, RDF.type, SWRL.IndividualPropertyAtom))
         self.graph.add((node, SWRL.classPredicate, pred_ref))
@@ -1600,9 +1916,9 @@ class OwlSchemaGenerator(Generator):
                 label = meta_class.title or camelcase(meta_class.name) or label
                 description = meta_class.description or description
         if label is not None:
-            self.graph.add((uri, RDFS.label, Literal(label)))
+            self._emit_annotation(uri, RDFS.label, Literal(label), f"grouping class {uri}")
         if description is not None:
-            self.graph.add((uri, SKOS.definition, Literal(description)))
+            self._emit_annotation(uri, SKOS.definition, Literal(description), f"grouping class {uri}", legacy=True)
 
     def _class_uri(self, cn: str | ClassDefinitionName) -> URIRef:
         c = self.schemaview.get_class(cn)
@@ -1669,11 +1985,13 @@ class OwlSchemaGenerator(Generator):
             return URIRef(enum_uri + self.enum_iri_separator + encoded_text)
 
     def slot_owl_type(self, slot: SlotDefinition) -> URIRef:
+        """Resolve an explicit OWL role or retain the existing range-based default."""
         sv = self.schemaview
-        if slot.implements:
-            for t in ["owl:AnnotationProperty", "owl:ObjectProperty", "owl:DatatypeProperty"]:
-                if t in slot.implements:
-                    return OWL[t.replace("owl:", "")]
+        explicit_role = self._explicit_property_role(slot)
+        if explicit_role is not None:
+            return explicit_role
+        if self._prop_uri(slot) in self._BUILTIN_ANNOTATION_PROPERTIES:
+            return OWL.AnnotationProperty
         if slot.range is None:
             slot_range = self.schemaview.schema.default_range
         else:
