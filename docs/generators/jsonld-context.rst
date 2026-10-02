@@ -85,6 +85,45 @@ to gen-prefix-map:
 
    gen-prefix-map --flatprefixes personinfo.yaml > personinfo.prefixmap.json
 
+URIs as IRIs or as literals
+---------------------------
+
+By default a ``uri`` or ``uriorcurie`` slot is coerced to ``xsd:anyURI``, a typed
+literal. ``--xsd-anyuri-as-iri`` coerces it to ``@id`` instead, so the value becomes an
+IRI node, matching the ``sh:nodeKind sh:IRI`` the SHACL generator emits. The OWL
+generator accepts the same flag.
+
+The flag applies to ``uri``, ``uriorcurie`` and their derived types when the
+effective datatype remains ``xsd:anyURI``. Datatype IRIs are expanded before
+comparison, so full IRIs and alternative prefixes behave identically. A type
+derived from ``string`` that declares ``uri: xsd:anyURI`` stays a typed literal with or
+without it. Use one for a URI reference that is data rather than a link, such as a file
+path that may be relative: as ``@id`` it would be resolved against the document base.
+
+.. code-block:: yaml
+
+    types:
+      FilePath:
+        typeof: string
+        uri: xsd:anyURI     # always "@type": "xsd:anyURI", sh:datatype xsd:anyURI
+    slots:
+      homepage:
+        range: uri          # "@id" with --xsd-anyuri-as-iri
+      file_path:
+        range: FilePath
+
+The RDF dumper, SHACL and ShEx generators distinguish the same URI family from
+literal-valued types. An explicit datatype override such as ``uri: xsd:string``
+remains literal-valued, including when the type inherits from ``uri``.
+
+`XSD anyURI <https://www.w3.org/TR/xmlschema11-2/#anyURI>`__ admits relative URI
+references as literal values. This differs from an RDF IRI node: `JSON-LD type
+coercion <https://www.w3.org/TR/json-ld11/#type-coercion>`__ with ``@id`` interprets
+strings as identifiers and resolves relative references against the base IRI.
+The existing option selects the JSON-LD/OWL representation of LinkML's URI
+family; it is not needed to preserve a deliberately literal-valued type. No
+additional option is introduced.
+
 
 Docs
 ----

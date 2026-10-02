@@ -2,23 +2,25 @@
 
 import os
 import urllib.parse as urlparse
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 import click
 from jsonasobj import as_json as as_json_1
-from rdflib import OWL, RDF, XSD, Graph, Namespace
+from rdflib import OWL, RDF, Graph, Namespace
 from ShExJSG import ShExC
 from ShExJSG.SchemaWithContext import Schema
 from ShExJSG.ShExJ import IRIREF, EachOf, NodeConstraint, Shape, ShapeOr, TripleConstraint
 
 from linkml import METAMODEL_NAMESPACE, METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
-from linkml.generators.common.subproperty import get_subproperty_values
+from linkml.generators.common.subproperty import get_subproperty_values, is_xsd_anyuri_range
 from linkml.utils.generator import Generator, shared_arguments
 from linkml_runtime.linkml_model.meta import (
     ClassDefinition,
     ElementName,
     EnumDefinition,
+    Prefix,
     SlotDefinition,
     SlotDefinitionName,
     TypeDefinition,
@@ -27,6 +29,7 @@ from linkml_runtime.linkml_model.types import SHEX
 from linkml_runtime.utils.formatutils import camelcase, sfx
 from linkml_runtime.utils.metamodelcore import URIorCURIE
 from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
+from linkml_runtime.utils.schemaview import SchemaView
 
 
 @dataclass
@@ -67,12 +70,20 @@ class ShExGenerator(Generator):
         # Adjust the schema context to include the base model URI
         context = self.shex["@context"]
         self.shex["@context"] = [context, {"@base": self.namespaces._base}]
+        # SchemaLoader has already resolved imports. Inspect a copy of that
+        # effective schema without reopening source files or changing provenance.
+        type_schema = deepcopy(self.schema)
+        type_schema.imports = []
+        for prefix, namespace in self.namespaces.items():
+            if not prefix.startswith("@"):
+                type_schema.prefixes[prefix] = Prefix(prefix, str(namespace))
+        type_view = SchemaView(type_schema)
         # Emit all of the type definitions
         for typ in self.schema.types.values():
             model_uri = self._class_or_type_uri(typ)
             if typ.uri:
                 typ_type_uri = self.namespaces.uri_for(typ.uri)
-                if typ_type_uri in (XSD.anyURI, SHEX.iri):
+                if typ_type_uri == SHEX.iri or is_xsd_anyuri_range(type_view, typ.name):
                     self.shapes.append(NodeConstraint(id=model_uri, nodeKind="iri"))
                 elif typ_type_uri == SHEX.nonLiteral:
                     self.shapes.append(NodeConstraint(id=model_uri, nodeKind="nonliteral"))
