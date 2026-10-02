@@ -411,6 +411,18 @@ class ShaclGenerator(Generator):
                         # Map subproperty_of to sh:in with slot descendants
                         self._add_subproperty_constraint(g, prop_pv, s)
 
+                if s.has_member is not None:
+                    reason = self._member_untranslatable(s, s.has_member)
+                    if reason is not None:
+                        logger.warning(
+                            "Class %r: has_member of slot %r is not translated to SHACL, because it uses %s.",
+                            c.name,
+                            s.name,
+                            reason,
+                        )
+                    else:
+                        self._add_has_member(g, prop_pv, s, s.has_member)
+
                 if s.annotations and self.include_annotations:
                     self._add_annotations(prop_pv, s)
 
@@ -460,6 +472,20 @@ class ShaclGenerator(Generator):
             "equals_string_in",
             "equals_number",
             "range",
+            "has_member",
+        }
+    )
+    # Fields of a has_member expression translated by _member_shape: constraints on one value.
+    _MEMBER_FIELDS = frozenset(
+        {
+            "range",
+            "range_expression",
+            "minimum_value",
+            "maximum_value",
+            "pattern",
+            "equals_string",
+            "equals_string_in",
+            "equals_number",
         }
     )
     # Bookkeeping a loader may fill in on a slot condition; none of it constrains values.
@@ -630,6 +656,8 @@ class ShaclGenerator(Generator):
             prop_pv(SH.maxInclusive, Literal(condition.equals_number))
         if condition.range is not None:
             self._add_range(g, prop_pv, condition.range, inlined=self._is_inlined_range(slot, condition.range))
+        if condition.has_member is not None:
+            self._add_has_member(g, prop_pv, slot, condition.has_member)
         if repeated:
             # Each repeated parameter in a member shape of its own: all of them hold
             # for every value, as they would on the property shape itself.
@@ -715,11 +743,94 @@ class ShaclGenerator(Generator):
                 value_range
             ):
                 return f"equals_string on slot '{slot_name}', whose range '{value_range}' does not hold strings"
+            if condition.has_member is not None:
+                reason = self._member_untranslatable(slot, condition.has_member)
+                if reason is not None:
+                    return f"{reason} in the has_member of the condition on slot '{slot_name}'"
         for operator in self._CLASS_EXPRESSION_OPERATORS:
             for member in getattr(expr, operator) or []:
                 reason = self._untranslatable(cls, member)
                 if reason is not None:
                     return reason
+        return None
+
+    # -------------------------------------------------------------------
+    # has_member → sh:qualifiedValueShape
+    # -------------------------------------------------------------------
+
+    def _add_has_member(self, g: Graph, prop_pv: Callable, slot: SlotDefinition, member) -> None:
+        """Emit ``has_member`` on the property shape of *slot*: at least one value matches *member*.
+
+        ``has_member`` states that the slot has at least one value satisfying the
+        expression, which is ``sh:qualifiedValueShape`` with ``sh:qualifiedMinCount 1``
+        (`SHACL §4.7.3 <https://www.w3.org/TR/shacl/#QualifiedValueShapeConstraintComponent>`_).
+        The other values are unconstrained by it. As in the JSON Schema generator's
+        ``contains``, a condition inside the expression constrains the values that are
+        present; ``required: true`` on it is what makes the member need the slot.
+        """
+        prop_pv(SH.qualifiedValueShape, self._member_shape(g, slot, member))
+        prop_pv(SH.qualifiedMinCount, Literal(1))
+
+    def _member_shape(self, g: Graph, slot: SlotDefinition, member) -> BNode:
+        """Build the shape one value of *slot* must conform to, to count as a match of *member*."""
+        node = BNode()
+        repeated = []
+
+        def node_pv(p, v):
+            if v is None:
+                return
+            if p in self._SINGLE_VALUE_PARAMETERS and (node, p, None) in g:
+                repeated.append((p, v))
+            else:
+                g.add((node, p, v))
+
+        value_range = member.range or slot.range
+        if member.range is not None:
+            self._add_range(g, node_pv, member.range, inlined=self._is_inlined_range(slot, member.range))
+        if member.minimum_value is not None:
+            node_pv(SH.minInclusive, Literal(member.minimum_value))
+        if member.maximum_value is not None:
+            node_pv(SH.maxInclusive, Literal(member.maximum_value))
+        if member.pattern is not None:
+            node_pv(SH.pattern, Literal(member.pattern))
+        for values in ([member.equals_string] if member.equals_string is not None else [], member.equals_string_in):
+            if values:
+                in_node = BNode()
+                Collection(g, in_node, self._string_value_terms(value_range, values))
+                node_pv(SH["in"], in_node)
+        if member.equals_number is not None:
+            node_pv(SH.minInclusive, Literal(member.equals_number))
+            node_pv(SH.maxInclusive, Literal(member.equals_number))
+        if member.range_expression is not None:
+            # The conditions name slots of the value's class, not of the class holding *slot*.
+            value_class = self.schemaview.get_class(value_range)
+            node_pv(SH.node, self._class_expression_shape(g, value_class, member.range_expression, False))
+        if repeated:
+            members = []
+            for p, v in repeated:
+                part = BNode()
+                g.add((part, p, v))
+                members.append(part)
+            and_node = BNode()
+            Collection(g, and_node, members)
+            g.add((node, SH["and"], and_node))
+        return node
+
+    def _member_untranslatable(self, slot: SlotDefinition, member) -> str | None:
+        """Return what in the ``has_member`` expression *member* of *slot* cannot be translated, or ``None``."""
+        sv = self.schemaview
+        unknown = _set_fields(member) - self._MEMBER_FIELDS - self._METADATA_FIELDS - self._SLOT_CONDITION_BOOKKEEPING
+        if unknown:
+            return f"'{sorted(unknown)[0]}'"
+        if member.range is not None and not self._is_known_range(member.range):
+            return f"the unknown range '{member.range}'"
+        value_range = member.range or slot.range
+        if (member.equals_string is not None or member.equals_string_in) and not self._is_string_range(value_range):
+            return f"equals_string on values of range '{value_range}', which does not hold strings"
+        if member.range_expression is not None:
+            if value_range not in sv.all_classes():
+                return f"range_expression on values of range '{value_range}', which is not a class"
+            return self._untranslatable(sv.get_class(value_range), member.range_expression)
         return None
 
     def _is_known_range(self, r: ElementName) -> bool:
