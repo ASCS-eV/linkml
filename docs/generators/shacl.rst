@@ -83,6 +83,57 @@ Example Output:
                 shacl:path <https://w3id.org/linkml/tests/kitchen_sink/has_employment_history> ] ;
         shacl:targetClass <https://w3id.org/linkml/tests/kitchen_sink/Person> .
 
+Inlined values: ``sh:node`` instead of ``sh:class``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default a slot whose range is a class emits ``sh:class <class_uri>``: the value
+must be typed with that class (directly or through RDFS subclass inference) before
+its own shape applies.
+
+An *inlined* value is part of the instance itself, and LinkML reads it as an
+instance of the slot's range class whether or not it states a type. With
+``--inlined-as-node``, such a value is validated against the range class's shape
+instead:
+
+.. code-block:: yaml
+
+    classes:
+      Manifest:
+        slots: [artifact, category]
+    slots:
+      artifact:
+        range: Link
+        inlined: true
+      category:
+        range: Category   # Category has an identifier: a reference
+
+.. code-block:: turtle
+
+    ex:ManifestShape sh:property
+        [ sh:path ex:artifact ; sh:node ex:LinkShape ] ,       # inlined: content is checked
+        [ sh:path ex:category ; sh:class ex:Category ] .       # reference: type is checked
+
+A value counts as inlined when the slot declares ``inlined`` or ``inlined_as_list``
+(directly or through its ancestors), or when the range class has no identifier and
+so cannot be referenced. Each ``any_of`` member is decided on its own range, and
+the ``range`` of a slot condition in a class expression is decided for the slot it
+names. A reference to an identified object keeps ``sh:class``, because only its
+type is visible from the referring shape; so does the ``is_a`` of a class
+expression, which tests a type.
+
+A value reached through ``sh:node`` is validated by the range class's shape alone,
+without the targets of its ancestors' shapes. So that the ancestors' class
+expressions and rules still apply to it, as to every member of their class, each
+class shape also requires its ``is_a`` parent's and its mixins' shapes
+(``sh:node``) under this option.
+
+``sh:node`` names the shape of the range class, so that shape has to be in the
+shapes graph used for validation. With ``--exclude-imports``, load the imported
+schema's shapes too, generated with the same ``--suffix``.
+
+Native names mode (``--use-native-names``) already emits ``sh:node`` for every class
+range and is not affected by this option.
+
 
 Class Expressions
 ^^^^^^^^^^^^^^^^^
