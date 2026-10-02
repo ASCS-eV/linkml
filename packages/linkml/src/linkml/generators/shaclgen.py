@@ -15,7 +15,7 @@ from rdflib.namespace import RDF, RDFS, SH, XSD
 from linkml._version import __version__
 from linkml.generators.common.class_expression import value_bounds
 from linkml.generators.common.annotations import declared_annotation
-from linkml.generators.common.subproperty import get_subproperty_values, is_uri_range
+from linkml.generators.common.subproperty import get_subproperty_values, is_uri_range, is_xsd_anyuri_range
 from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
 from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
@@ -32,6 +32,7 @@ from linkml_runtime.linkml_model.meta import (
     SlotDefinition,
     SlotExpression,
 )
+from linkml_runtime.linkml_model.types import SHEX
 from linkml_runtime.utils.formatutils import underscore
 from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
 from linkml_runtime.utils.yamlutils import TypedNode, extended_float, extended_int, extended_str
@@ -1758,37 +1759,23 @@ class ShaclGenerator(Generator):
         )
         func(SH["in"], pv_node)
 
-    # Type URIs denoting non-literal (IRI or blank-node) values.
-    # SHACL §4.8.1 <https://www.w3.org/TR/shacl/#NodeKindConstraintComponent>
-    # defines sh:IRI, sh:BlankNode, and sh:BlankNodeOrIRI as valid node kinds.
-    # These URIs map to sh:IRI or sh:BlankNodeOrIRI constraints (never sh:Literal).
-    _NON_LITERAL_TYPE_URIS = frozenset(
-        {
-            "xsd:anyURI",  # uri, uriorcurie → sh:IRI
-            "http://www.w3.org/ns/shex#nonLiteral",  # nodeidentifier → sh:BlankNodeOrIRI
-            "http://www.w3.org/ns/shex#iri",  # future-proofing → sh:IRI
-        }
-    )
-    # IRI-only subset: uri/uriorcurie must be strict IRI references (sh:IRI),
-    # while nodeidentifier (shex:nonLiteral) allows blank nodes too (sh:BlankNodeOrIRI).
-    # See RDF 1.1 §3.2–3.3 <https://www.w3.org/TR/rdf11-concepts/#section-IRIs>.
-    _IRI_ONLY_TYPE_URIS = frozenset(
-        {
-            "xsd:anyURI",
-        }
-    )
-
     def _add_type(self, func: Callable, r: ElementName) -> None:
         sv = self.schemaview
         # Types can inherit URI and pattern constraints.
         rt = sv.induced_type(r)
         type_uri = rt.uri
         expanded = sv.get_uri(rt, expand=True) if type_uri else None
-        if type_uri and (type_uri in self._NON_LITERAL_TYPE_URIS or expanded in self._NON_LITERAL_TYPE_URIS):
-            if type_uri in self._IRI_ONLY_TYPE_URIS:
-                func(SH.nodeKind, SH.IRI)
-            else:
-                func(SH.nodeKind, SH.BlankNodeOrIRI)
+        # Resolve vocabulary IRIs before selecting RDF node kinds. The ShEx
+        # vocabulary distinguishes IRI-only and non-literal (IRI or blank) nodes.
+        node_kind = None
+        if expanded == str(SHEX.iri):
+            node_kind = SH.IRI
+        elif expanded == str(SHEX.nonLiteral):
+            node_kind = SH.BlankNodeOrIRI
+        elif expanded == str(XSD.anyURI) and is_xsd_anyuri_range(sv, r):
+            node_kind = SH.IRI
+        if node_kind is not None:
+            func(SH.nodeKind, node_kind)
         elif type_uri:
             func(SH.nodeKind, SH.Literal)
             func(SH.datatype, URIRef(sv.get_uri(rt, expand=True)))
