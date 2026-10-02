@@ -101,10 +101,10 @@ class RDFLibDumper(Dumper):
             else:
                 return Literal(element.text)
         if target_type in schemaview.all_types():
-            t = schemaview.get_type(target_type)
+            t = schemaview.induced_type(target_type)
             dt_uri = t.uri
             if dt_uri:
-                if dt_uri in ("rdfs:Resource", "xsd:anyURI"):
+                if dt_uri == "rdfs:Resource" or (dt_uri == "xsd:anyURI" and self._is_uri_type(schemaview, target_type)):
                     return URIRef(schemaview.expand_curie(element))
                 elif dt_uri == "xsd:string":
                     return Literal(element)
@@ -205,3 +205,14 @@ class RDFLibDumper(Dumper):
             return URIRef(urllib.parse.quote(element_id))
         else:
             return schemaview.namespaces().uri_for(element_id)
+
+    @staticmethod
+    def _is_uri_type(schemaview: SchemaView, type_name: str) -> bool:
+        """Whether an ``xsd:anyURI``-typed value of *type_name* is an IRI node.
+
+        It is for ``uri``, ``uriorcurie`` and the types derived from them. A type derived
+        from ``string`` that declares ``uri: xsd:anyURI`` is a URI reference kept as a
+        typed literal - it may be relative - as the OWL, JSON-LD context and SHACL
+        generators render it.
+        """
+        return bool({"uri", "uriorcurie"} & set(schemaview.type_ancestors(type_name)))
