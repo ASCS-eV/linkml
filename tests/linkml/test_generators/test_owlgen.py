@@ -9,6 +9,7 @@ from rdflib.namespace import OWL, RDF, XSD
 
 from linkml import METAMODEL_CONTEXT_URI
 from linkml.generators.owlgen import MetadataProfile, OwlSchemaGenerator
+from linkml.generators.rdfgen import RDFGenerator
 from linkml_runtime.linkml_model import SlotDefinition
 from linkml_runtime.linkml_model.meta import (
     AnonymousClassExpression,
@@ -1232,3 +1233,124 @@ def test_complement_of_union_of_mixed_none_filters_silently():
     # Should succeed and return a BNode (the complement expression).
     assert result is not None
     assert isinstance(result, BNode)
+
+
+_INSTANTIATES_SCHEMA = """
+id: http://example.org/test-schema
+name: instantiates_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: http://example.org/test-schema/
+  vocab: http://example.org/vocab/
+default_prefix: ex
+imports:
+  - linkml:types
+enums:
+  LinkCategory:
+    implements:
+      - owl:NamedIndividual
+    permissible_values:
+      isLicense:
+        meaning: ex:isLicense
+        instantiates:
+          - vocab:LicenseCategory
+      isManifest:
+        meaning: ex:isManifest
+        instantiates:
+          - vocab:ManifestCategory
+          - vocab:Category
+      isMedia:
+        meaning: ex:isMedia
+"""
+
+VOCAB = Namespace("http://example.org/vocab/")
+
+
+def test_permissible_value_instantiates_types_the_value() -> None:
+    """Each ``instantiates`` value of a permissible value becomes an rdf:type of its IRI."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_INSTANTIATES_SCHEMA, metaclasses=False).serialize(), format="turtle")
+
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.ManifestCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.Category) in g
+    # the value stays an individual of the enum, which still closes its own class
+    for pv in (EX.isLicense, EX.isManifest, EX.isMedia):
+        assert (pv, RDF.type, OWL.NamedIndividual) in g
+        assert (pv, RDF.type, EX.LinkCategory) in g
+    one_of = g.value(EX.LinkCategory, OWL.oneOf)
+    assert set(Collection(g, one_of)) == {EX.isLicense, EX.isManifest, EX.isMedia}
+    # a value without instantiates gets no further type, and the instantiated classes stay open
+    assert set(g.objects(EX.isMedia, RDF.type)) == {OWL.NamedIndividual, EX.LinkCategory}
+    assert g.value(VOCAB.LicenseCategory, OWL.oneOf) is None
+
+
+def test_permissible_value_instantiates_ignored_on_literal(caplog: pytest.LogCaptureFixture) -> None:
+    """A permissible value rendered as a literal cannot be typed, so instantiates is ignored with a warning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", "rdfs:Literal")
+    with caplog.at_level(logging.WARNING):
+        g = Graph()
+        g.parse(data=OwlSchemaGenerator(schema, metaclasses=False).serialize(), format="turtle")
+    assert not list(g.triples((None, RDF.type, VOCAB.LicenseCategory)))
+    assert any("Instantiates on literal isLicense" in rec.message for rec in caplog.records)
+
+
+@pytest.mark.parametrize("metaclasses", [False, True])
+@pytest.mark.parametrize("type_objects", [False, True])
+def test_instantiates_applies_to_emitted_schema_elements(metaclasses: bool, type_objects: bool) -> None:
+    """Metaclass membership is explicit schema metadata, independent of generated metamodel types."""
+    schema = _INSTANTIATES_SCHEMA.replace(
+        "name: instantiates_test", "name: instantiates_test\ninstantiates: [vocab:SchemaProfile]"
+    ).replace("  LinkCategory:\n", "  LinkCategory:\n    instantiates: [vocab:EnumProfile]\n")
+    schema += """
+classes:
+  Entry:
+    instantiates: [vocab:ClassProfile]
+    slots: [code]
+slots:
+  code:
+    range: Code
+    instantiates: [vocab:SlotProfile]
+types:
+  Code:
+    typeof: string
+    uri: ex:Code
+    instantiates: [vocab:TypeProfile]
+"""
+    g = OwlSchemaGenerator(schema, metaclasses=metaclasses, type_objects=type_objects).as_graph()
+    for resource, metaclass in (
+        (URIRef("http://example.org/test-schema"), VOCAB.SchemaProfile),
+        (EX.Entry, VOCAB.ClassProfile),
+        (EX.code, VOCAB.SlotProfile),
+        (EX.Code, VOCAB.TypeProfile),
+        (EX.LinkCategory, VOCAB.EnumProfile),
+        (EX.isLicense, VOCAB.LicenseCategory),
+    ):
+        assert (resource, RDF.type, metaclass) in g
+        assert (resource, RDFS.subClassOf, metaclass) not in g
+    assert (EX.isLicense, RDF.type, VOCAB.EnumProfile) not in g
+
+
+@pytest.mark.parametrize("owl_type", ["owl:NamedIndividual", "owl:Class"])
+@pytest.mark.parametrize("meaning", ["ex:isLicense", "https://example.net/value", None])
+def test_instantiates_uses_the_emitted_value_resource(owl_type: str, meaning: str | None) -> None:
+    """Explicit and minted IRIs both carry membership, including class/individual punning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", owl_type)
+    schema = schema.replace("        meaning: ex:isLicense\n", f"        meaning: {meaning}\n" if meaning else "")
+    schema = schema.replace("vocab:LicenseCategory", "https://example.net/Category")
+    g = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    (resource,) = g.subjects(RDF.type, URIRef("https://example.net/Category"))
+    assert isinstance(resource, URIRef)
+    assert (resource, RDFS.label, Literal("isLicense")) in g
+    assert (resource, RDF.type, OWL[owl_type.split(":")[1]]) in g
+    if meaning:
+        assert resource == (EX.isLicense if meaning.startswith("ex:") else URIRef(meaning))
+
+
+def test_instantiates_rdf_schema_representation_is_distinct_from_owl_assertion() -> None:
+    """gen-rdf preserves the metamodel predicate; gen-owl interprets it as membership."""
+    schema = _INSTANTIATES_SCHEMA.replace("imports:\n  - linkml:types\n", "")
+    rdf = Graph().parse(data=RDFGenerator(schema).serialize(), format="turtle")
+    owl = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    assert {str(value) for value in rdf.objects(EX.isLicense, LINKML.instantiates)} == {"vocab:LicenseCategory"}
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in owl
