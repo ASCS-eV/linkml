@@ -85,6 +85,31 @@ to gen-prefix-map:
 
    gen-prefix-map --flatprefixes personinfo.yaml > personinfo.prefixmap.json
 
+URIs as IRIs or as literals
+---------------------------
+
+By default a ``uri`` or ``uriorcurie`` slot is coerced to ``xsd:anyURI``, a typed
+literal. ``--xsd-anyuri-as-iri`` coerces it to ``@id`` instead, so the value becomes an
+IRI node, matching the ``sh:nodeKind sh:IRI`` the SHACL generator emits. The OWL
+generator accepts the same flag.
+
+The flag applies to ``uri``, ``uriorcurie`` and the types derived from them. A type
+derived from ``string`` that declares ``uri: xsd:anyURI`` stays a typed literal with or
+without it. Use one for a URI reference that is data rather than a link, such as a file
+path that may be relative: as ``@id`` it would be resolved against the document base.
+
+.. code-block:: yaml
+
+    types:
+      FilePath:
+        typeof: string
+        uri: xsd:anyURI     # always "@type": "xsd:anyURI", sh:datatype xsd:anyURI
+    slots:
+      homepage:
+        range: uri          # "@id" with --xsd-anyuri-as-iri
+      file_path:
+        range: FilePath
+
 
 Docs
 ----

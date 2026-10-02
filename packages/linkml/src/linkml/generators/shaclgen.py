@@ -12,7 +12,7 @@ from rdflib.collection import Collection
 from rdflib.namespace import RDF, RDFS, SH, XSD
 
 from linkml._version import __version__
-from linkml.generators.common.subproperty import get_subproperty_values, is_uri_range
+from linkml.generators.common.subproperty import get_subproperty_values, is_uri_range, is_xsd_anyuri_range
 from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
 from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
@@ -1539,7 +1539,15 @@ class ShaclGenerator(Generator):
         rt = sv.induced_type(r)
         type_uri = rt.uri
         expanded = sv.get_uri(rt, expand=True) if type_uri else None
-        if type_uri and (type_uri in self._NON_LITERAL_TYPE_URIS or expanded in self._NON_LITERAL_TYPE_URIS):
+        # xsd:anyURI denotes an IRI for uri, uriorcurie and the types derived from them. A type
+        # derived from string that declares uri: xsd:anyURI is a URI reference kept as a literal
+        # (it may be relative), as the OWL and JSON-LD context generators render it.
+        string_anyuri = type_uri in self._IRI_ONLY_TYPE_URIS and not is_xsd_anyuri_range(sv, r)
+        if (
+            type_uri
+            and not string_anyuri
+            and (type_uri in self._NON_LITERAL_TYPE_URIS or expanded in self._NON_LITERAL_TYPE_URIS)
+        ):
             if type_uri in self._IRI_ONLY_TYPE_URIS:
                 func(SH.nodeKind, SH.IRI)
             else:
