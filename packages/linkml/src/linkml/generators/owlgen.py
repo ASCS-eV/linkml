@@ -81,6 +81,11 @@ IRI_VALUED_METADATA_PROPERTIES: frozenset[URIRef] = frozenset(
         DCTERMS.requires,
         DCTERMS.isRequiredBy,
         DCTERMS.source,
+        # DCMI Metadata Terms with rdfs:range dcterms:Agent.
+        DCTERMS.creator,
+        DCTERMS.contributor,
+        DCTERMS.publisher,
+        DCTERMS.rightsHolder,
         # rdfs:range prov:Entity (PROV-O).
         PROV.wasDerivedFrom,
         PROV.wasRevisionOf,
