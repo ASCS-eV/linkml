@@ -14,6 +14,7 @@ from jsonasobj2 import JsonObj, as_json
 from rdflib import SKOS, XSD, Namespace
 
 from linkml._version import __version__
+from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecated_fields
 from linkml.utils.generator import Generator, shared_arguments
 from linkml_runtime.linkml_model.meta import ClassDefinition, EnumDefinition, SlotDefinition
@@ -22,10 +23,6 @@ from linkml_runtime.utils.formatutils import camelcase, underscore
 from linkml_runtime.utils.schemaview import SchemaView
 
 URI_RANGES = (SHEX.nonliteral, SHEX.bnode, SHEX.iri)
-
-# Extended URI_RANGES that also treats xsd:anyURI as an IRI reference (@id)
-# rather than a typed literal. Opt-in via --xsd-anyuri-as-iri flag.
-URI_RANGES_WITH_XSD = (*URI_RANGES, XSD.anyURI)
 
 ENUM_CONTEXT = {
     "text": "skos:notation",
@@ -83,8 +80,11 @@ class ContextGenerator(Generator):
     """Map xsd:anyURI-typed ranges (uri, uriorcurie) to ``@type: @id`` instead of ``@type: xsd:anyURI``.
 
     This aligns the JSON-LD context with the SHACL generator, which emits
-    ``sh:nodeKind sh:IRI`` for the same types.
+    ``sh:nodeKind sh:IRI`` for the same types. Types derived from ``uri`` or
+    ``uriorcurie`` follow them; a type derived from ``string`` that declares
+    ``uri: xsd:anyURI`` stays a typed literal, as in the OWL generator.
     """
+    _type_view_cache: SchemaView | None = field(default=None, repr=False)
 
     # Framing (opt-in via CLI flag)
     emit_frame: bool = False
@@ -297,7 +297,6 @@ class ContextGenerator(Generator):
         and "could not resolve safely because the branches disagree".
         """
         coercions: set[str | None] = set()
-        uri_ranges = URI_RANGES_WITH_XSD if self.xsd_anyuri_as_iri else URI_RANGES
         for range_name in ranges:
             if range_name not in self.schema.types:
                 continue
@@ -306,7 +305,7 @@ class ContextGenerator(Generator):
             range_uri = self.namespaces.uri_for(range_type.uri)
             if range_uri == XSD.string:
                 coercions.add(None)
-            elif range_uri in uri_ranges:
+            elif self._coerces_to_id(range_name):
                 coercions.add("@id")
             else:
                 coercions.add(range_type.uri)
@@ -316,6 +315,31 @@ class ContextGenerator(Generator):
         if len(coercions) == 1:
             return True, next(iter(coercions))
         return False, None
+
+    def _coerces_to_id(self, range_name: str) -> bool:
+        """Whether values of the LinkML type *range_name* are IRIs (``@type: @id``) rather than literals.
+
+        The ShEx node types always are. ``xsd:anyURI`` is, with ``--xsd-anyuri-as-iri``, only
+        for ``uri``, ``uriorcurie`` and types derived from them, the same rule the OWL
+        generator applies (:func:`is_xsd_anyuri_range`). A type derived from ``string`` that
+        declares ``uri: xsd:anyURI`` is a typed literal: a URI reference kept as a string, which
+        must not be resolved against the document base.
+        """
+        range_uri = self.namespaces.uri_for(self.schema.types[range_name].uri)
+        if range_uri in URI_RANGES:
+            return True
+        return self.xsd_anyuri_as_iri and range_uri == XSD.anyURI and is_xsd_anyuri_range(self._type_view(), range_name)
+
+    def _type_view(self) -> SchemaView:
+        """A SchemaView of the schema, for type ancestry; built once when the generator has none."""
+        if self.schemaview is not None:
+            return self.schemaview
+        if self._type_view_cache is None:
+            source = self.schema.source_file or self.schema
+            if isinstance(source, str) and self.base_dir and not Path(source).is_absolute():
+                source = str(Path(self.base_dir) / source)
+            self._type_view_cache = SchemaView(source, importmap=self.importmap, base_dir=self.base_dir)
+        return self._type_view_cache
 
     def _vocab_eligible_enum(self, enum: EnumDefinition) -> tuple[bool, str | None]:
         """Check if an enum qualifies for ``@type: @vocab`` context generation.
@@ -412,10 +436,9 @@ class ContextGenerator(Generator):
                     self.emit_prefixes.add(skos)
                 else:
                     range_type = self.schema.types[slot.range]
-                    uri_ranges = URI_RANGES_WITH_XSD if self.xsd_anyuri_as_iri else URI_RANGES
                     if self.namespaces.uri_for(range_type.uri) == XSD.string:
                         pass
-                    elif self.namespaces.uri_for(range_type.uri) in uri_ranges:
+                    elif self._coerces_to_id(slot.range):
                         slot_def["@type"] = "@id"
                     else:
                         slot_def["@type"] = range_type.uri
