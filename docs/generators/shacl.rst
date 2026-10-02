@@ -240,7 +240,11 @@ nested expressions recurse. Each entry of ``slot_conditions`` gives an
 * ``equals_string`` and ``equals_string_in`` give ``sh:in``; on an enum slot the
   values are the permissible values as the enum renders them, the IRI of their
   ``meaning`` where they have one;
-* ``range`` gives the same class, type or enum constraint as a slot's range.
+* ``range`` gives the same class, type or enum constraint as a slot's range;
+* ``has_member`` gives ``sh:qualifiedValueShape`` with ``sh:qualifiedMinCount 1``,
+  as on a slot (see `Members of a multivalued slot`_). Each member of the
+  operator is its own shape, so ``all_of`` can require several different members
+  of one slot.
 
 SHACL allows ``sh:minInclusive``, ``sh:maxInclusive``, ``sh:in`` and
 ``sh:pattern`` at most once per shape. Where one condition needs one of them
@@ -286,10 +290,57 @@ range.
 
 An operator whose members use anything else is skipped as a whole and logged as
 a warning, because leaving out one member would change what the operator
-admits. That covers, for example, ``has_member`` or a slot-level ``any_of``
-inside a slot condition, a condition on a name that is not a slot, a condition
-on the identifier slot (the node's IRI rather than a property), and
-``equals_string`` on a slot whose range does not hold strings.
+admits. That covers, for example, a slot-level ``any_of`` inside a slot
+condition, a condition on a name that is not a slot, a condition on the
+identifier slot (the node's IRI rather than a property), and ``equals_string``
+on a slot whose range does not hold strings.
+
+Members of a multivalued slot
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``has_member`` states that a slot has at least one value satisfying an
+expression. It becomes ``sh:qualifiedValueShape`` with ``sh:qualifiedMinCount 1``
+on the slot's property shape (`SHACL §4.7.3
+<https://www.w3.org/TR/shacl/#QualifiedValueShapeConstraintComponent>`__); the
+other values are not constrained by it.
+
+The member shape takes the expression's ``range``, ``minimum_value``,
+``maximum_value``, ``pattern``, ``equals_string``, ``equals_string_in`` and
+``equals_number``, translated as in a slot condition, and its
+``range_expression`` as a nested class expression over the slots of the value's
+class:
+
+.. code-block:: yaml
+
+  Manifest:
+    slots: [artifacts]
+    all_of:
+      - slot_conditions:
+          artifacts:
+            has_member:
+              range_expression:
+                slot_conditions:
+                  category: {equals_string: data, required: true}
+      - slot_conditions:
+          artifacts:
+            has_member:
+              range_expression:
+                slot_conditions:
+                  category: {equals_string: docs, required: true}
+
+.. code-block:: turtle
+
+    ex:Manifest sh:and (
+        [ sh:property [ sh:path ex:artifacts ;
+              sh:qualifiedValueShape [ sh:node [ sh:property [ sh:path ex:category ;
+                  sh:minCount 1 ; sh:in ( ex:isData ) ] ] ] ;
+              sh:qualifiedMinCount 1 ] ]
+        [ ... ex:isDocs ... ] ) .
+
+As in the JSON Schema generator's ``contains``, a condition inside the
+expression constrains the values that are present: ``required: true`` is what
+makes a member need the slot. A ``has_member`` that uses anything else is not
+emitted and is logged as a warning.
 
 
 Command Line

@@ -5538,8 +5538,9 @@ classes:
     any_of:
       - slot_conditions:
           tags:
-            has_member:
-              equals_string: x
+            any_of:
+              - range: integer
+              - range: string
       - slot_conditions:
           a:
             required: true
@@ -5555,7 +5556,7 @@ classes:
     assert (EX_CE.Thing, SH["or"], None) not in g
     assert (EX_CE.Thing, SH["not"], None) in g
     assert any(
-        "any_of" in rec.message and "has_member" in rec.message and "tags" in rec.message for rec in caplog.records
+        "any_of" in rec.message and "'any_of' in the condition on slot 'tags'" in rec.message for rec in caplog.records
     )
 
 
@@ -6002,3 +6003,187 @@ classes:
     ex:t a ex:Thing {";" if properties else ""} {properties} .
     """
     assert _conforms(shacl_ttl, data) is expected
+
+
+# ---------------------------------------------------------------------------
+# has_member → sh:qualifiedValueShape + sh:qualifiedMinCount 1
+# ---------------------------------------------------------------------------
+
+_HAS_MEMBER_SCHEMA = (
+    _CLASS_EXPRESSION_HEADER
+    + """
+enums:
+  CategoryEnum:
+    permissible_values:
+      data: {meaning: ex:isData}
+      docs: {meaning: ex:isDocs}
+slots:
+  tags:
+    multivalued: true
+  category:
+    range: CategoryEnum
+  artifacts:
+    range: Link
+    multivalued: true
+    inlined_as_list: true
+classes:
+  Link:
+    class_uri: ex:Link
+    slots: [category]
+  Tagged:
+    class_uri: ex:Tagged
+    slots: [tags]
+    slot_usage:
+      tags:
+        has_member:
+          equals_string: abc
+  WithData:
+    class_uri: ex:WithData
+    slots: [artifacts]
+    slot_usage:
+      artifacts:
+        has_member:
+          range_expression:
+            slot_conditions:
+              category: {equals_string: data, required: true}
+  WithDataAndDocs:
+    class_uri: ex:WithDataAndDocs
+    slots: [artifacts]
+    all_of:
+      - slot_conditions:
+          artifacts:
+            has_member:
+              range_expression:
+                slot_conditions:
+                  category: {equals_string: data, required: true}
+      - slot_conditions:
+          artifacts:
+            has_member:
+              range_expression:
+                slot_conditions:
+                  category: {equals_string: docs, required: true}
+  WithoutDocs:
+    class_uri: ex:WithoutDocs
+    slots: [artifacts]
+    none_of:
+      - slot_conditions:
+          artifacts:
+            has_member:
+              range_expression:
+                slot_conditions:
+                  category: {equals_string: docs, required: true}
+"""
+)
+
+_HM_PREFIX = "@prefix ex: <https://example.org/class-expressions/> .\n"
+
+
+def _artifacts(*categories):
+    """Turtle for an ex:artifacts list of links with the given categories (None: no category)."""
+    links = [f"[ a ex:Link ; ex:category ex:{c} ]" if c else "[ a ex:Link ]" for c in categories]
+    return "ex:artifacts " + " , ".join(links)
+
+
+def test_has_member_slot_level_emits_qualified_value_shape():
+    """Slot-level has_member becomes sh:qualifiedValueShape with sh:qualifiedMinCount 1 (linkml#2465)."""
+    g = _parse_shacl(_HAS_MEMBER_SCHEMA)
+    prop = next(p for p in g.objects(EX_CE.Tagged, SH.property) if (p, SH.path, EX_CE.tags) in g)
+    member = g.value(prop, SH.qualifiedValueShape)
+    assert member is not None
+    assert g.value(prop, SH.qualifiedMinCount) == rdflib.Literal(1)
+    assert list(Collection(g, g.value(member, SH["in"]))) == [rdflib.Literal("abc")]
+
+
+@pytest.mark.parametrize(
+    "properties,expected",
+    [
+        ('ex:tags "abc", "x"', True),
+        ('ex:tags "x", "y"', False),
+        ("", False),
+    ],
+)
+def test_has_member_slot_level_pyshacl_end_to_end(properties, expected):
+    data = f"{_HM_PREFIX}ex:t a ex:Tagged {';' if properties else ''} {properties} ."
+    assert _conforms(ShaclGenerator(_HAS_MEMBER_SCHEMA, mergeimports=False).serialize(), data) is expected
+
+
+@pytest.mark.parametrize(
+    "cls,categories,expected",
+    [
+        # a member whose nested condition holds; enum values match by their meaning IRI
+        ("WithData", ("isData", "isDocs"), True),
+        ("WithData", ("isDocs",), False),
+        # required: true on the nested condition - a link without a category does not count
+        ("WithData", (None,), False),
+        # all_of: each member is its own qualified shape
+        ("WithDataAndDocs", ("isData", "isDocs"), True),
+        ("WithDataAndDocs", ("isData", "isData"), False),
+        ("WithDataAndDocs", ("isDocs", None), False),
+        # none_of: no member may match
+        ("WithoutDocs", ("isData",), True),
+        ("WithoutDocs", ("isData", "isDocs"), False),
+    ],
+)
+def test_has_member_range_expression_pyshacl_end_to_end(cls, categories, expected):
+    data = f"{_HM_PREFIX}ex:m a ex:{cls} ; {_artifacts(*categories)} ."
+    assert _conforms(ShaclGenerator(_HAS_MEMBER_SCHEMA, mergeimports=False).serialize(), data) is expected
+
+
+def test_has_member_untranslatable_skipped_with_warning(caplog):
+    """A has_member using something the member shape cannot express is not emitted, with a warning."""
+    import logging
+
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  tags:
+    multivalued: true
+    has_member:
+      any_of:
+        - equals_string: a
+        - equals_string: b
+classes:
+  Thing:
+    class_uri: ex:Thing
+    slots: [tags]
+"""
+    )
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.shaclgen"):
+        g = _parse_shacl(schema)
+
+    assert (None, SH.qualifiedValueShape, None) not in g
+    assert any(
+        "has_member of slot 'tags' is not translated to SHACL, because it uses 'any_of'" in rec.message
+        for rec in caplog.records
+    )
+
+
+@pytest.mark.parametrize("inlined_as_node,predicate", [(False, SH["class"]), (True, SH.node)])
+def test_has_member_range_follows_inlined_as_node(inlined_as_node, predicate):
+    """A member is one of the slot's values, so its class range is decided as the slot's values are."""
+    schema = (
+        _CLASS_EXPRESSION_HEADER
+        + """
+slots:
+  artifacts:
+    range: Thing
+    multivalued: true
+    inlined_as_list: true
+    has_member:
+      range: Special
+classes:
+  Thing:
+    class_uri: ex:Thing
+  Special:
+    class_uri: ex:Special
+    is_a: Thing
+  Holder:
+    class_uri: ex:Holder
+    slots: [artifacts]
+"""
+    )
+    g = _parse_shacl(schema, inlined_as_node=inlined_as_node)
+    prop = next(p for p in g.objects(EX_CE.Holder, SH.property) if (p, SH.path, EX_CE.artifacts) in g)
+    member = g.value(prop, SH.qualifiedValueShape)
+    assert g.value(member, predicate) == EX_CE.Special
