@@ -113,6 +113,31 @@ or two logical properties. Slots without the role keep their object or data prop
 projection, also when a metaclass declares them; LinkML then puns the annotated element
 as an individual, as it does for all metadata.
 
+
+Prefix normalization
+^^^^^^^^^^^^^^^^^^^^
+
+Schemas sometimes declare non-standard aliases for well-known namespaces
+(e.g. ``sh1:`` for the SHACL namespace, or a versioned alias for ``skos:``).
+By default these aliases are carried through into the generated artifact.
+
+Use ``--normalize-prefixes`` to remap declared prefixes whose namespace IRI
+matches a well-known vocabulary to that vocabulary's conventional name in the
+output (``owl``, ``rdf``, ``rdfs``, ``skos``, ``sh``, ``xsd``, ...):
+
+.. code:: bash
+
+   gen-owl --normalize-prefixes schema.yaml
+
+The names come from `prefixmaps <https://github.com/linkml/prefixmaps>`_, its
+curated ``linked_data`` context over its broader ``merged`` one, and where rdflib
+binds a namespace by default, from rdflib, which serializes the output. They can
+therefore change with the installed prefixmaps and rdflib versions. Namespace
+IRIs that none of them names are left untouched, and a well-known name that the
+schema declares for another namespace is kept, with a warning. The option is
+also available on ``gen-shacl``, ``gen-jsonld-context`` and ``gen-jsonld``.
+
+
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
