@@ -1232,3 +1232,63 @@ def test_complement_of_union_of_mixed_none_filters_silently():
     # Should succeed and return a BNode (the complement expression).
     assert result is not None
     assert isinstance(result, BNode)
+
+
+_INSTANTIATES_SCHEMA = """
+id: http://example.org/test-schema
+name: instantiates_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: http://example.org/test-schema/
+  vocab: http://example.org/vocab/
+default_prefix: ex
+imports:
+  - linkml:types
+enums:
+  LinkCategory:
+    implements:
+      - owl:NamedIndividual
+    permissible_values:
+      isLicense:
+        meaning: ex:isLicense
+        instantiates:
+          - vocab:LicenseCategory
+      isManifest:
+        meaning: ex:isManifest
+        instantiates:
+          - vocab:ManifestCategory
+          - vocab:Category
+      isMedia:
+        meaning: ex:isMedia
+"""
+
+VOCAB = Namespace("http://example.org/vocab/")
+
+
+def test_permissible_value_instantiates_types_the_value():
+    """Each ``instantiates`` value of a permissible value becomes an rdf:type of its IRI."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_INSTANTIATES_SCHEMA, metaclasses=False).serialize(), format="turtle")
+
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.ManifestCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.Category) in g
+    # the value stays an individual of the enum, which still closes its own class
+    for pv in (EX.isLicense, EX.isManifest, EX.isMedia):
+        assert (pv, RDF.type, OWL.NamedIndividual) in g
+        assert (pv, RDF.type, EX.LinkCategory) in g
+    one_of = g.value(EX.LinkCategory, OWL.oneOf)
+    assert set(Collection(g, one_of)) == {EX.isLicense, EX.isManifest, EX.isMedia}
+    # a value without instantiates gets no further type, and the instantiated classes stay open
+    assert set(g.objects(EX.isMedia, RDF.type)) == {OWL.NamedIndividual, EX.LinkCategory}
+    assert g.value(VOCAB.LicenseCategory, OWL.oneOf) is None
+
+
+def test_permissible_value_instantiates_ignored_on_literal(caplog):
+    """A permissible value rendered as a literal cannot be typed, so instantiates is ignored with a warning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", "rdfs:Literal")
+    with caplog.at_level(logging.WARNING):
+        g = Graph()
+        g.parse(data=OwlSchemaGenerator(schema, metaclasses=False).serialize(), format="turtle")
+    assert not list(g.triples((None, RDF.type, VOCAB.LicenseCategory)))
+    assert any("Instantiates on literal isLicense" in rec.message for rec in caplog.records)

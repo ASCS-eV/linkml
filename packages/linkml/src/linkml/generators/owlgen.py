@@ -1196,6 +1196,8 @@ class OwlSchemaGenerator(Generator):
                 pv_node = Literal(pv.text)
                 if pv.meaning:
                     logger.warning(f"Meaning on literal {pv.text} in {e.name} is ignored")
+                if pv.instantiates:
+                    logger.warning(f"Instantiates on literal {pv.text} in {e.name} is ignored")
             else:
                 pv_node = self._permissible_value_uri(pv, enum_uri, e)
             pv_uris.append(pv_node)
@@ -1209,6 +1211,10 @@ class OwlSchemaGenerator(Generator):
             if not isinstance(pv_node, Literal):
                 self.add_metadata(pv, pv_node)
                 g.add((pv_node, RDF.type, pv_owl_type))
+                # A permissible value that instantiates a class of another schema is a member
+                # of that class, e.g. a named individual typed by a class it does not define.
+                for instantiated in pv.instantiates:
+                    g.add((pv_node, RDF.type, URIRef(self.schemaview.expand_curie(instantiated))))
                 g.add((pv_node, RDFS.label, self._literal(pv.text, pv)))
                 # TODO: make this configurable
                 # self._add_element_properties(pv_uri, pv)
