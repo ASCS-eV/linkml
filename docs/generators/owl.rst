@@ -155,6 +155,31 @@ You can control enum and permissible value representation directly in your schem
             implements:
               - rdfs:Literal
 
+**Typing permissible values with ``instantiates``** - A permissible value can be an
+instance of a class from another schema, for example a named individual that an open
+vocabulary defines the class of. Each ``instantiates`` value becomes an ``rdf:type`` of
+the permissible value's IRI:
+
+.. code-block:: yaml
+
+    enums:
+      LinkCategory:
+        implements:
+          - owl:NamedIndividual
+        permissible_values:
+          isLicense:
+            meaning: ex:isLicense
+            instantiates:
+              - vocab:LicenseCategory
+
+.. code-block:: turtle
+
+    ex:isLicense a owl:NamedIndividual, ex:LinkCategory, vocab:LicenseCategory .
+
+The enum still closes its own class with ``owl:oneOf``; the class it instantiates stays
+open. ``instantiates`` is ignored, with a warning, on a permissible value rendered as a
+literal.
+
 **Using URIs vs. text for permissible values:**
 
 .. code-block:: yaml
