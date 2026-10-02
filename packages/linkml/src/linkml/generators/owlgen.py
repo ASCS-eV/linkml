@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from copy import copy
@@ -54,6 +55,49 @@ _T = TypeVar("_T")
 
 SWRL = rdflib.Namespace("http://www.w3.org/2003/11/swrl#")
 SWRLB = rdflib.Namespace("http://www.w3.org/2003/11/swrlb#")
+PROV = rdflib.Namespace("http://www.w3.org/ns/prov#")
+
+IRI_VALUED_METADATA_PROPERTIES: frozenset[URIRef] = frozenset(
+    {
+        # OWL 2 ontology properties and the version IRI relate an ontology to other
+        # ontologies (OWL 2 Structural Specification, sections 3.1 and 3.5).
+        OWL.versionIRI,
+        OWL.priorVersion,
+        OWL.backwardCompatibleWith,
+        OWL.incompatibleWith,
+        # rdfs:range rdfs:Resource, defined as pointing at a resource (RDF Schema 1.1, 5.4).
+        RDFS.seeAlso,
+        RDFS.isDefinedBy,
+        # DCMI Metadata Terms relating a resource to another resource.
+        DCTERMS.license,
+        DCTERMS.conformsTo,
+        DCTERMS.relation,
+        DCTERMS.references,
+        DCTERMS.isReferencedBy,
+        DCTERMS.hasVersion,
+        DCTERMS.isVersionOf,
+        DCTERMS.replaces,
+        DCTERMS.isReplacedBy,
+        DCTERMS.requires,
+        DCTERMS.isRequiredBy,
+        DCTERMS.source,
+        # rdfs:range prov:Entity (PROV-O).
+        PROV.wasDerivedFrom,
+        PROV.wasRevisionOf,
+        PROV.hadPrimarySource,
+    }
+)
+"""Metadata properties whose value is a resource by their own specification.
+
+A value of one of these properties that is an IRI, or a CURIE with a declared prefix, is
+emitted as an IRI node; any other value stays a literal. ``dcterms:identifier`` is not
+listed: DCMI gives it the range ``rdfs:Literal``.
+"""
+
+# An absolute IRI: an RFC 3986 scheme, a colon, and no character an IRI cannot contain
+# (RFC 3987, section 2.2). A CURIE has the same shape, so it is checked against the
+# declared prefixes first.
+_ABSOLUTE_IRI = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:[^\s<>\"{}|\\^`]+$")
 
 
 @unique
@@ -396,6 +440,9 @@ class OwlSchemaGenerator(Generator):
                         obj = URIRef(v)
                     elif metaslot_range == "uriorcurie":
                         obj = URIRef(this_sv.expand_curie(v))
+                    elif (iri := self._metadata_iri(metaslot_uri, v)) is not None:
+                        # e.g. license and conforms_to: strings in the metamodel, resources by their property
+                        obj = iri
                     elif metaslot_range in self._LANGUAGE_TAGGABLE_RANGES and lang:
                         obj = Literal(v, lang=lang)
                     else:
@@ -435,11 +482,30 @@ class OwlSchemaGenerator(Generator):
                 if k_uri == k:
                     k_uri = None
             if k_uri:
-                if isinstance(v.value, str):
+                if (iri := self._metadata_iri(URIRef(k_uri), v.value)) is not None:
+                    obj = iri
+                elif isinstance(v.value, str):
                     obj = self._literal(v.value, e)
                 else:
                     obj = Literal(v.value)
                 self.graph.add((uri, URIRef(k_uri), obj))
+
+    def _metadata_iri(self, prop: URIRef, value: Any) -> URIRef | None:
+        """The IRI *value* denotes, if *prop* takes resources and *value* is an IRI or CURIE.
+
+        Only the properties in :data:`IRI_VALUED_METADATA_PROPERTIES` take resources by their
+        specification. A CURIE is expanded when its prefix is declared; any other value that
+        is a syntactically valid absolute IRI is used as it is. Returns ``None`` otherwise, and
+        the value is emitted as a literal, as for every other property.
+        """
+        if prop not in IRI_VALUED_METADATA_PROPERTIES or not isinstance(value, str):
+            return None
+        if not _ABSOLUTE_IRI.match(value):
+            return None
+        prefix = value.split(":", 1)[0]
+        if prefix in self.schemaview.namespaces():
+            return URIRef(self.schemaview.expand_curie(value))
+        return URIRef(value)
 
     def add_class(self, cls: ClassDefinition) -> None:
         """

@@ -1232,3 +1232,68 @@ def test_complement_of_union_of_mixed_none_filters_silently():
     # Should succeed and return a BNode (the complement expression).
     assert result is not None
     assert isinstance(result, BNode)
+
+
+_IRI_METADATA_SCHEMA = """
+id: https://example.org/onto/v2
+name: iri_metadata
+license: https://www.eclipse.org/legal/epl-2.0/
+conforms_to: https://example.org/onto/v2/shapes
+see_also:
+  - https://example.org/docs
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+  owl: http://www.w3.org/2002/07/owl#
+  prov: http://www.w3.org/ns/prov#
+  dcterms: http://purl.org/dc/terms/
+default_prefix: ex
+imports:
+  - linkml:types
+annotations:
+  owl:versionInfo: v2
+  owl:versionIRI: https://example.org/onto/v2
+  owl:priorVersion: ex:onto/v1
+  prov:wasDerivedFrom: https://example.org/releases/tag/v2.0.0
+  dcterms:references: https://example.org/other
+  dcterms:identifier: https://example.org/onto
+  dcterms:creator: The Example Team
+classes:
+  Thing:
+    annotations:
+      dcterms:license: Not an IRI, just text
+"""
+
+
+def test_iri_valued_metadata_is_emitted_as_iris():
+    """Annotations and metadata of properties that take resources are IRIs when their value is one."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_IRI_METADATA_SCHEMA, metaclasses=False).serialize(), format="turtle")
+    onto = URIRef("https://example.org/onto/v2")
+    DCT = Namespace("http://purl.org/dc/terms/")
+    PROV = Namespace("http://www.w3.org/ns/prov#")
+
+    assert g.value(onto, OWL.versionIRI) == onto
+    # a CURIE with a declared prefix is expanded
+    assert g.value(onto, OWL.priorVersion) == URIRef("https://example.org/onto/v1")
+    assert g.value(onto, PROV.wasDerivedFrom) == URIRef("https://example.org/releases/tag/v2.0.0")
+    assert g.value(onto, DCT.references) == URIRef("https://example.org/other")
+    # string-ranged metamodel slots whose property takes resources
+    assert g.value(onto, DCT.license) == URIRef("https://www.eclipse.org/legal/epl-2.0/")
+    assert g.value(onto, DCT.conformsTo) == URIRef("https://example.org/onto/v2/shapes")
+    assert g.value(onto, RDFS.seeAlso) == URIRef("https://example.org/docs")
+
+
+def test_literal_valued_metadata_stays_literal():
+    """Other properties, and values that are not IRIs, keep their literals."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_IRI_METADATA_SCHEMA, metaclasses=False).serialize(), format="turtle")
+    onto = URIRef("https://example.org/onto/v2")
+    DCT = Namespace("http://purl.org/dc/terms/")
+
+    assert g.value(onto, OWL.versionInfo) == Literal("v2")
+    # DCMI gives dcterms:identifier the range rdfs:Literal
+    assert g.value(onto, DCT.identifier) == Literal("https://example.org/onto")
+    assert g.value(onto, DCT.creator) == Literal("The Example Team")
+    # a property that takes resources, with a value that is not an IRI
+    assert g.value(URIRef("https://example.org/Thing"), DCT.license) == Literal("Not an IRI, just text")
