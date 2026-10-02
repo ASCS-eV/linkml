@@ -17,7 +17,7 @@ from linkml.generators.common.class_expression import value_bounds
 from linkml.generators.common.subproperty import get_subproperty_values, is_uri_range
 from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
-from linkml.utils.generator import Generator, shared_arguments
+from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
 from linkml.utils.language_tags import LanguageTagResolver
 from linkml_runtime.linkml_model.meta import (
     AnonymousClassExpression,
@@ -262,6 +262,10 @@ class ShaclGenerator(Generator):
 
         for pfx in self.schema.prefixes.values():
             g.bind(str(pfx.prefix_prefix), pfx.prefix_reference)
+        if self.normalize_prefixes:
+            normalize_graph_prefixes(
+                g, {str(v.prefix_prefix): str(v.prefix_reference) for v in self.schema.prefixes.values()}
+            )
 
         self._class_expressions_added: set[tuple[URIRef, str, str]] = set()
         self._class_expression_problems: dict[tuple[str, str, str], list[str]] = {}
