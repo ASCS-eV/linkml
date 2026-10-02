@@ -1258,6 +1258,8 @@ annotations:
   dcterms:references: https://example.org/other
   dcterms:identifier: https://example.org/onto
   dcterms:creator: The Example Team
+  dcterms:publisher: https://example.org/team
+  dcterms:rightsHolder: ex:team
 classes:
   Thing:
     annotations:
@@ -1278,6 +1280,9 @@ def test_iri_valued_metadata_is_emitted_as_iris():
     assert g.value(onto, OWL.priorVersion) == URIRef("https://example.org/onto/v1")
     assert g.value(onto, PROV.wasDerivedFrom) == URIRef("https://example.org/releases/tag/v2.0.0")
     assert g.value(onto, DCT.references) == URIRef("https://example.org/other")
+    # DCMI agent terms (rdfs:range dcterms:Agent)
+    assert g.value(onto, DCT.publisher) == URIRef("https://example.org/team")
+    assert g.value(onto, DCT.rightsHolder) == URIRef("https://example.org/team")
     # string-ranged metamodel slots whose property takes resources
     assert g.value(onto, DCT.license) == URIRef("https://www.eclipse.org/legal/epl-2.0/")
     assert g.value(onto, DCT.conformsTo) == URIRef("https://example.org/onto/v2/shapes")
@@ -1294,6 +1299,7 @@ def test_literal_valued_metadata_stays_literal():
     assert g.value(onto, OWL.versionInfo) == Literal("v2")
     # DCMI gives dcterms:identifier the range rdfs:Literal
     assert g.value(onto, DCT.identifier) == Literal("https://example.org/onto")
+    # an agent named in plain text
     assert g.value(onto, DCT.creator) == Literal("The Example Team")
     # a property that takes resources, with a value that is not an IRI
     assert g.value(URIRef("https://example.org/Thing"), DCT.license) == Literal("Not an IRI, just text")

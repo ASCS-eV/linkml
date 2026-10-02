@@ -76,8 +76,10 @@ their own specification: the OWL ontology properties ``owl:versionIRI``,
 ``owl:priorVersion``, ``owl:backwardCompatibleWith`` and ``owl:incompatibleWith``;
 ``rdfs:seeAlso`` and ``rdfs:isDefinedBy``; the DCMI terms that relate a resource to
 another (``dcterms:license``, ``dcterms:conformsTo``, ``dcterms:references``,
-``dcterms:source``, ``dcterms:relation`` and its sub-properties); and
-``prov:wasDerivedFrom``, ``prov:wasRevisionOf`` and ``prov:hadPrimarySource``.
+``dcterms:source``, ``dcterms:relation`` and its sub-properties); the DCMI agent terms
+``dcterms:creator``, ``dcterms:contributor``, ``dcterms:publisher`` and
+``dcterms:rightsHolder``; and ``prov:wasDerivedFrom``, ``prov:wasRevisionOf`` and
+``prov:hadPrimarySource``.
 
 A value of one of these is emitted as an IRI when it is an absolute IRI or a CURIE with a
 declared prefix; any other value stays a literal:
