@@ -11,6 +11,8 @@ This extends the existing test_shaclgen.py module with:
 import pytest
 import rdflib
 from rdflib import RDF, SH
+from rdflib.collection import Collection
+from rdflib.compare import isomorphic
 
 from linkml.generators.shaclgen import ShaclGenerator
 
@@ -251,3 +253,288 @@ slots:
     assert node_objects <= emitted_shapes, (
         f"sh:node references a shape that was never emitted: {node_objects - emitted_shapes}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 4. INLINED VALUES: sh:node <range shape> with inlined_as_node
+# ---------------------------------------------------------------------------
+INLINED_SCHEMA = """
+id: http://example.org/test
+name: inlined_test
+prefixes:
+  ex: http://example.org/
+  linkml: https://w3id.org/linkml/
+default_prefix: ex
+
+imports:
+  - linkml:types
+
+classes:
+  Category:
+    description: Has an identifier, so a non-inlined value is a reference
+    slots:
+      - id
+
+  Link:
+    class_uri: ex:ExternalLink
+    slots:
+      - label
+      - category
+    slot_usage:
+      label:
+        required: true
+
+  Note:
+    description: Has no identifier, so it can only be inlined
+    slots:
+      - label
+
+  Container:
+    slots:
+      - link
+      - note
+      - choice
+      - mixed
+      - derived_link
+
+slots:
+  id:
+    identifier: true
+    range: uriorcurie
+  label:
+    range: string
+  category:
+    range: Category
+  link:
+    range: Link
+    inlined: true
+  note:
+    range: Note
+  choice:
+    any_of:
+      - range: Link
+      - range: Note
+    inlined: true
+  mixed:
+    any_of:
+      - range: Category
+      - range: Note
+  derived_link:
+    is_a: link
+"""
+
+EX = "http://example.org/"
+
+
+def _constraints(g, shape, path):
+    """The sh:class / sh:node values of the property shape for *path*, plus those of its sh:or members."""
+    found = {"class": set(), "node": set()}
+    for prop in g.objects(rdflib.URIRef(shape), SH.property):
+        if rdflib.URIRef(EX + path) not in set(g.objects(prop, SH.path)):
+            continue
+        members = [prop]
+        for or_list in g.objects(prop, SH["or"]):
+            members.extend(Collection(g, or_list))
+        for member in members:
+            found["class"] |= {str(o) for o in g.objects(member, SH["class"])}
+            found["node"] |= {str(o) for o in g.objects(member, SH["node"])}
+    return found
+
+
+def _shacl(tmp_path, **kwargs):
+    schema_path = tmp_path / "inlined_test.yaml"
+    schema_path.write_text(INLINED_SCHEMA)
+    g = rdflib.Graph()
+    g.parse(data=ShaclGenerator(str(schema_path), mergeimports=True, **kwargs).serialize(), format="turtle")
+    return g
+
+
+def test_inlined_as_node_off_keeps_sh_class(tmp_path):
+    """By default an inlined class range still emits sh:class, as before."""
+    g = _shacl(tmp_path)
+    assert _constraints(g, EX + "Container", "link") == {"class": {EX + "ExternalLink"}, "node": set()}
+    assert _constraints(g, EX + "Container", "note") == {"class": {EX + "Note"}, "node": set()}
+
+
+@pytest.mark.parametrize("suffix", [None, "Shape"])
+def test_inlined_as_node_inlined_range_emits_sh_node(tmp_path, suffix):
+    """An inlined value is validated against the range class's shape, named after its class_uri."""
+    g = _shacl(tmp_path, inlined_as_node=True, suffix=suffix)
+    suffix = suffix or ""
+    container = EX + "Container" + suffix
+
+    # explicitly inlined
+    assert _constraints(g, container, "link") == {"class": set(), "node": {EX + "ExternalLink" + suffix}}
+    # inlined because the range class has no identifier
+    assert _constraints(g, container, "note") == {"class": set(), "node": {EX + "Note" + suffix}}
+    # inlined through the slot's is_a ancestor
+    assert _constraints(g, container, "derived_link") == {"class": set(), "node": {EX + "ExternalLink" + suffix}}
+
+    # every sh:node reference points at a shape that was emitted
+    emitted = {str(s) for s in g.subjects(RDF.type, SH.NodeShape)}
+    referenced = {str(o) for o in g.objects(None, SH["node"])}
+    assert referenced <= emitted, f"sh:node references shapes that were never emitted: {referenced - emitted}"
+
+
+def test_inlined_as_node_reference_keeps_sh_class(tmp_path):
+    """A reference to an identified object keeps sh:class: only its type is visible from here."""
+    g = _shacl(tmp_path, inlined_as_node=True)
+    assert _constraints(g, EX + "ExternalLink", "category") == {"class": {EX + "Category"}, "node": set()}
+
+
+def test_inlined_as_node_any_of_members(tmp_path):
+    """Each any_of member is decided on its own: inlined members get sh:node, references sh:class."""
+    g = _shacl(tmp_path, inlined_as_node=True)
+    assert _constraints(g, EX + "Container", "choice") == {
+        "class": set(),
+        "node": {EX + "ExternalLink", EX + "Note"},
+    }
+    # not declared inlined: Category (has an identifier) is a reference, Note can only be inlined
+    assert _constraints(g, EX + "Container", "mixed") == {"class": {EX + "Category"}, "node": {EX + "Note"}}
+
+
+def test_inlined_as_node_native_names_unaffected(tmp_path):
+    """Native names mode already emits sh:node for every class range; the option changes nothing there."""
+    with_option = _shacl(tmp_path, inlined_as_node=True, use_class_uri_names=False)
+    without = _shacl(tmp_path, inlined_as_node=False, use_class_uri_names=False)
+    assert isomorphic(with_option, without)
+
+
+def test_inlined_as_node_validates_untyped_inlined_value():
+    """End-to-end: an inlined value is checked by its content, not by a stated type."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(INLINED_SCHEMA, mergeimports=True, inlined_as_node=True).serialize()
+    prefixes = "@prefix ex: <http://example.org/> .\n"
+
+    # untyped inlined link with its required label: conforms
+    conforms, _, text = pyshacl.validate(
+        data_graph=prefixes + 'ex:c a ex:Container ; ex:link [ ex:label "x" ; ex:category ex:cat ] .\n'
+        "ex:cat a ex:Category .",
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+    )
+    assert conforms, text
+
+    # untyped inlined link without its required label: rejected by the Link shape
+    conforms, _, text = pyshacl.validate(
+        data_graph=prefixes + "ex:c a ex:Container ; ex:link [ ex:category ex:cat ] .\nex:cat a ex:Category .",
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+    )
+    assert not conforms
+    assert "MinCountConstraintComponent" in text, text
+
+    # a reference still has to be typed
+    conforms, _, text = pyshacl.validate(
+        data_graph=prefixes + 'ex:c a ex:Container ; ex:link [ ex:label "x" ; ex:category ex:untyped ] .',
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+    )
+    assert not conforms
+    assert "ClassConstraintComponent" in text, text
+
+
+def test_inlined_as_node_class_expression_condition_range(tmp_path):
+    """A slot condition's range follows its slot; the is_a of a class expression stays a type test."""
+    narrowed = """
+  Narrowed:
+    is_a: Container
+    any_of:
+      - is_a: Container
+        slot_conditions:
+          link:
+            range: Link
+
+slots:
+  id:"""
+    schema = INLINED_SCHEMA.replace("\nslots:\n  id:", narrowed, 1)
+    schema_path = tmp_path / "inlined_condition.yaml"
+    schema_path.write_text(schema)
+    g = rdflib.Graph()
+    g.parse(
+        data=ShaclGenerator(str(schema_path), mergeimports=True, inlined_as_node=True).serialize(),
+        format="turtle",
+    )
+    (member,) = Collection(g, g.value(rdflib.URIRef(EX + "Narrowed"), SH["or"]))
+    assert g.value(member, SH["class"]) == rdflib.URIRef(EX + "Container")
+    condition = g.value(member, SH.property)
+    assert g.value(condition, SH.path) == rdflib.URIRef(EX + "link")
+    assert g.value(condition, SH["node"]) == rdflib.URIRef(EX + "ExternalLink")
+    assert g.value(condition, SH["class"]) is None
+
+
+_INHERITANCE_SCHEMA = """
+id: http://example.org/test
+name: inheritance_test
+prefixes:
+  ex: http://example.org/
+  linkml: https://w3id.org/linkml/
+default_prefix: ex
+imports:
+  - linkml:types
+classes:
+  Artifact:
+    class_uri: ex:Artifact
+    slots: [code, name]
+    any_of:
+      - slot_conditions:
+          code: {required: true}
+      - slot_conditions:
+          name: {required: true}
+  Named:
+    mixin: true
+    slots: [name]
+  Report:
+    class_uri: ex:Report
+    is_a: Artifact
+    mixins: [Named]
+  Holder:
+    slots: [report]
+slots:
+  code: {}
+  name: {}
+  report:
+    range: Report
+    inlined: true
+"""
+
+
+@pytest.mark.parametrize("inlined_as_node", [False, True])
+def test_inlined_as_node_class_shape_conforms_to_its_parents(inlined_as_node):
+    """With the option, a class shape requires its is_a parent's and mixins' shapes."""
+    g = rdflib.Graph()
+    g.parse(data=ShaclGenerator(_INHERITANCE_SCHEMA, inlined_as_node=inlined_as_node).serialize(), format="turtle")
+    parents = set(g.objects(rdflib.URIRef(EX + "Report"), SH["node"]))
+    expected = {rdflib.URIRef(EX + "Artifact"), rdflib.URIRef(EX + "Named")} if inlined_as_node else set()
+    assert parents == expected
+
+
+def test_inlined_as_node_applies_inherited_class_expressions():
+    """An untyped inlined value is held to the class expressions of its range class's ancestors."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_INHERITANCE_SCHEMA, inlined_as_node=True).serialize()
+    prefixes = "@prefix ex: <http://example.org/> .\n"
+    for report, expected in (('[ ex:code "c1" ]', True), ("[ ex:other 1 ]", False)):
+        conforms, _, text = pyshacl.validate(
+            data_graph=prefixes + f"ex:h a ex:Holder ; ex:report {report} .",
+            shacl_graph=shacl_ttl,
+            data_graph_format="turtle",
+            shacl_graph_format="turtle",
+        )
+        assert conforms is expected, text
+
+
+def test_inlined_as_node_native_names_parents_unaffected():
+    with_option = rdflib.Graph().parse(
+        data=ShaclGenerator(_INHERITANCE_SCHEMA, inlined_as_node=True, use_class_uri_names=False).serialize(),
+        format="turtle",
+    )
+    without = rdflib.Graph().parse(
+        data=ShaclGenerator(_INHERITANCE_SCHEMA, use_class_uri_names=False).serialize(), format="turtle"
+    )
+    assert isomorphic(with_option, without)

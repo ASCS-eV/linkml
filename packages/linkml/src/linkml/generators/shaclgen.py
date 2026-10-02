@@ -1,3 +1,4 @@
+import copy
 import logging
 import math
 import os
@@ -121,6 +122,24 @@ class ShaclGenerator(Generator):
     expand_subproperty_of: bool = True
     """If True, expand subproperty_of to sh:in constraints with slot descendants"""
 
+    inlined_as_node: bool = False
+    """Validate inlined class-ranged values by the range class's shape instead of their type.
+
+    A value of a class-ranged slot is either *inlined* - its content is part of the
+    instance - or a *reference* to an object described elsewhere.  LinkML treats an
+    inlined value as an instance of the slot's range class, so the constraint that
+    matches it is ``sh:node <range shape>``: the value must conform to the shape,
+    whatever ``rdf:type`` it states.  A reference keeps ``sh:class <class_uri>``,
+    because only the referenced object's type is visible from here.
+
+    When False (default), every class range emits ``sh:class`` in class-URI naming
+    mode.  Native names mode always emits ``sh:node`` and is unaffected.
+
+    A value is inlined when the slot declares ``inlined`` or ``inlined_as_list``
+    (directly or through its ancestors), or when the range class has no identifier,
+    as decided by :meth:`SchemaView.is_inlined`.
+    """
+
     default_language: str | None = None
     """Default BCP 47 language tag for human-readable string literals.
 
@@ -242,6 +261,12 @@ class ShaclGenerator(Generator):
                 class_uri_with_suffix += self.suffix
             shape_pv(RDF.type, SH.NodeShape)
             shape_pv(SH.targetClass, class_uri)  # TODO
+            if self.inlined_as_node and self.use_class_uri_names:
+                # A value reached through sh:node is validated by this shape alone, with no
+                # target of its parents' shapes involved; the parents' own class expressions
+                # and rules apply to it all the same, as to every member of their class.
+                for parent in [c.is_a, *c.mixins] if c.is_a else c.mixins:
+                    self._add_class(shape_pv, parent, inlined=True)
 
             if self.closed:
                 if c.mixin or c.abstract:
@@ -344,7 +369,7 @@ class ShaclGenerator(Generator):
                                 if v is not None:
                                     g.add((class_node, p, v))
 
-                            self._add_class(cl_node_pv, r)
+                            self._add_class(cl_node_pv, r, inlined=self._is_inlined_range(s, r))
                             range_list.append(class_node)
                         elif r in sv.all_types():
                             t_node = BNode()
@@ -390,7 +415,7 @@ class ShaclGenerator(Generator):
                                 f" require range 'string' and not '{r}'"
                             )
 
-                    self._add_range(g, prop_pv, r)
+                    self._add_range(g, prop_pv, r, inlined=self._is_inlined_range(s, r))
                     if s.pattern:
                         prop_pv(SH.pattern, Literal(s.pattern))
                     if s.equals_string:
@@ -621,7 +646,7 @@ class ShaclGenerator(Generator):
             prop_pv(SH.minInclusive, Literal(condition.equals_number))
             prop_pv(SH.maxInclusive, Literal(condition.equals_number))
         if condition.range is not None:
-            self._add_range(g, prop_pv, condition.range)
+            self._add_range(g, prop_pv, condition.range, inlined=self._is_inlined_range(slot, condition.range))
         if repeated:
             # Each repeated parameter in a member shape of its own: all of them hold
             # for every value, as they would on the property shape itself.
@@ -1439,14 +1464,30 @@ class ShaclGenerator(Generator):
         pfx = sv.schema.default_prefix
         return sv.expand_curie(f"{pfx}:{underscore(slot_name)}")
 
-    def _add_class(self, func: Callable, r: ElementName) -> None:
+    def _is_inlined_range(self, slot, r: ElementName) -> bool:
+        """Whether the values of *slot* with range class *r* are inlined.
+
+        *r* is the slot's own range or the range of one of its ``any_of`` members,
+        which :meth:`SchemaView.is_inlined` cannot see, so it is asked about a copy
+        of the slot that carries *r* as its range.
+        """
+        if slot.range == r:
+            return self.schemaview.is_inlined(slot)
+        member = copy.copy(slot)
+        member.range = r
+        return self.schemaview.is_inlined(member)
+
+    def _add_class(self, func: Callable, r: ElementName, inlined: bool = False) -> None:
         """Add a class/shape constraint for range class *r*.
 
         Skips the constraint when *r* resolves to ``linkml:Any`` — the
         LinkML meta-type representing an unconstrained range.
 
         In default mode (``use_class_uri_names=True``): emits ``sh:class <class_uri>``
-        so validators check the RDF type hierarchy.
+        so validators check the RDF type hierarchy.  With ``inlined_as_node`` and an
+        *inlined* value, it emits ``sh:node <class_uri shape>`` instead: the value is
+        an instance of *r* by being inlined there, so it is validated against the
+        shape of *r* rather than required to state its type.
 
         In native names mode (``use_class_uri_names=False``): emits ``sh:node <native_shape_uri>``
         instead of ``sh:class``.  Using ``sh:class`` with a native shape URI (e.g.
@@ -1465,7 +1506,7 @@ class ShaclGenerator(Generator):
         range_ref = sv.get_uri(r, expand=True, native=not self.use_class_uri_names)
         if range_ref == self.LINKML_ANY_URI:
             return
-        if self.use_class_uri_names:
+        if self.use_class_uri_names and not (self.inlined_as_node and inlined):
             func(SH["class"], URIRef(range_ref))
             return
         if self.suffix:
@@ -1480,13 +1521,16 @@ class ShaclGenerator(Generator):
             return URIRef(sv.get_uri(s, expand=True))
         return URIRef(sv.expand_curie(f"{sv.schema.default_prefix}:{underscore(s.name)}"))
 
-    def _add_range(self, g: Graph, func: Callable, r: ElementName) -> None:
-        """Add the value-type constraint for range *r*: a class, type, enum or built-in datatype."""
+    def _add_range(self, g: Graph, func: Callable, r: ElementName, inlined: bool = False) -> None:
+        """Add the value-type constraint for range *r*: a class, type, enum or built-in datatype.
+
+        *inlined* tells whether a class-ranged value is inlined, see :meth:`_add_class`.
+        """
         sv = self.schemaview
         if r in sv.all_classes():
             cls_def = sv.get_class(r)
             is_any = cls_def and getattr(cls_def, "class_uri", None) == "linkml:Any"
-            self._add_class(func, r)
+            self._add_class(func, r, inlined=inlined)
             if not is_any:
                 if sv.get_identifier_slot(r) is not None:
                     func(SH.nodeKind, SH.IRI)
@@ -1735,6 +1779,14 @@ def _set_fields(element) -> set[str]:
     show_default=True,
     help="If --expand-subproperty-of (default), slots with subproperty_of will generate sh:in constraints "
     "containing all slot descendants. Use --no-expand-subproperty-of to disable this behavior.",
+)
+@click.option(
+    "--inlined-as-node/--no-inlined-as-node",
+    default=False,
+    show_default=True,
+    help="With --inlined-as-node, an inlined class-ranged value is validated against the range class's shape "
+    "(sh:node) instead of being required to state its type (sh:class). Referenced values keep sh:class. "
+    "Only affects class-URI naming mode; --use-native-names always emits sh:node.",
 )
 @click.option(
     "--default-language",
