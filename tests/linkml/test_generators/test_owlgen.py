@@ -1232,3 +1232,133 @@ def test_complement_of_union_of_mixed_none_filters_silently():
     # Should succeed and return a BNode (the complement expression).
     assert result is not None
     assert isinstance(result, BNode)
+
+
+_INSTANTIATES_SCHEMA = """
+id: http://example.org/test-schema
+name: instantiates_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: http://example.org/test-schema/
+  vocab: http://example.org/vocab/
+default_prefix: ex
+imports:
+  - linkml:types
+enums:
+  LinkCategory:
+    implements:
+      - owl:NamedIndividual
+    permissible_values:
+      isLicense:
+        meaning: ex:isLicense
+        instantiates:
+          - vocab:LicenseCategory
+      isManifest:
+        meaning: ex:isManifest
+        instantiates:
+          - vocab:ManifestCategory
+          - vocab:Category
+      isMedia:
+        meaning: ex:isMedia
+"""
+
+VOCAB = Namespace("http://example.org/vocab/")
+
+
+def test_permissible_value_instantiates_types_the_value():
+    """Each ``instantiates`` value of a permissible value becomes an rdf:type of its IRI."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_INSTANTIATES_SCHEMA, metaclasses=False).serialize(), format="turtle")
+
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.ManifestCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.Category) in g
+    # the value stays an individual of the enum, which still closes its own class
+    for pv in (EX.isLicense, EX.isManifest, EX.isMedia):
+        assert (pv, RDF.type, OWL.NamedIndividual) in g
+        assert (pv, RDF.type, EX.LinkCategory) in g
+    one_of = g.value(EX.LinkCategory, OWL.oneOf)
+    assert set(Collection(g, one_of)) == {EX.isLicense, EX.isManifest, EX.isMedia}
+    # a value without instantiates gets no further type, and the instantiated classes stay open
+    assert set(g.objects(EX.isMedia, RDF.type)) == {OWL.NamedIndividual, EX.LinkCategory}
+    assert g.value(VOCAB.LicenseCategory, OWL.oneOf) is None
+
+
+def test_permissible_value_instantiates_ignored_on_literal(caplog):
+    """A permissible value rendered as a literal cannot be typed, so instantiates is ignored with a warning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", "rdfs:Literal")
+    with caplog.at_level(logging.WARNING):
+        g = Graph()
+        g.parse(data=OwlSchemaGenerator(schema, metaclasses=False).serialize(), format="turtle")
+    assert not list(g.triples((None, RDF.type, VOCAB.LicenseCategory)))
+    assert any("Instantiates on literal isLicense" in rec.message for rec in caplog.records)
+
+_IRI_METADATA_SCHEMA = """
+id: https://example.org/onto/v2
+name: iri_metadata
+license: https://www.eclipse.org/legal/epl-2.0/
+conforms_to: https://example.org/onto/v2/shapes
+see_also:
+  - https://example.org/docs
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+  owl: http://www.w3.org/2002/07/owl#
+  prov: http://www.w3.org/ns/prov#
+  dcterms: http://purl.org/dc/terms/
+default_prefix: ex
+imports:
+  - linkml:types
+annotations:
+  owl:versionInfo: v2
+  owl:versionIRI: https://example.org/onto/v2
+  owl:priorVersion: ex:onto/v1
+  prov:wasDerivedFrom: https://example.org/releases/tag/v2.0.0
+  dcterms:references: https://example.org/other
+  dcterms:identifier: https://example.org/onto
+  dcterms:creator: The Example Team
+  dcterms:publisher: https://example.org/team
+  dcterms:rightsHolder: ex:team
+classes:
+  Thing:
+    annotations:
+      dcterms:license: Not an IRI, just text
+"""
+
+
+def test_iri_valued_metadata_is_emitted_as_iris():
+    """Annotations and metadata of properties that take resources are IRIs when their value is one."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_IRI_METADATA_SCHEMA, metaclasses=False).serialize(), format="turtle")
+    onto = URIRef("https://example.org/onto/v2")
+    DCT = Namespace("http://purl.org/dc/terms/")
+    PROV = Namespace("http://www.w3.org/ns/prov#")
+
+    assert g.value(onto, OWL.versionIRI) == onto
+    # a CURIE with a declared prefix is expanded
+    assert g.value(onto, OWL.priorVersion) == URIRef("https://example.org/onto/v1")
+    assert g.value(onto, PROV.wasDerivedFrom) == URIRef("https://example.org/releases/tag/v2.0.0")
+    assert g.value(onto, DCT.references) == URIRef("https://example.org/other")
+    # DCMI agent terms (rdfs:range dcterms:Agent)
+    assert g.value(onto, DCT.publisher) == URIRef("https://example.org/team")
+    assert g.value(onto, DCT.rightsHolder) == URIRef("https://example.org/team")
+    # string-ranged metamodel slots whose property takes resources
+    assert g.value(onto, DCT.license) == URIRef("https://www.eclipse.org/legal/epl-2.0/")
+    assert g.value(onto, DCT.conformsTo) == URIRef("https://example.org/onto/v2/shapes")
+    assert g.value(onto, RDFS.seeAlso) == URIRef("https://example.org/docs")
+
+
+def test_literal_valued_metadata_stays_literal():
+    """Other properties, and values that are not IRIs, keep their literals."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_IRI_METADATA_SCHEMA, metaclasses=False).serialize(), format="turtle")
+    onto = URIRef("https://example.org/onto/v2")
+    DCT = Namespace("http://purl.org/dc/terms/")
+
+    assert g.value(onto, OWL.versionInfo) == Literal("v2")
+    # DCMI gives dcterms:identifier the range rdfs:Literal
+    assert g.value(onto, DCT.identifier) == Literal("https://example.org/onto")
+    # an agent named in plain text
+    assert g.value(onto, DCT.creator) == Literal("The Example Team")
+    # a property that takes resources, with a value that is not an IRI
+    assert g.value(URIRef("https://example.org/Thing"), DCT.license) == Literal("Not an IRI, just text")

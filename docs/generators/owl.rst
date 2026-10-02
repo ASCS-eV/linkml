@@ -67,6 +67,61 @@ Mapping
 
 .. note:: The current default settings for ``metaclasses`` and ``type-objects`` may change in the future
 
+Prefix normalization
+^^^^^^^^^^^^^^^^^^^^
+
+Schemas sometimes declare non-standard aliases for well-known namespaces
+(e.g. ``sh1:`` for the SHACL namespace, or a versioned alias for ``skos:``).
+By default these aliases are carried through into the generated artifact.
+
+Use ``--normalize-prefixes`` to remap declared prefixes whose namespace IRI
+matches a well-known vocabulary to that vocabulary's conventional name in the
+output (``owl``, ``rdf``, ``rdfs``, ``skos``, ``sh``, ``xsd``, ...):
+
+.. code:: bash
+
+   gen-owl --normalize-prefixes schema.yaml
+
+The mapping is a static, version-independent table; namespace IRIs that are
+not in the table are left untouched. The option is also available on
+``gen-shacl`` and ``gen-jsonld-context``.
+
+Metadata values that are IRIs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Schema metadata and ``annotations`` become annotation triples on the ontology, class or
+property. Their values are literals, except for properties whose value is a resource by
+their own specification: the OWL ontology properties ``owl:versionIRI``,
+``owl:priorVersion``, ``owl:backwardCompatibleWith`` and ``owl:incompatibleWith``;
+``rdfs:seeAlso`` and ``rdfs:isDefinedBy``; the DCMI terms that relate a resource to
+another (``dcterms:license``, ``dcterms:conformsTo``, ``dcterms:references``,
+``dcterms:source``, ``dcterms:relation`` and its sub-properties); the DCMI agent terms
+``dcterms:creator``, ``dcterms:contributor``, ``dcterms:publisher`` and
+``dcterms:rightsHolder``; and ``prov:wasDerivedFrom``, ``prov:wasRevisionOf`` and
+``prov:hadPrimarySource``.
+
+A value of one of these is emitted as an IRI when it is an absolute IRI or a CURIE with a
+declared prefix; any other value stays a literal:
+
+.. code-block:: yaml
+
+    id: https://example.org/onto/v2
+    license: https://www.eclipse.org/legal/epl-2.0/
+    annotations:
+      owl:versionInfo: v2
+      owl:priorVersion: ex:onto/v1
+      prov:wasDerivedFrom: https://example.org/releases/tag/v2.0.0
+
+.. code-block:: turtle
+
+    <https://example.org/onto/v2> a owl:Ontology ;
+        owl:versionInfo "v2" ;
+        owl:priorVersion <https://example.org/onto/v1> ;
+        prov:wasDerivedFrom <https://example.org/releases/tag/v2.0.0> ;
+        dcterms:license <https://www.eclipse.org/legal/epl-2.0/> .
+
+``dcterms:identifier`` stays a literal: DCMI gives it the range ``rdfs:Literal``.
+
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -134,6 +189,31 @@ You can control enum and permissible value representation directly in your schem
             description: A literal value
             implements:
               - rdfs:Literal
+
+**Typing permissible values with ``instantiates``** - A permissible value can be an
+instance of a class from another schema, for example a named individual that an open
+vocabulary defines the class of. Each ``instantiates`` value becomes an ``rdf:type`` of
+the permissible value's IRI:
+
+.. code-block:: yaml
+
+    enums:
+      LinkCategory:
+        implements:
+          - owl:NamedIndividual
+        permissible_values:
+          isLicense:
+            meaning: ex:isLicense
+            instantiates:
+              - vocab:LicenseCategory
+
+.. code-block:: turtle
+
+    ex:isLicense a owl:NamedIndividual, ex:LinkCategory, vocab:LicenseCategory .
+
+The enum still closes its own class with ``owl:oneOf``; the class it instantiates stays
+open. ``instantiates`` is ignored, with a warning, on a permissible value rendered as a
+literal.
 
 **Using URIs vs. text for permissible values:**
 
@@ -309,6 +389,48 @@ Other examples
 
 - `Biolink <https://bioportal.bioontology.org/ontologies/BIOLINK>`_ :
   translation of Biolink schema to OWL
+
+
+Deterministic output
+^^^^^^^^^^^^^^^^^^^^
+
+``gen-owl`` output is deterministic by default. The graph is canonicalized with
+`RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_ before serialization, so repeated
+runs over the same schema -- and any two isomorphic graphs -- produce
+byte-identical Turtle. No flag is needed, and checked-in artifacts do not churn
+between runs.
+
+RDFC-1.0 numbers blank nodes sequentially (``_:c14n0``, ``_:c14n1``, ...) in
+canonical order. That is stable for a fixed graph, but inserting a single
+statement can shift the numbering of every blank node ordered after it, so an
+unrelated one-line schema edit may rewrite large parts of the file. Pass
+``--diff-stable`` to derive each label from the node's own neighbourhood
+instead, so that only the blank nodes an edit actually touches are renamed:
+
+.. code:: bash
+
+   gen-owl --diff-stable schema.yaml
+
+Both modes are deterministic and yield isomorphic graphs; only the choice of
+label differs. ``--diff-stable`` is off by default because turning it on
+relabels the blank nodes in existing output once.
+
+The same ``--diff-stable/--no-diff-stable`` option is available on ``gen-rdf``,
+``gen-shacl`` and ``gen-shex``.
+
+Graphs that are not standard RDF -- literal predicates, as produced by
+``gen-shacl`` in annotation mode, or relative IRIs such as the metamodel's
+``bibo:status <testing>`` -- cannot be canonicalized under RDFC-1.0. Those fall
+back to plain rdflib serialization, with blank-node labels canonicalized by
+``rdflib.compare.to_canonical_graph``. Those labels are content-derived rather
+than run-local, so the fallback remains reproducible across processes. It emits
+an ``RDFCanonicalizationWarning``, and ``--diff-stable`` has no effect on that
+path -- it warns rather than silently ignoring the request.
+
+Canonicalization itself is implemented by the
+`diffable-rdf <https://github.com/ASCS-eV/diffable-rdf>`_ library;
+``linkml_runtime.utils.rdf_canonicalize.canonicalize_rdf_graph`` is a thin
+adapter that re-emits the library's log warnings as Python warnings.
 
 
 Docs

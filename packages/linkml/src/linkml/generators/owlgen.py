@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from copy import copy
@@ -21,7 +22,7 @@ from linkml import METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
 from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecation_warning
-from linkml.utils.generator import Generator, shared_arguments
+from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
 from linkml.utils.language_tags import LanguageTagResolver
 from linkml_runtime import SchemaView
 from linkml_runtime.linkml_model.meta import (
@@ -54,6 +55,54 @@ _T = TypeVar("_T")
 
 SWRL = rdflib.Namespace("http://www.w3.org/2003/11/swrl#")
 SWRLB = rdflib.Namespace("http://www.w3.org/2003/11/swrlb#")
+PROV = rdflib.Namespace("http://www.w3.org/ns/prov#")
+
+IRI_VALUED_METADATA_PROPERTIES: frozenset[URIRef] = frozenset(
+    {
+        # OWL 2 ontology properties and the version IRI relate an ontology to other
+        # ontologies (OWL 2 Structural Specification, sections 3.1 and 3.5).
+        OWL.versionIRI,
+        OWL.priorVersion,
+        OWL.backwardCompatibleWith,
+        OWL.incompatibleWith,
+        # rdfs:range rdfs:Resource, defined as pointing at a resource (RDF Schema 1.1, 5.4).
+        RDFS.seeAlso,
+        RDFS.isDefinedBy,
+        # DCMI Metadata Terms relating a resource to another resource.
+        DCTERMS.license,
+        DCTERMS.conformsTo,
+        DCTERMS.relation,
+        DCTERMS.references,
+        DCTERMS.isReferencedBy,
+        DCTERMS.hasVersion,
+        DCTERMS.isVersionOf,
+        DCTERMS.replaces,
+        DCTERMS.isReplacedBy,
+        DCTERMS.requires,
+        DCTERMS.isRequiredBy,
+        DCTERMS.source,
+        # DCMI Metadata Terms with rdfs:range dcterms:Agent.
+        DCTERMS.creator,
+        DCTERMS.contributor,
+        DCTERMS.publisher,
+        DCTERMS.rightsHolder,
+        # rdfs:range prov:Entity (PROV-O).
+        PROV.wasDerivedFrom,
+        PROV.wasRevisionOf,
+        PROV.hadPrimarySource,
+    }
+)
+"""Metadata properties whose value is a resource by their own specification.
+
+A value of one of these properties that is an IRI, or a CURIE with a declared prefix, is
+emitted as an IRI node; any other value stays a literal. ``dcterms:identifier`` is not
+listed: DCMI gives it the range ``rdfs:Literal``.
+"""
+
+# An absolute IRI: an RFC 3986 scheme, a colon, and no character an IRI cannot contain
+# (RFC 3987, section 2.2). A CURIE has the same shape, so it is checked against the
+# declared prefixes first.
+_ABSOLUTE_IRI = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:[^\s<>\"{}|\\^`]+$")
 
 
 @unique
@@ -122,6 +171,9 @@ class OwlSchemaGenerator(Generator):
     """Suffix to add to the schema name to create the ontology URI, e.g. .owl.ttl"""
 
     # ObjectVars
+    diff_stable: bool = False
+    """Reduce blank-node label churn. See :ref:`rdf-in-version-control`."""
+
     metadata_profile: MetadataProfile | None = None
     """Deprecated - use metadata_profiles."""
 
@@ -316,6 +368,10 @@ class OwlSchemaGenerator(Generator):
             self.graph.bind(prefix, self.metamodel.namespaces[prefix])
         for pfx in schema.prefixes.values():
             self.graph.namespace_manager.bind(pfx.prefix_prefix, URIRef(pfx.prefix_reference))
+        if self.normalize_prefixes:
+            normalize_graph_prefixes(
+                graph, {str(v.prefix_prefix): str(v.prefix_reference) for v in schema.prefixes.values()}
+            )
         graph.add((base, RDF.type, OWL.Ontology))
 
         # Add main schema elements
@@ -353,7 +409,7 @@ class OwlSchemaGenerator(Generator):
         """
         self.as_graph()
         fmt = "turtle" if self.format in ["owl", "ttl"] else self.format
-        return canonicalize_rdf_graph(self.graph, output_format=fmt)
+        return canonicalize_rdf_graph(self.graph, output_format=fmt, diff_stable=self.diff_stable)
 
     def add_metadata(self, e: Definition | PermissibleValue, uri: URIRef) -> None:
         """
@@ -396,6 +452,9 @@ class OwlSchemaGenerator(Generator):
                         obj = URIRef(v)
                     elif metaslot_range == "uriorcurie":
                         obj = URIRef(this_sv.expand_curie(v))
+                    elif (iri := self._metadata_iri(metaslot_uri, v)) is not None:
+                        # e.g. license and conforms_to: strings in the metamodel, resources by their property
+                        obj = iri
                     elif metaslot_range in self._LANGUAGE_TAGGABLE_RANGES and lang:
                         obj = Literal(v, lang=lang)
                     else:
@@ -435,11 +494,30 @@ class OwlSchemaGenerator(Generator):
                 if k_uri == k:
                     k_uri = None
             if k_uri:
-                if isinstance(v.value, str):
+                if (iri := self._metadata_iri(URIRef(k_uri), v.value)) is not None:
+                    obj = iri
+                elif isinstance(v.value, str):
                     obj = self._literal(v.value, e)
                 else:
                     obj = Literal(v.value)
                 self.graph.add((uri, URIRef(k_uri), obj))
+
+    def _metadata_iri(self, prop: URIRef, value: Any) -> URIRef | None:
+        """The IRI *value* denotes, if *prop* takes resources and *value* is an IRI or CURIE.
+
+        Only the properties in :data:`IRI_VALUED_METADATA_PROPERTIES` take resources by their
+        specification. A CURIE is expanded when its prefix is declared; any other value that
+        is a syntactically valid absolute IRI is used as it is. Returns ``None`` otherwise, and
+        the value is emitted as a literal, as for every other property.
+        """
+        if prop not in IRI_VALUED_METADATA_PROPERTIES or not isinstance(value, str):
+            return None
+        if not _ABSOLUTE_IRI.match(value):
+            return None
+        prefix = value.split(":", 1)[0]
+        if prefix in self.schemaview.namespaces():
+            return URIRef(self.schemaview.expand_curie(value))
+        return URIRef(value)
 
     def add_class(self, cls: ClassDefinition) -> None:
         """
@@ -1196,6 +1274,8 @@ class OwlSchemaGenerator(Generator):
                 pv_node = Literal(pv.text)
                 if pv.meaning:
                     logger.warning(f"Meaning on literal {pv.text} in {e.name} is ignored")
+                if pv.instantiates:
+                    logger.warning(f"Instantiates on literal {pv.text} in {e.name} is ignored")
             else:
                 pv_node = self._permissible_value_uri(pv, enum_uri, e)
             pv_uris.append(pv_node)
@@ -1209,6 +1289,10 @@ class OwlSchemaGenerator(Generator):
             if not isinstance(pv_node, Literal):
                 self.add_metadata(pv, pv_node)
                 g.add((pv_node, RDF.type, pv_owl_type))
+                # A permissible value that instantiates a class of another schema is a member
+                # of that class, e.g. a named individual typed by a class it does not define.
+                for instantiated in pv.instantiates:
+                    g.add((pv_node, RDF.type, URIRef(self.schemaview.expand_curie(instantiated))))
                 g.add((pv_node, RDFS.label, self._literal(pv.text, pv)))
                 # TODO: make this configurable
                 # self._add_element_properties(pv_uri, pv)
@@ -1842,6 +1926,15 @@ class OwlSchemaGenerator(Generator):
         "(e.g. en, de, zh-Hans).  When set, rdfs:label, rdfs:comment, "
         "skos:definition and other text annotations are emitted with the "
         "specified language tag.  Element-level in_language overrides this."
+    ),
+)
+@click.option(
+    "--diff-stable/--no-diff-stable",
+    default=False,
+    show_default=True,
+    help=(
+        "Reduce blank-node label churn across edits. See "
+        "https://linkml.io/linkml/howtos/collaborative-development.html#rdf-in-version-control"
     ),
 )
 @click.version_option(__version__, "-V", "--version")
