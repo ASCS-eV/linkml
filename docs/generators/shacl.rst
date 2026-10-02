@@ -114,8 +114,21 @@ fallback that conjoins the preconditions and negates a single postcondition:
 conditional-required (``required: true``), conditional-absent
 (``value_presence: ABSENT``), numeric threshold preconditions
 (``minimum_value`` / ``maximum_value``), a one-hop nested precondition into
-an inlined child object (``range_expression.slot_conditions``), and
-``has_member`` list membership.
+an inlined child object (``range_expression.slot_conditions``), the matching
+one-hop nested **postcondition** on a single-valued slot (also
+``range_expression.slot_conditions`` — the value must satisfy the inner
+conditions, so an absent slot violates, exactly as ``equals_string`` does),
+and ``has_member`` list membership.
+
+A nested postcondition is what a *wrapper class* needs: when an enum slot is
+wrapped in a class that carries the value plus provenance, a rule that still
+tests the enum must reach through the wrapper rather than compare the wrapper
+node. It is translated only when the target slot is single-valued and every
+inner slot is ``required`` and single-valued on the range class; otherwise the
+single ``FILTER NOT EXISTS`` would read "present **and** matching" (stricter
+than LinkML on an optional inner slot) or "**some** value matches" (weaker than
+LinkML on a multivalued one), so the rule is skipped instead. ``has_member`` is
+the explicit some-member operator for lists.
 
 The translation contract is *skip, never mis-translate*: a rule whose
 conditions set any operator outside the translated set (including

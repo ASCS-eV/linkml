@@ -832,6 +832,30 @@ class ShaclGenerator(Generator):
             lines.extend(filters)
         return lines
 
+    def _nested_conditions_are_total(self, sv, cls: ClassDefinition, container_slot_name: str, slot_conditions) -> bool:
+        """Whether a nested postcondition over *container_slot_name* can be
+        negated faithfully as a single ``FILTER NOT EXISTS``.
+
+        That form reads "the container has a value for which every inner
+        condition holds".  It matches LinkML's reading only when each inner
+        slot is **required** (so "present and matching" cannot differ from
+        "matching") and **single-valued** (so "some value matches" cannot
+        differ from "every value matches") on the container's range class.
+        Returns ``False`` — caller skips the rule — otherwise, including when
+        the container's range is not a class.
+        """
+        container = self._rule_slot(sv, container_slot_name, cls)
+        range_name = getattr(container, "range", None)
+        if not range_name or range_name not in sv.all_classes():
+            return False
+        for inner_name in slot_conditions:
+            if inner_name not in sv.class_slots(range_name):
+                return False
+            induced = sv.induced_slot(inner_name, range_name)
+            if induced is None or not induced.required or induced.multivalued:
+                return False
+        return True
+
     def _member_conditions(
         self, sv, cls: ClassDefinition, container_slot_name: str, node_var: str, slot_conditions
     ) -> list[str] | None:
@@ -941,6 +965,20 @@ class ShaclGenerator(Generator):
           member of the (multivalued) target slot matches the inner conditions
           (list-membership; e.g. the light-group list must contain a
           ``{group: Vehicle, type: front_fog_light}`` entry).
+        * ``range_expression`` with inner ``slot_conditions`` — violation = the
+          single-valued target slot has no value satisfying the inner
+          conditions, i.e. one hop into an inlined child object (e.g. a wrapper
+          class whose ``value`` slot carries the enum the rule tests).
+
+          Translated only when every inner slot is ``required`` and
+          single-valued on the range class.  Both restrictions keep the emitted
+          ``FILTER NOT EXISTS`` faithful: on an *optional* inner slot it would
+          read "the inner value is present AND matches", flagging a wrapper
+          that omits it even though the reference validator accepts that; on a
+          *multivalued* inner slot it would read "**some** value matches",
+          where LinkML reads "every value matches" (``has_member`` is the
+          explicit some-member operator).  Either way the rule is skipped
+          rather than mis-translated.
         """
         path = self._slot_uri(sv, slot_name, cls)
         if path is None:
@@ -950,6 +988,38 @@ class ShaclGenerator(Generator):
             return [f"FILTER NOT EXISTS {{ $this <{path}> ?post . }}"]
         if op_fields == {"value_presence"} and cond.value_presence == PresenceEnum(PresenceEnum.ABSENT):
             return [f"$this <{path}> ?post ."]
+        if op_fields == {"range_expression"}:
+            # One hop into the target slot's value.  The value must satisfy the
+            # inner conditions, so the violation is the absence of any value
+            # that does — which makes a MISSING slot a violation too, matching
+            # the `equals_string` postcondition semantics of the
+            # presence-implies-value pattern (there `!BOUND(?target)` violates).
+            # `required` / `value_presence` remain the operators that speak
+            # about presence alone.
+            range_expr = cond.range_expression
+            if self._set_operator_fields(range_expr) != {"slot_conditions"}:
+                return None
+            target = self._rule_slot(sv, slot_name, cls)
+            if target is None or target.name not in sv.class_slots(cls.name):
+                # A rule naming a slot the class does not carry is degenerate:
+                # the predicate would appear in no shape, so the constraint
+                # could never be satisfied.  It also leaves `multivalued`
+                # unmaterialised, which the guard below depends on.
+                return None
+            if sv.induced_slot(target.name, cls.name).multivalued:
+                # On a list, "the value satisfies" is ambiguous between "every
+                # member" and "some member"; `has_member` already expresses the
+                # latter, so this is skipped rather than mis-translated.
+                return None
+            if not self._nested_conditions_are_total(sv, cls, slot_name, range_expr.slot_conditions):
+                return None
+            value_lines = [f"$this <{path}> ?post ."]
+            inner = self._member_conditions(sv, cls, slot_name, "?post", range_expr.slot_conditions)
+            if inner is None:
+                return None
+            value_lines.extend(inner)
+            block = " ".join(value_lines)
+            return [f"FILTER NOT EXISTS {{ {block} }}"]
         if op_fields == {"has_member"}:
             has_member = cond.has_member
             if self._set_operator_fields(has_member) != {"range_expression"}:

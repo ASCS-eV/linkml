@@ -4677,3 +4677,342 @@ def test_rule_unknown_slot_key_skipped():
     g = _parse_shacl(_UNKNOWN_KEY_SCHEMA_YAML)
     shape = URIRef("https://example.org/unknown-key/Obs")
     assert list(g.objects(shape, SH.sparql)) == []
+
+
+# ===========================================================================
+# Compositional fallback: nested range_expression postcondition (M6)
+# ===========================================================================
+#
+# Rule shape:
+#   - preconditions:  any supported precondition (here value_presence PRESENT)
+#   - postconditions: single-valued slot with a nested range_expression
+#     constraining the inlined value's inner slots
+#
+# Semantics: "If the precondition holds, the slot's value must satisfy the
+# inner conditions."  Violation = no value that does (FILTER NOT EXISTS over
+# the one hop), so a MISSING slot violates too -- matching the equals_string
+# postcondition semantics of the presence-implies-value pattern.
+#
+# This is the wrapper-class case: an enum was wrapped in a class carrying
+# provenance (`value` plus optional annotations), so a rule testing the enum
+# has to reach through the wrapper instead of comparing the wrapper node.
+# ===========================================================================
+
+_POST_RANGE_EXPR_SCHEMA_YAML = """
+id: https://example.org/post-range
+name: post_range_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/post-range/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  StructureTypeEnum:
+    permissible_values:
+      tunnel:
+        meaning: ex:tunnel
+      bridge:
+        meaning: ex:bridge
+
+slots:
+  tunnel_phase:
+    range: string
+    slot_uri: ex:tunnel_phase
+  structure_type:
+    range: CodedStructureType
+    inlined: true
+    slot_uri: ex:structure_type
+  value:
+    range: StructureTypeEnum
+    required: true
+    slot_uri: ex:value
+
+classes:
+  CodedStructureType:
+    class_uri: ex:CodedStructureType
+    slots:
+      - value
+  OverheadStructure:
+    class_uri: ex:OverheadStructure
+    slots:
+      - tunnel_phase
+      - structure_type
+    rules:
+      - description: A tunnel_phase is only meaningful for a tunnel.
+        preconditions:
+          slot_conditions:
+            tunnel_phase:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            structure_type:
+              range_expression:
+                slot_conditions:
+                  value:
+                    equals_string: tunnel
+"""
+
+EX_PRE = rdflib.Namespace("https://example.org/post-range/")
+
+
+def test_postcondition_range_expression_generates_sparql():
+    """A nested range_expression postcondition reaches through the wrapper."""
+    g = _parse_shacl(_POST_RANGE_EXPR_SCHEMA_YAML)
+
+    sparql_nodes = list(g.objects(EX_PRE.OverheadStructure, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert "FILTER NOT EXISTS" in query, "a value-level postcondition violates by absence of a match"
+    # Two hops: the wrapper node, then its inner value slot.
+    assert str(EX_PRE.structure_type) in query
+    assert str(EX_PRE.value) in query
+    # The inner enum value resolves against the WRAPPER class, not the outer one.
+    assert f"<{EX_PRE.tunnel}>" in query, f"inner value must be the enum IRI, got:\n{query}"
+    # The wrapper node itself is never compared to the enum value.
+    assert "?post =" not in query, f"the wrapper node must not be compared directly:\n{query}"
+
+
+def test_postcondition_range_expression_sparql_syntax_valid():
+    """Generated SPARQL must be syntactically valid."""
+    from rdflib.plugins.sparql import prepareQuery
+
+    g = _parse_shacl(_POST_RANGE_EXPR_SCHEMA_YAML)
+    for node in g.objects(EX_PRE.OverheadStructure, SH.sparql):
+        prepareQuery(str(list(g.objects(node, SH.select))[0]))
+
+
+def test_postcondition_range_expression_pyshacl_end_to_end():
+    """End-to-end: a tunnel_phase requires the wrapped structure_type `tunnel`."""
+    import pyshacl
+
+    shacl_ttl = ShaclGenerator(_POST_RANGE_EXPR_SCHEMA_YAML, mergeimports=False, emit_rules=True).serialize()
+
+    conforming = """
+    @prefix ex: <https://example.org/post-range/> .
+
+    ex:tunnelOk a ex:OverheadStructure ;
+        ex:tunnel_phase "entry" ;
+        ex:structure_type [ a ex:CodedStructureType ; ex:value ex:tunnel ] .
+
+    ex:bridgeNoPhase a ex:OverheadStructure ;
+        ex:structure_type [ a ex:CodedStructureType ; ex:value ex:bridge ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=conforming,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert conforms, f"Conforming instances should pass:\n{txt}"
+
+    # Wrong wrapped value: a bridge may not carry a tunnel_phase.
+    wrong_value = """
+    @prefix ex: <https://example.org/post-range/> .
+
+    ex:bridgeWithPhase a ex:OverheadStructure ;
+        ex:tunnel_phase "entry" ;
+        ex:structure_type [ a ex:CodedStructureType ; ex:value ex:bridge ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=wrong_value,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"A non-tunnel structure with a tunnel_phase must fail:\n{txt}"
+
+    # Missing slot entirely: still a violation, like the equals_string form.
+    missing = """
+    @prefix ex: <https://example.org/post-range/> .
+
+    ex:noType a ex:OverheadStructure ;
+        ex:tunnel_phase "entry" .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=missing,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"An absent structure_type with a tunnel_phase must fail:\n{txt}"
+
+    # A wrapper present but missing its REQUIRED value: still a violation, and
+    # parity with the reference validator is what the `required` restriction on
+    # the inner slot buys (an optional inner slot is skipped instead).
+    inner_absent = """
+    @prefix ex: <https://example.org/post-range/> .
+
+    ex:emptyWrapper a ex:OverheadStructure ;
+        ex:tunnel_phase "entry" ;
+        ex:structure_type [ a ex:CodedStructureType ] .
+    """
+    conforms, _, txt = pyshacl.validate(
+        data_graph=inner_absent,
+        shacl_graph=shacl_ttl,
+        data_graph_format="turtle",
+        shacl_graph_format="turtle",
+        advanced=True,
+    )
+    assert not conforms, f"A wrapper without its required value must fail:\n{txt}"
+
+
+_POST_RANGE_EXPR_MULTIVALUED_YAML = _POST_RANGE_EXPR_SCHEMA_YAML.replace(
+    "    range: CodedStructureType\n    inlined: true\n",
+    "    range: CodedStructureType\n    inlined: true\n    multivalued: true\n",
+)
+
+
+def test_postcondition_range_expression_multivalued_skipped():
+    """On a LIST, `the value satisfies` is ambiguous between every member and
+    some member; `has_member` already expresses the latter, so a bare
+    range_expression postcondition is skipped rather than mis-translated."""
+    assert "multivalued: true" in _POST_RANGE_EXPR_MULTIVALUED_YAML
+    g = _parse_shacl(_POST_RANGE_EXPR_MULTIVALUED_YAML)
+    assert list(g.objects(EX_PRE.OverheadStructure, SH.sparql)) == []
+
+
+_POST_RANGE_EXPR_MIXED_YAML = _POST_RANGE_EXPR_SCHEMA_YAML.replace(
+    "            structure_type:\n              range_expression:",
+    "            structure_type:\n              required: true\n              range_expression:",
+)
+
+
+def test_postcondition_range_expression_mixed_operators_skipped():
+    """A postcondition mixing range_expression with another operator is skipped:
+    translating only one of them would weaken the postcondition."""
+    assert "required: true" in _POST_RANGE_EXPR_MIXED_YAML
+    g = _parse_shacl(_POST_RANGE_EXPR_MIXED_YAML)
+    assert list(g.objects(EX_PRE.OverheadStructure, SH.sparql)) == []
+
+
+_POST_RANGE_EXPR_NON_CLASS_YAML = _POST_RANGE_EXPR_SCHEMA_YAML.replace(
+    "  structure_type:\n    range: CodedStructureType\n    inlined: true\n",
+    "  structure_type:\n    range: string\n",
+)
+
+
+def test_postcondition_range_expression_non_class_range_skipped():
+    """Inner conditions cannot be resolved against a non-class range, so the
+    rule is skipped instead of emitting predicates the data never carries."""
+    assert "range: CodedStructureType" not in _POST_RANGE_EXPR_NON_CLASS_YAML
+    g = _parse_shacl(_POST_RANGE_EXPR_NON_CLASS_YAML)
+    assert list(g.objects(EX_PRE.OverheadStructure, SH.sparql)) == []
+
+
+_POST_RANGE_EXPR_OPTIONAL_INNER_YAML = _POST_RANGE_EXPR_SCHEMA_YAML.replace(
+    "    range: StructureTypeEnum\n    required: true\n",
+    "    range: StructureTypeEnum\n",
+)
+
+
+def test_postcondition_range_expression_optional_inner_slot_skipped():
+    """`FILTER NOT EXISTS` over the hop reads "present AND matching".  On an
+    OPTIONAL inner slot that is stricter than LinkML, which accepts a wrapper
+    that simply omits the value, so the rule is skipped instead."""
+    assert "required: true" not in _POST_RANGE_EXPR_OPTIONAL_INNER_YAML
+    g = _parse_shacl(_POST_RANGE_EXPR_OPTIONAL_INNER_YAML)
+    assert list(g.objects(EX_PRE.OverheadStructure, SH.sparql)) == []
+
+
+_POST_RANGE_EXPR_MULTIVALUED_INNER_YAML = _POST_RANGE_EXPR_SCHEMA_YAML.replace(
+    "    range: StructureTypeEnum\n    required: true\n",
+    "    range: StructureTypeEnum\n    required: true\n    multivalued: true\n",
+)
+
+
+def test_postcondition_range_expression_multivalued_inner_slot_skipped():
+    """On a MULTIVALUED inner slot the same form reads "some value matches",
+    where LinkML reads "every value matches" — the ambiguity the outer guard
+    already refuses, so the inner case is skipped too."""
+    g = _parse_shacl(_POST_RANGE_EXPR_MULTIVALUED_INNER_YAML)
+    assert list(g.objects(EX_PRE.OverheadStructure, SH.sparql)) == []
+
+
+# The outer class carries its OWN `value` slot with a DIFFERENT enum range, so
+# resolving the inner condition against the outer class instead of the wrapper
+# would pick the wrong enum IRI.  Without this the scope assertion in
+# test_postcondition_range_expression_generates_sparql cannot fail: `value` is
+# not a slot of the outer class there, so both resolutions coincide.
+_POST_RANGE_EXPR_SHADOWED_YAML = """
+id: https://example.org/post-range-shadow
+name: post_range_shadow_rules
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/post-range-shadow/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+
+enums:
+  InnerEnum:
+    permissible_values:
+      tunnel:
+        meaning: ex:inner_tunnel
+  OuterEnum:
+    permissible_values:
+      tunnel:
+        meaning: ex:outer_tunnel
+
+slots:
+  tunnel_phase:
+    range: string
+    slot_uri: ex:tunnel_phase
+  structure_type:
+    range: CodedStructureType
+    inlined: true
+    slot_uri: ex:structure_type
+  value:
+    range: OuterEnum
+    required: true
+    slot_uri: ex:value
+
+classes:
+  CodedStructureType:
+    class_uri: ex:CodedStructureType
+    slots:
+      - value
+    slot_usage:
+      value:
+        range: InnerEnum
+        required: true
+  OverheadStructure:
+    class_uri: ex:OverheadStructure
+    slots:
+      - tunnel_phase
+      - structure_type
+      - value
+    rules:
+      - description: A tunnel_phase is only meaningful for a tunnel.
+        preconditions:
+          slot_conditions:
+            tunnel_phase:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            structure_type:
+              range_expression:
+                slot_conditions:
+                  value:
+                    equals_string: tunnel
+"""
+
+EX_PRS = rdflib.Namespace("https://example.org/post-range-shadow/")
+
+
+def test_postcondition_range_expression_inner_enum_resolved_on_range_class():
+    """The inner enum resolves against the WRAPPER's range class even when the
+    outer class carries a same-named slot with a different enum range."""
+    g = _parse_shacl(_POST_RANGE_EXPR_SHADOWED_YAML)
+    sparql_nodes = list(g.objects(EX_PRS.OverheadStructure, SH.sparql))
+    assert len(sparql_nodes) == 1, f"Expected 1 sh:sparql constraint, got {len(sparql_nodes)}"
+    query = str(list(g.objects(sparql_nodes[0], SH.select))[0])
+    assert f"<{EX_PRS.inner_tunnel}>" in query, f"must resolve against the wrapper class:\n{query}"
+    assert f"<{EX_PRS.outer_tunnel}>" not in query, f"must NOT resolve against the outer class:\n{query}"
