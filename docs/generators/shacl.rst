@@ -379,6 +379,8 @@ that support SHACL-SPARQL, such as ``pyshacl``, validate these constraints.
 Command Line
 ^^^^^^^^^^^^
 
+``--normalize-prefixes`` is described under :ref:`prefix-normalization`.
+
 .. currentmodule:: linkml.generators.shaclgen
 
 .. click:: linkml.generators.shaclgen:cli
