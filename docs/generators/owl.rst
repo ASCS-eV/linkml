@@ -86,6 +86,78 @@ The mapping is a static, version-independent table; namespace IRIs that are
 not in the table are left untouched. The option is also available on
 ``gen-shacl`` and ``gen-jsonld-context``.
 
+Declared annotation values
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An annotation property name does not determine whether its value is a literal
+or an RDF node. For example, ``rdfs:Resource`` includes literals, and OWL permits
+both IRIs and literals as annotation values. The generator does not maintain a
+list of vocabulary properties whose string values should be changed into IRIs.
+
+Use LinkML's metamodel extension mechanism to declare the distinction. An
+``instantiates`` reference identifies a metaclass whose slots describe the
+annotations on that schema element. ``nodeidentifier`` denotes an IRI, CURIE or
+blank node; ``string`` denotes text, even when the text looks like a URL:
+
+.. code-block:: yaml
+
+    id: https://example.org/model
+    name: model
+    prefixes:
+      ex: https://example.org/
+      linkml: https://w3id.org/linkml/
+      owl: http://www.w3.org/2002/07/owl#
+    imports: [linkml:types]
+    default_prefix: ex
+    instantiates: [ex:OntologyMetadata]
+    annotations:
+      prior_version: ex:previous
+      version_label: https://example.org/a-textual-label
+    classes:
+      OntologyMetadata:
+        attributes:
+          prior_version:
+            slot_uri: owl:priorVersion
+            range: nodeidentifier
+          version_label:
+            slot_uri: owl:versionInfo
+            range: string
+
+The ontology has ``owl:priorVersion <https://example.org/previous>`` and
+``owl:versionInfo "https://example.org/a-textual-label"``. The same mechanism
+works for custom properties and annotations on classes, slots, local types,
+enums and non-literal permissible values. Metaclass inheritance and imported
+metaclasses are supported. Tags may be slot names, CURIEs or full slot IRIs.
+
+The SHACL generator uses the same conversion when its existing
+``--include-annotations`` option is enabled. Those annotations describe shapes;
+they do not add constraints to ordinary data instances. Schema RDF and JSON-LD
+serialization retain the LinkML annotation objects and their declarations;
+they do not project annotations onto ontology properties as this generator does.
+
+Declared scalar ranges determine term representation. ``curie`` expands to an
+IRI, ``nodeidentifier`` allows IRIs and blank nodes, and XSD datatypes produce
+literals. In particular, ``xsd:anyURI`` alone does not mean an IRI node. Use
+``nodeidentifier`` when that distinction matters; no new generator flag is
+required. Language tags apply to textual literals only.
+
+This is serialization of declared scalar annotations, not complete metamodel
+extension validation. Structured values, non-type ranges and boolean range
+expressions currently raise an error rather than guessing a term. Conflicting
+metaclass declarations also raise an error. Unresolved external metaclasses and
+undeclared tags retain each generator's existing behavior; a declaration must
+be available locally or through a schema import to determine the RDF term.
+Ordinary string-valued metamodel fields such as ``license`` retain their
+metamodel representation. An explicit annotation declaration is required for
+an IRI-valued alternative; avoid assigning the same property in both forms
+unless both RDF values are intended.
+
+References: `LinkML metamodel refinement
+<https://linkml.io/linkml-model/latest/docs/specification/05validation/>`__,
+`OWL annotation values <https://www.w3.org/TR/owl2-syntax/#Annotations>`__,
+`RDF Schema resources <https://www.w3.org/TR/rdf-schema/#ch_resource>`__, and
+`DCMI license guidance
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#http://purl.org/dc/terms/license>`__.
 
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

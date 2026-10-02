@@ -19,6 +19,7 @@ from rdflib.plugin import plugins as rdflib_plugins
 
 from linkml import METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
+from linkml.generators.common.annotations import declared_annotation
 from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecation_warning
 from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
@@ -431,8 +432,18 @@ class OwlSchemaGenerator(Generator):
                     obj = Literal(v)
                 self.graph.add((uri, metaslot_uri, obj))
 
+        self._add_annotations(e, uri)
+
+    def _add_annotations(self, e: Element | PermissibleValue, uri: URIRef) -> None:
+        """Emit explicit annotations on any generated schema resource."""
+        this_sv = self.schemaview
+        lang = self._resolve_language(e)
         for k, v in e.annotations.items():
             if isinstance(v, dict) or isinstance(v, list):
+                continue
+            declared = declared_annotation(this_sv, e, k, v.value, lang)
+            if declared is not None:
+                self.graph.add((uri, *declared))
                 continue
             if ":" not in k:
                 default_prefix = this_sv.schema.default_prefix
@@ -1106,7 +1117,7 @@ class OwlSchemaGenerator(Generator):
             return
 
         self._add_instantiates(typ, type_uri)
-
+        self._add_annotations(typ, type_uri)
         if self.metaclasses:
             self.graph.add(
                 (
