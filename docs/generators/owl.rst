@@ -188,7 +188,66 @@ References: `LinkML metamodel refinement
 `existing implements mapping <https://github.com/linkml/linkml/pull/2095>`__,
 `RDF Schema resources <https://www.w3.org/TR/rdf-schema/#ch_resource>`__, and
 `DCMI license guidance
-<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#http://purl.org/dc/terms/license>`__.
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#license>`__.
+
+DCMI agent metadata
+^^^^^^^^^^^^^^^^^^^
+
+To name an agent by IRI, declare a ``nodeidentifier`` annotation. To record a
+name or other textual identifier, declare ``string``. Independently, use
+``implements: [owl:AnnotationProperty]`` for the OWL annotation role.
+``instantiates`` identifies the metaclass supplying those declarations; it
+does not select that role automatically. These choices work for
+``dcterms:creator``, ``dcterms:contributor``, ``dcterms:publisher`` and
+``dcterms:rightsHolder`` through the same mechanism as the custom predicates above:
+
+.. literalinclude:: ../examples/owl-dcmi-agent-annotations.yaml
+    :language: yaml
+
+The ontology header contains ``dcterms:creator "The Example Team"`` and
+``dcterms:publisher <https://example.org/team>``, with both predicates declared
+as annotation properties. This projection omits OWL logical restrictions on
+the metadata slots; their LinkML constraints remain available to instance
+validators. OWL annotation axioms do not validate those values.
+A string declaration stays literal even when its value looks like a URL.
+For SHACL, put the same
+``instantiates`` and ``annotations`` on a class or slot to annotate its shape,
+with ``--include-annotations`` enabled.
+
+Tests execute this exact example with ``metaclasses=False`` and both values
+of ``use_native_uris`` and ``type_objects``. OWLAPI 5.5.0 loads, saves and
+reloads each generated artifact with zero OWL 2 DL profile violations and
+retains the literal creator and IRI publisher. This is the same controlled
+consumer contract as the generic example, not a claim about every schema or
+the API's default metaclass projection.
+
+The `DCMI definitions
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/>`__ use
+``dcam:rangeIncludes`` with ``dcterms:Agent`` for these properties. The
+`rangeIncludes definition
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#rangeIncludes>`__
+suggests a class for values; it is not an ``rdfs:range`` restriction or an
+instruction to coerce strings into IRIs. Creator and rights-holder guidance
+recommends URIs while permitting literal identifiers. The declared LinkML
+range determines the emitted RDF term.
+
+Use the native ``contributors`` field for ordinary contributor identifiers;
+it already carries URI-or-CURIE values and maps to ``dcterms:contributor``.
+A separately declared annotation with that RDF predicate needs its own
+declaration. Native `created_by <https://linkml.io/linkml-model/latest/docs/created_by/>`__
+maps to ``pav:createdBy`` and does not emit ``dcterms:creator``. Although the
+metamodel declares a standalone `publisher <https://linkml.io/linkml-model/latest/docs/publisher/>`__
+slot, the current ``SchemaDefinition`` runtime does not accept
+a top-level ``publisher`` field. The example therefore declares publisher
+metadata through ``instantiates`` and annotations.
+
+Keep native ``contributors`` and ``license`` authoritative; native ``license``
+retains its existing metamodel representation. Scalar agent
+annotations do not preserve structured person or organization descriptions,
+and native-field RDF export mappings require separate support. Declaring the
+value representation and OWL role avoids another generator flag or a
+vocabulary-specific list.
+
 
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

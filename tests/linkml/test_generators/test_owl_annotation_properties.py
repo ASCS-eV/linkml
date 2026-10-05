@@ -30,6 +30,7 @@ from linkml_runtime.loaders import yaml_loader
 EX = "https://example.org/"
 ROOT = Path(__file__).resolve().parents[3]
 EXAMPLE = ROOT / "docs/examples/owl-annotation-properties.yaml"
+DCMI_EXAMPLE = ROOT / "docs/examples/owl-dcmi-agent-annotations.yaml"
 HARNESS = Path(__file__).parent / "input/owl_annotation_properties"
 
 
@@ -875,6 +876,26 @@ def test_owlapi_documentation_roundtrip(
         ["ontology", EX + "text", "LITERAL", EX + "a-textual-label", "", ""],
     ]
     _probe(schema, tmp_path, owlapi_classpath, rows, use_native_uris=native, type_objects=type_objects)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("type_objects", [False, True])
+def test_owlapi_dcmi_documentation_roundtrip(
+    tmp_path: Path, owlapi_classpath: str, native: bool, type_objects: bool
+) -> None:
+    """The exact DCMI example retains literal/node annotations with zero profile violations in every tested mode."""
+    schema = yaml.safe_load(DCMI_EXAMPLE.read_text())
+    rows = [
+        ["ontology", str(DCTERMS.creator), "LITERAL", "The Example Team", "", ""],
+        ["ontology", str(DCTERMS.publisher), "IRI", EX + "team", "", ""],
+    ]
+    _probe(
+        schema, tmp_path, owlapi_classpath, rows, use_native_uris=native, type_objects=type_objects, metaclasses=False
+    )
+    graph = Graph().parse(tmp_path / "generated.ttl", format="turtle")
+    for predicate in [DCTERMS.creator, DCTERMS.publisher]:
+        assert (predicate, RDF.type, OWL.AnnotationProperty) in graph
 
 
 @pytest.mark.integration
