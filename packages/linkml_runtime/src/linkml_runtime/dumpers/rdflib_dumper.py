@@ -5,7 +5,7 @@ from typing import Any
 from curies import Converter
 from pydantic import BaseModel
 from rdflib import XSD, Graph, URIRef
-from rdflib.namespace import RDF
+from rdflib.namespace import RDF, RDFS
 from rdflib.term import BNode, Literal, Node
 
 from linkml_runtime.dumpers.dumper_root import Dumper
@@ -101,17 +101,19 @@ class RDFLibDumper(Dumper):
             else:
                 return Literal(element.text)
         if target_type in schemaview.all_types():
-            t = schemaview.get_type(target_type)
+            t = schemaview.induced_type(target_type)
             dt_uri = t.uri
             if dt_uri:
-                if dt_uri in ("rdfs:Resource", "xsd:anyURI"):
+                if "xsd" not in namespaces:
+                    namespaces["xsd"] = XSD
+                datatype = namespaces.uri_for(dt_uri)
+                uri_ancestry = any(name in ("uri", "uriorcurie") for name in schemaview.type_ancestors(target_type))
+                if datatype == RDFS.Resource or (datatype == XSD.anyURI and uri_ancestry):
                     return URIRef(schemaview.expand_curie(element))
-                elif dt_uri == "xsd:string":
+                elif datatype == XSD.string:
                     return Literal(element)
                 else:
-                    if "xsd" not in namespaces:
-                        namespaces["xsd"] = XSD
-                    return Literal(element, datatype=namespaces.uri_for(dt_uri))
+                    return Literal(element, datatype=datatype)
             else:
                 logger.warning(f"No datatype specified for : {t.name}, using plain Literal")
                 return Literal(element)

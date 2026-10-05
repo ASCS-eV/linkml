@@ -1290,8 +1290,8 @@ def test_xsd_anyuri_as_iri_owl_curie_unchanged():
     ``curie`` maps to ``xsd:string`` (not ``xsd:anyURI``), so the
     ``--xsd-anyuri-as-iri`` flag must not promote it to ObjectProperty.
     This verifies cross-generator consistency: the JSON-LD context generator
-    already correctly excludes ``curie`` via ``URI_RANGES_WITH_XSD``; the
-    OWL generator must match via ``is_xsd_anyuri_range()``.
+    already excludes ``curie``, and both generators decide by
+    ``is_xsd_anyuri_range()``.
     """
     from rdflib import OWL, RDF, URIRef
 
