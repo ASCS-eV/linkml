@@ -32,6 +32,7 @@ from linkml_runtime.linkml_model.meta import (
     ClassDefinitionName,
     ClassRule,
     Definition,
+    Element,
     EnumDefinition,
     EnumDefinitionName,
     PermissibleValue,
@@ -355,9 +356,9 @@ class OwlSchemaGenerator(Generator):
         fmt = "turtle" if self.format in ["owl", "ttl"] else self.format
         return canonicalize_rdf_graph(self.graph, output_format=fmt)
 
-    def add_metadata(self, e: Definition | PermissibleValue, uri: URIRef) -> None:
+    def add_metadata(self, e: Element | PermissibleValue, uri: URIRef) -> None:
         """
-        Add annotation properties.
+        Add annotation properties and explicit metaclass membership.
 
         Set the profile attribute to the appropriate OWL profile.
         Human-readable string literals are language-tagged when
@@ -372,6 +373,8 @@ class OwlSchemaGenerator(Generator):
         this_sv = self.schemaview
         sn_mappings = msv.slot_name_mappings()
         lang = self._resolve_language(e)
+
+        self._add_instantiates(e, uri)
 
         # iterate through all the assigned metamodel slots
         for metaslot_name, metaslot_value in vars(e).items():
@@ -1080,10 +1083,22 @@ class OwlSchemaGenerator(Generator):
         for mixin in slot.mixins:
             self.graph.add((slot_uri, RDFS.subPropertyOf, self._prop_uri(mixin)))
 
+    def _add_instantiates(self, element: Element | PermissibleValue, uri: URIRef) -> None:
+        """Type the emitted schema resource itself, without typing its data instances.
+
+        ``instantiates`` declares metaclass membership in LinkML. In OWL's RDF
+        mapping, class assertions are ``rdf:type`` triples; a resource also used
+        as an OWL class or property is interpreted separately as an individual.
+        """
+        for instantiated in element.instantiates:
+            self.graph.add((uri, RDF.type, URIRef(self.schemaview.expand_curie(instantiated))))
+
     def add_type(self, typ: TypeDefinition) -> None:
         type_uri = self._type_uri(typ.name)
         if typ.from_schema == "https://w3id.org/linkml/types":
             return
+
+        self._add_instantiates(typ, type_uri)
 
         if self.metaclasses:
             self.graph.add(
@@ -1196,6 +1211,8 @@ class OwlSchemaGenerator(Generator):
                 pv_node = Literal(pv.text)
                 if pv.meaning:
                     logger.warning(f"Meaning on literal {pv.text} in {e.name} is ignored")
+                if pv.instantiates:
+                    logger.warning(f"Instantiates on literal {pv.text} in {e.name} is ignored")
             else:
                 pv_node = self._permissible_value_uri(pv, enum_uri, e)
             pv_uris.append(pv_node)
