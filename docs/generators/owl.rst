@@ -140,6 +140,58 @@ References: `LinkML metamodel refinement
 `DCMI license guidance
 <https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#http://purl.org/dc/terms/license>`__.
 
+DCMI agent metadata
+^^^^^^^^^^^^^^^^^^^
+
+To name an agent by IRI, declare a ``nodeidentifier`` annotation. To record a
+name or other textual identifier, declare ``string``. This works for
+``dcterms:creator``, ``dcterms:contributor``, ``dcterms:publisher`` and
+``dcterms:rightsHolder`` through the same range conversion as custom properties:
+
+.. code-block:: yaml
+
+    id: https://example.org/model
+    name: model
+    prefixes:
+      ex: https://example.org/
+      linkml: https://w3id.org/linkml/
+      dcterms: http://purl.org/dc/terms/
+    imports: [linkml:types]
+    default_prefix: ex
+    instantiates: [ex:AgentMetadata]
+    annotations:
+      creator_label: The Example Team
+      publisher: ex:team
+    classes:
+      AgentMetadata:
+        attributes:
+          creator_label:
+            slot_uri: dcterms:creator
+            range: string
+          publisher:
+            slot_uri: dcterms:publisher
+            range: nodeidentifier
+
+The ontology header contains ``dcterms:creator "The Example Team"`` and
+``dcterms:publisher <https://example.org/team>``. A string declaration stays
+literal even when its value looks like a URL. For SHACL, put the same
+``instantiates`` and ``annotations`` on a class or slot to annotate its shape,
+with ``--include-annotations`` enabled.
+
+The current `DCMI definitions
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/>`__ use
+``rangeIncludes: Agent`` for these properties, a suggested range rather than
+an ``rdfs:range`` restriction. Creator and rights-holder guidance recommends
+URIs while permitting literal identifiers. These definitions do not prescribe
+a lexical heuristic for converting LinkML annotation strings into nodes.
+
+The standard ``contributors`` metamodel field already carries URI-or-CURIE
+identifiers; an annotation with the same RDF predicate needs its own declaration.
+Do not replace a textual creator with a URL just to trigger conversion, and do
+not put a person's name in a node-identifier field. Declaring the representation
+in the schema avoids another generator flag or a vocabulary-specific list.
+
+
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
