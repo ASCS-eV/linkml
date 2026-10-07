@@ -4911,6 +4911,23 @@ def _inner(**conditions: dict) -> dict:
             id="post-nested-fails",
         ),
         pytest.param(_IF_MODE_M, {"part": _DEPTH_AT_MOST_ZERO}, {"mode": "m"}, False, id="post-nested-absent"),
+        pytest.param(
+            _IF_MODE_M, {"part": _DEPTH_AT_MOST_ZERO}, {"mode": "m", "part": {}}, True, id="post-nested-inner-absent"
+        ),
+        pytest.param(
+            _IF_MODE_M,
+            {"parts": _DEPTH_AT_MOST_ZERO},
+            {"mode": "m", "parts": [{"depth": 0}, {"depth": -1}]},
+            True,
+            id="post-nested-every-member",
+        ),
+        pytest.param(
+            _IF_MODE_M,
+            {"parts": _DEPTH_AT_MOST_ZERO},
+            {"mode": "m", "parts": [{"depth": 0}, {"depth": 5}]},
+            False,
+            id="post-nested-one-member-fails",
+        ),
         # equals_string_in in a precondition and an inner condition
         pytest.param({"mode": {"equals_string_in": ["m", "n"]}}, _REQUIRE_NOTE, {"mode": "n"}, False, id="pre-in"),
         pytest.param({"mode": {"equals_string_in": ["m", "n"]}}, _REQUIRE_NOTE, {"mode": "x"}, True, id="pre-in-other"),
@@ -4957,6 +4974,9 @@ def test_compose_agrees_with_json_schema(pre, post, instance, valid, target_clas
         pytest.param({"note": {"value_presence": "ABSENT"}}, {"mode": "m"}, True, id="absent-met"),
         pytest.param({"note": {"equals_string": "n"}}, {"mode": "m"}, True, id="value-omitted"),
         pytest.param({"note": {"equals_string": "n"}}, {"mode": "m", "note": "x"}, False, id="value-other"),
+        pytest.param({"part": _DEPTH_AT_MOST_ZERO}, {"mode": "m"}, True, id="nested-omitted"),
+        pytest.param({"part": _DEPTH_AT_MOST_ZERO}, {"mode": "m", "part": {}}, True, id="nested-inner-absent"),
+        pytest.param({"part": _DEPTH_AT_MOST_ZERO}, {"mode": "m", "part": {"depth": 1}}, False, id="nested-other"),
     ],
 )
 @pytest.mark.parametrize("target_class", ["Thing", "SubThing"])
@@ -5208,6 +5228,25 @@ def test_compose_boolean_precondition_compared_by_value(flag, violates):
     assert focus_nodes == ({EX_COMP.x} if violates else set())
 
 
+@pytest.mark.parametrize(
+    "kind,violates",
+    [
+        pytest.param("ex:Special", False, id="meaning-iri"),
+        pytest.param('"Special"', True, id="permissible-value-text"),
+        pytest.param('"Plain"', True, id="other-value"),
+    ],
+)
+def test_compose_nested_postcondition_compares_enum_meaning(kind, violates):
+    """In a nested postcondition, an enum value with a ``meaning`` is compared as
+    that IRI, resolved on the range class, as ``rdflib_dumper`` writes it.  The
+    generated JSON-LD context leaves the values of this enum, which has a value
+    without a meaning, as strings, so the expectations are explicit."""
+    rule = _rule(_IF_MODE_M, {"part": _inner(kind={"equals_string": "Special"})})
+    data = f'{_COMP_PREFIXES}ex:x a ex:Thing ; ex:mode "m" ; ex:part ex:p . ex:p ex:kind {kind} .'
+    _, focus_nodes = _validate_rules(_compose_schema(rule), data)
+    assert focus_nodes == ({EX_COMP.x} if violates else set())
+
+
 # The numeric datatypes of SPARQL 1.1 §17.1, <https://www.w3.org/TR/sparql11-query/#operandDataTypes>.
 _SPARQL_NUMERIC_DATATYPES = [
     *("integer", "decimal", "float", "double"),
@@ -5400,6 +5439,11 @@ def test_compose_bound_fails_on_a_value_that_is_not_a_number(level, violates):
             _rule({"part": _inner(nope={"maximum_value": 0})}, _REQUIRE_NOTE),
             "'nope', which is not a slot",
             id="inner-unknown-slot",
+        ),
+        pytest.param(
+            _rule(_IF_MODE_M, {"site": _inner(id={"equals_string": "ex:s1"})}),
+            "its condition is on the identifier slot 'id'",
+            id="inner-identifier",
         ),
     ],
 )
