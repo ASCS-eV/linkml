@@ -138,6 +138,9 @@ false, as described under "Class-level expressions and absent slots" in
 A slot's `range_expression <https://w3id.org/linkml/range_expression>`_
 constrains each of its values in the same way, with its conditions on the slots
 of the value.
+A multivalued slot's `has_member <https://w3id.org/linkml/has_member>`_ becomes
+``contains``, and the slot is required, because a slot without a value has no
+member.
 The SHACL generator reads them the same way.
 
 Inlining

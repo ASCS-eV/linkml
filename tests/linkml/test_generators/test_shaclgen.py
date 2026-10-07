@@ -6198,15 +6198,15 @@ def test_classes_sharing_a_class_uri_carry_an_inherited_expression_once():
         pytest.param(
             None,
             {EX_CE.Parent: False, EX_CE.Child: False, EX_CE.GrandChild: False},
-            "Class 'Parent': any_of is not translated to SHACL, because it uses 'has_member' in the condition on "
+            "Class 'Parent': any_of is not translated to SHACL, because it uses 'all_members' in the condition on "
             "slot 'a' (in the shapes of 'Parent', 'Child', 'GrandChild').",
             id="untranslatable-everywhere",
         ),
         pytest.param(
             {"a": {"range": "integer"}},
             {EX_CE.Parent: True, EX_CE.Child: False, EX_CE.GrandChild: False},
-            "Class 'Parent': any_of is not translated to SHACL, because it uses equals_string on slot 'a', whose "
-            "range 'integer' does not hold strings (in the shapes of 'Child', 'GrandChild').",
+            "Class 'Parent': any_of is not translated to SHACL, because it uses equals_string in the condition on "
+            "slot 'a', whose range 'integer' does not hold strings (in the shapes of 'Child', 'GrandChild').",
             id="untranslatable-in-subclasses",
         ),
     ],
@@ -6216,7 +6216,7 @@ def test_untranslatable_inherited_class_expression_warned_once(caplog, child_usa
     shapes where it cannot, and reported once, naming them."""
     schema = yaml.safe_load(_INHERITED_CLASS_EXPRESSION_SCHEMA)
     schema["classes"]["Parent"]["any_of"] = (
-        [{"slot_conditions": {"a": {"has_member": {"equals_string": "x"}}}}]
+        [{"slot_conditions": {"a": {"all_members": {"equals_string": "x"}}}}]
         if child_usage is None
         else [{"slot_conditions": {"a": {"equals_string": "x"}}}]
     )
@@ -6248,7 +6248,7 @@ classes:
     any_of:
       - slot_conditions:
           tags:
-            has_member:
+            all_members:
               equals_string: x
       - slot_conditions:
           a:
@@ -6264,7 +6264,7 @@ classes:
 
     assert (EX_CE.Thing, SH["or"], None) not in g
     assert any(
-        "any_of" in rec.message and "has_member" in rec.message and "tags" in rec.message for rec in caplog.records
+        "any_of" in rec.message and "all_members" in rec.message and "tags" in rec.message for rec in caplog.records
     )
     # the translatable none_of is kept, and enforced
     shacl_ttl = g.serialize(format="turtle")
@@ -6984,14 +6984,14 @@ classes:
 
 _UNTRANSLATABLE_MEMBERS = {
     "untranslatable-second-member": (
-        "has_member",
+        "all_members",
         """
       - slot_conditions:
           a:
             required: true
       - slot_conditions:
           tags:
-            has_member:
+            all_members:
               equals_string: x""",
     ),
     "unknown-condition-range": (
@@ -7005,12 +7005,12 @@ _UNTRANSLATABLE_MEMBERS = {
             required: true""",
     ),
     "untranslatable-nested-member": (
-        "has_member",
+        "all_members",
         """
       - all_of:
           - slot_conditions:
               tags:
-                has_member:
+                all_members:
                   equals_string: x
       - slot_conditions:
           a:
