@@ -514,8 +514,9 @@ RDFC-1.0 numbers blank nodes sequentially (``_:c14n0``, ``_:c14n1``, ...) in
 canonical order. That is stable for a fixed graph, but inserting a single
 statement can shift the numbering of every blank node ordered after it, so an
 unrelated one-line schema edit may rewrite large parts of the file. Pass
-``--diff-stable`` to derive each label from the node's own neighbourhood
-instead, so that only the blank nodes an edit actually touches are renamed:
+``--diff-stable`` to derive labels from blank-node neighbourhoods instead,
+reducing label churn across edits. Connected or symmetric structures can still
+cause other labels to change; minimal diffs are not guaranteed:
 
 .. code:: bash
 
@@ -526,7 +527,7 @@ label differs. ``--diff-stable`` is off by default because turning it on
 relabels the blank nodes in existing output once.
 
 The same ``--diff-stable/--no-diff-stable`` option is available on ``gen-rdf``,
-``gen-shacl`` and ``gen-shex``.
+``gen-shacl`` and ``gen-shex --format rdf``.
 
 Graphs that are not standard RDF -- literal predicates, as produced by
 ``gen-shacl`` in annotation mode, or relative IRIs such as the metamodel's

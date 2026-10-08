@@ -3923,7 +3923,6 @@ def test_rule_shared_shape_reports_once():
 # ====================================================================
 
 
-
 _ENUM_NARROWING_SCHEMA_YAML = """
 id: https://example.org/enum-narrowing
 name: enum_narrowing_rules
@@ -4462,7 +4461,6 @@ def test_rule_equals_string_special_chars_escaped():
 # dropped the extra operator, which would widen the precondition (false
 # positives) or weaken the postcondition (false negatives).
 # ====================================================================
-
 
 
 @pytest.mark.parametrize(

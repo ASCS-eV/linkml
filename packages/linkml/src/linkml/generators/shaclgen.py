@@ -13,8 +13,8 @@ from rdflib.collection import Collection
 from rdflib.namespace import RDF, RDFS, SH, XSD
 
 from linkml._version import __version__
-from linkml.generators.common.class_expression import value_bounds
 from linkml.generators.common.annotations import declared_annotation
+from linkml.generators.common.class_expression import value_bounds
 from linkml.generators.common.subproperty import get_subproperty_values, is_uri_range, is_xsd_anyuri_range
 from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
@@ -24,8 +24,8 @@ from linkml_runtime.linkml_model.meta import (
     AnonymousClassExpression,
     AnonymousSlotExpression,
     ClassDefinition,
-    ClassRule,
     ClassExpression,
+    ClassRule,
     Element,
     ElementName,
     PresenceEnum,
@@ -1090,19 +1090,6 @@ class ShaclGenerator(Generator):
                     del self._rule_problems[key]
         self._warn_rule(site, f"skipped, because {reason}")
 
-    # Fields on a slot condition / class expression that carry no constraint
-    # semantics: they never change which instances satisfy the condition, so
-    # they are ignored by the operator accounting below.  Anything set on a
-    # condition that is neither here nor explicitly translated by a converter
-    # makes the rule untranslatable — the converters must SKIP such a rule
-    # rather than emit a query that silently drops a conjunct (which would
-    # widen the trigger or narrow the check: a mis-translation, not a skip).
-    # Derived from the metamodel: the metadata every ``element`` carries, minus
-    # anything that is a ``slot_expression`` operator.
-    _NON_OPERATOR_FIELDS = frozenset(f.name for f in fields(Element)) - frozenset(
-        f.name for f in fields(SlotExpression)
-    )
-
     # The lexical space of xsd:boolean and the value each lexical form maps to
     # (XML Schema 1.1 Part 2 §3.3.2.2, <https://www.w3.org/TR/xmlschema11-2/#boolean>),
     # as SPARQL boolean literals.
@@ -1114,33 +1101,6 @@ class ShaclGenerator(Generator):
         "its conditions match none of the translated patterns (presence implies value, exclusive value, "
         "and the compositional translation)"
     )
-
-    @classmethod
-    def _set_operator_fields(
-        cls, condition: SlotDefinition | AnonymousSlotExpression | AnonymousClassExpression
-    ) -> set[str]:
-        """Return the names of the constraint-bearing fields actually set on a
-        rule condition or class expression.
-
-        A field counts as *set* when it is not ``None`` and not an empty
-        collection (SchemaView materialises unset multivalued fields as empty
-        lists / dicts).  Scalars are never judged by truthiness, so legitimate
-        falsy constraints such as ``minimum_value: 0`` or
-        ``equals_string: ""`` still count as set.  Metadata fields
-        (:data:`_NON_OPERATOR_FIELDS`) are excluded.
-
-        The converters compare this set against the exact operator set they
-        translate and skip the rule on any mismatch, so an unrecognised (or
-        future-metamodel) operator can never be silently dropped.
-        """
-        return {
-            name
-            for name, value in vars(condition).items()
-            if not name.startswith("_")
-            and name not in cls._NON_OPERATOR_FIELDS
-            and value is not None
-            and not (isinstance(value, list | dict) and not value)
-        }
 
     def _rule_to_sparql(self, site: _RuleSite) -> str | None:
         """Translate the rule at *site* to a SPARQL SELECT query.
@@ -1623,36 +1583,6 @@ class ShaclGenerator(Generator):
             return sv.get_uri(slot, expand=True)
         return sv.expand_curie(f"{sv.schema.default_prefix}:{underscore(slot.name)}")
 
-    def _type_uri(self, r: ElementName | None) -> str | None:
-        """The expanded datatype IRI of type range *r*, or ``None`` when *r* is not a type.
-
-        Resolved through the induced type, so a type derived with ``typeof``
-        inherits the ``uri`` of its ancestor.  A built-in type name in a schema
-        that does not import ``linkml:types`` resolves as the main slot loop
-        resolves it (:class:`ShaclDataType`).
-        """
-        sv = self.schemaview
-        if r in sv.all_types():
-            return sv.get_uri(sv.induced_type(r), expand=True)
-        builtin = next((t for t in ShaclDataType if t.linkml_type == r), None)
-        return str(builtin.uri_ref) if builtin is not None else None
-
-    def _is_string_range(self, r: ElementName | None) -> bool:
-        """Whether a slot with range *r* holds strings, which ``equals_string`` compares against.
-
-        True for an enum, whose permissible values are rendered as their
-        ``meaning`` IRI or as a plain literal (as :meth:`_add_enum` renders
-        them); for a type whose datatype is ``xsd:string``, whose values are
-        plain literals; and for no range at all, whose values are untyped and
-        compared as strings, as the JSON Schema generator compares them.  A
-        type with any other datatype, including one derived from ``string``
-        (``xsd:anyURI``, ``xsd:token``, ...), holds typed literals or IRIs
-        that a string literal does not match.
-        """
-        if r is None or r in self.schemaview.all_enums():
-            return True
-        return self._type_uri(r) == str(XSD.string)
-
     def _value_terms(self, site: _RuleSite, slot: SlotDefinition, values: list[str]) -> list[str] | None:
         """The SPARQL terms of the equals_string(_in) *values* on *slot*, or ``None`` (rule skipped).
 
@@ -1865,18 +1795,6 @@ class ShaclGenerator(Generator):
         if self.suffix:
             range_ref += self.suffix
         func(SH["node"], URIRef(range_ref))
-
-    def _slot_iri(self, slot: SlotDefinition) -> str:
-        """The full IRI of *slot*, exactly as ``sh:path`` in the main slot loop renders it.
-
-        An induced slot carries its ``slot_usage`` overrides, so an overridden
-        ``slot_uri`` yields the same IRI as ``sh:path``; otherwise the query
-        would use a property the data never uses and never fire.
-        """
-        sv = self.schemaview
-        if slot.name in sv.element_by_schema_map():
-            return sv.get_uri(slot, expand=True)
-        return sv.expand_curie(f"{sv.schema.default_prefix}:{underscore(slot.name)}")
 
     def _add_range(self, g: Graph, func: Callable, r: ElementName) -> None:
         """Add the value-type constraint for range *r*: a class, type, enum or built-in datatype."""
