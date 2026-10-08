@@ -5,6 +5,7 @@ Generate JSON-LD contexts
 import json
 import os
 import re
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -14,18 +15,15 @@ from jsonasobj2 import JsonObj, as_json
 from rdflib import SKOS, XSD, Namespace
 
 from linkml._version import __version__
+from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecated_fields
-from linkml.utils.generator import Generator, shared_arguments
-from linkml_runtime.linkml_model.meta import ClassDefinition, EnumDefinition, SlotDefinition
+from linkml.utils.generator import Generator, shared_arguments, well_known_prefix_map
+from linkml_runtime.linkml_model.meta import ClassDefinition, EnumDefinition, Prefix, SlotDefinition
 from linkml_runtime.linkml_model.types import SHEX
 from linkml_runtime.utils.formatutils import camelcase, underscore
 from linkml_runtime.utils.schemaview import SchemaView
 
 URI_RANGES = (SHEX.nonliteral, SHEX.bnode, SHEX.iri)
-
-# Extended URI_RANGES that also treats xsd:anyURI as an IRI reference (@id)
-# rather than a typed literal. Opt-in via --xsd-anyuri-as-iri flag.
-URI_RANGES_WITH_XSD = (*URI_RANGES, XSD.anyURI)
 
 ENUM_CONTEXT = {
     "text": "skos:notation",
@@ -83,8 +81,11 @@ class ContextGenerator(Generator):
     """Map xsd:anyURI-typed ranges (uri, uriorcurie) to ``@type: @id`` instead of ``@type: xsd:anyURI``.
 
     This aligns the JSON-LD context with the SHACL generator, which emits
-    ``sh:nodeKind sh:IRI`` for the same types.
+    ``sh:nodeKind sh:IRI`` for the same types. Types derived from ``uri`` or
+    ``uriorcurie`` follow them; a type derived from ``string`` that declares
+    ``uri: xsd:anyURI`` stays a typed literal, as in the OWL generator.
     """
+    _type_view_cache: SchemaView | None = field(default=None, repr=False)
 
     # Framing (opt-in via CLI flag)
     emit_frame: bool = False
@@ -93,6 +94,9 @@ class ContextGenerator(Generator):
     frame_root: str | None = None
 
     def __post_init__(self) -> None:
+        # Must be set before super().__post_init__() because the parent triggers
+        # the visitor pattern (visit_schema), which accesses _prefix_remap.
+        self._prefix_remap: dict[str, str] = {}
         super().__post_init__()
         if self.namespaces is None:
             raise TypeError("Schema text must be supplied to context generator.  Preparsed schema will not work")
@@ -130,14 +134,82 @@ class ContextGenerator(Generator):
                 external_slots.update(schema_def.slots.keys())
         return external_classes, external_slots
 
+    def add_prefix(self, ncname: str) -> None:
+        """Add a prefix, applying well-known prefix normalisation when enabled."""
+        super().add_prefix(self._prefix_remap.get(ncname, ncname))
+
     def visit_schema(self, base: str | Namespace | None = None, output: str | None = None, **_):
-        # Add any explicitly declared prefixes
+        # Add any explicitly declared prefixes.
+        # Direct .add() is safe here: the normalisation block below explicitly
+        # rewrites emit_prefixes entries for any renamed prefixes (Cases 1-3).
         for prefix in self.schema.prefixes.values():
             self.emit_prefixes.add(prefix.prefix_prefix)
 
         # Add any prefixes explicitly declared
         for pfx in self.schema.emit_prefixes:
             self.add_prefix(pfx)
+
+        # Normalise well-known prefix names when --normalize-prefixes is set.
+        # If the schema declares a non-standard alias for a namespace that has
+        # a well-known standard name (e.g. ``sdo`` for
+        # ``https://schema.org/``), replace the alias with the standard name
+        # so that generated JSON-LD contexts use the conventional prefix.
+        #
+        # Three cases are handled:
+        # 1. Standard prefix is not yet bound → just rebind from old to new.
+        # 2. Standard prefix is bound to a *different* URI:
+        #    a. User-declared (in schema.prefixes) → collision, skip with warning.
+        #    b. Runtime default (e.g. linkml-runtime's ``schema: http://…``)
+        #       → remove stale binding, then rebind.
+        # 3. Standard prefix is already bound to the *same* URI (duplicate)
+        #    → just drop the non-standard alias.
+        #
+        # A remap dict is stored for ``_build_element_id`` because
+        # ``prefix_suffix()`` splits CURIEs on ``:`` without looking up the
+        # namespace dict.
+        self._prefix_remap.clear()
+        if self.normalize_prefixes:
+            wk = well_known_prefix_map()
+            for old_pfx in list(self.namespaces):
+                url = str(self.namespaces[old_pfx])
+                std_pfx = wk.get(url)
+                if not std_pfx or std_pfx == old_pfx:
+                    continue
+                if std_pfx in self.namespaces:
+                    if str(self.namespaces[std_pfx]) != url:
+                        # Case 2: std_pfx is bound to a different URI.
+                        # If the user explicitly declared std_pfx in the schema,
+                        # it is intentional — skip to avoid data loss.
+                        if std_pfx in self.schema.prefixes:
+                            self.logger.warning(
+                                "Prefix collision: cannot rename '%s' to '%s' because '%s' is "
+                                "already declared for <%s>; skipping normalisation for <%s>",
+                                old_pfx,
+                                std_pfx,
+                                std_pfx,
+                                str(self.namespaces[std_pfx]),
+                                url,
+                            )
+                            continue
+                        # Not user-declared (e.g. linkml-runtime default) — safe to remove
+                        self.emit_prefixes.discard(std_pfx)
+                        del self.namespaces[std_pfx]
+                    else:
+                        # Case 3: standard prefix already bound to same URI
+                        # — just drop the non-standard alias
+                        del self.namespaces[old_pfx]
+                        if old_pfx in self.emit_prefixes:
+                            self.emit_prefixes.discard(old_pfx)
+                            self.emit_prefixes.add(std_pfx)
+                        self._prefix_remap[old_pfx] = std_pfx
+                        continue
+                # Case 1 (or Case 2 after stale removal): bind standard name
+                self.namespaces[std_pfx] = self.namespaces[old_pfx]
+                del self.namespaces[old_pfx]
+                if old_pfx in self.emit_prefixes:
+                    self.emit_prefixes.discard(old_pfx)
+                    self.emit_prefixes.add(std_pfx)
+                self._prefix_remap[old_pfx] = std_pfx
 
         # Add the default prefix
         if self.schema.default_prefix:
@@ -146,6 +218,8 @@ class ContextGenerator(Generator):
                 self.default_ns = dflt
             if self.default_ns:
                 default_uri = self.namespaces[self.default_ns]
+                # Direct .add() is safe: default_ns is already resolved from
+                # the (possibly normalised) namespace bindings above.
                 self.emit_prefixes.add(self.default_ns)
             else:
                 default_uri = self.schema.default_prefix
@@ -297,7 +371,6 @@ class ContextGenerator(Generator):
         and "could not resolve safely because the branches disagree".
         """
         coercions: set[str | None] = set()
-        uri_ranges = URI_RANGES_WITH_XSD if self.xsd_anyuri_as_iri else URI_RANGES
         for range_name in ranges:
             if range_name not in self.schema.types:
                 continue
@@ -306,7 +379,7 @@ class ContextGenerator(Generator):
             range_uri = self.namespaces.uri_for(range_type.uri)
             if range_uri == XSD.string:
                 coercions.add(None)
-            elif range_uri in uri_ranges:
+            elif self._coerces_to_id(range_name):
                 coercions.add("@id")
             else:
                 coercions.add(range_type.uri)
@@ -316,6 +389,35 @@ class ContextGenerator(Generator):
         if len(coercions) == 1:
             return True, next(iter(coercions))
         return False, None
+
+    def _coerces_to_id(self, range_name: str) -> bool:
+        """Whether values of the LinkML type *range_name* are IRIs (``@type: @id``) rather than literals.
+
+        The ShEx node types always are. ``xsd:anyURI`` is, with ``--xsd-anyuri-as-iri``, only
+        for ``uri``, ``uriorcurie`` and types derived from them, the same rule the OWL
+        generator applies (:func:`is_xsd_anyuri_range`). A type derived from ``string`` that
+        declares ``uri: xsd:anyURI`` is a typed literal: a URI reference kept as a string, which
+        must not be resolved against the document base.
+        """
+        range_uri = self.namespaces.uri_for(self.schema.types[range_name].uri)
+        if range_uri in URI_RANGES:
+            return True
+        return self.xsd_anyuri_as_iri and range_uri == XSD.anyURI and is_xsd_anyuri_range(self._type_view(), range_name)
+
+    def _type_view(self) -> SchemaView:
+        """A SchemaView of the schema, for type ancestry; built once when the generator has none."""
+        if self.schemaview is not None:
+            return self.schemaview
+        if self._type_view_cache is None:
+            # SchemaLoader already resolved the imports; source_file is only
+            # provenance and may no longer name an available file.
+            type_schema = deepcopy(self.schema)
+            type_schema.imports = []
+            for prefix, namespace in self.namespaces.items():
+                if not prefix.startswith("@"):
+                    type_schema.prefixes[prefix] = Prefix(prefix, str(namespace))
+            self._type_view_cache = SchemaView(type_schema)
+        return self._type_view_cache
 
     def _vocab_eligible_enum(self, enum: EnumDefinition) -> tuple[bool, str | None]:
         """Check if an enum qualifies for ``@type: @vocab`` context generation.
@@ -412,10 +514,9 @@ class ContextGenerator(Generator):
                     self.emit_prefixes.add(skos)
                 else:
                     range_type = self.schema.types[slot.range]
-                    uri_ranges = URI_RANGES_WITH_XSD if self.xsd_anyuri_as_iri else URI_RANGES
                     if self.namespaces.uri_for(range_type.uri) == XSD.string:
                         pass
-                    elif self.namespaces.uri_for(range_type.uri) in uri_ranges:
+                    elif self._coerces_to_id(slot.range):
                         slot_def["@type"] = "@id"
                     else:
                         slot_def["@type"] = range_type.uri
@@ -429,7 +530,12 @@ class ContextGenerator(Generator):
                 self._build_element_id(slot_def, slot.slot_uri)
                 self.add_mappings(slot)
         if slot_def:
-            if self.use_curies:
+            if slot.identifier:
+                # Identifier slots map to the JSON-LD @id keyword. The context key
+                # must be the slot *name* (the term used in instance data), not a
+                # CURIE — even when --use-curies is enabled.
+                key = underscore(aliased_slot_name)
+            elif self.use_curies:
                 key = self._curie(slot)
             else:
                 key = underscore(aliased_slot_name)
@@ -480,7 +586,7 @@ class ContextGenerator(Generator):
             self._build_element_id(entry, global_slot.slot_uri)
             if override_type is not None:
                 entry["@type"] = override_type
-            if self.use_curies:
+            if self.use_curies and not global_slot.identifier:
                 scoped[self._curie(global_slot)] = entry
             else:
                 scoped[underscore(slot_name)] = entry
@@ -509,6 +615,11 @@ class ContextGenerator(Generator):
         @return: None
         """
         uri_prefix, uri_suffix = self.namespaces.prefix_suffix(uri)
+        # Apply well-known prefix normalisation (e.g. sdo → schema).
+        # prefix_suffix() splits CURIEs on ':' without checking the
+        # namespace dict, so it may return a stale alias.
+        if uri_prefix and uri_prefix in self._prefix_remap:
+            uri_prefix = self._prefix_remap[uri_prefix]
         is_default_namespace = uri_prefix == self.context_body["@vocab"] or uri_prefix == self.namespaces.prefix_for(
             self.context_body["@vocab"]
         )

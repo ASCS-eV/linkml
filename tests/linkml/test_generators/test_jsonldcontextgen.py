@@ -4,6 +4,7 @@ import textwrap
 
 import pytest
 from click.testing import CliRunner
+from rdflib import Graph, Literal, URIRef
 
 from linkml.generators import ContextGenerator, JSONLDGenerator
 from linkml.generators.jsonldcontextgen import ContextGenerator as FrameContextGenerator
@@ -1290,8 +1291,8 @@ def test_xsd_anyuri_as_iri_owl_curie_unchanged():
     ``curie`` maps to ``xsd:string`` (not ``xsd:anyURI``), so the
     ``--xsd-anyuri-as-iri`` flag must not promote it to ObjectProperty.
     This verifies cross-generator consistency: the JSON-LD context generator
-    already correctly excludes ``curie`` via ``URI_RANGES_WITH_XSD``; the
-    OWL generator must match via ``is_xsd_anyuri_range()``.
+    already excludes ``curie``, and both generators decide by
+    ``is_xsd_anyuri_range()``.
     """
     from rdflib import OWL, RDF, URIRef
 
@@ -1669,3 +1670,238 @@ def test_kitchen_sink_employment_event_type_falls_back(kitchen_sink_path):
         slot_def = ctx["employed_at"]
         if isinstance(slot_def, dict) and "@context" in slot_def:
             assert "@vocab" not in slot_def.get("@context", {})
+
+
+@pytest.mark.parametrize("use_curies", [True, False])
+def test_identifier_slot_aliases_id(tmp_path, use_curies):
+    """Identifier slots without slot_uri must alias @id.
+
+    The context key must be the slot name (term used in instance data), NOT a
+    CURIE, even with --use-curies enabled. An identifier slot's value is the
+    node's subject IRI and does not produce a predicate triple.
+
+    This is a regression test for issue #4056.
+    """
+    schema_file = tmp_path / "identifier_test.yaml"
+    schema_file.write_text(
+        textwrap.dedent(
+            """            id: https://example.org/identifier-test
+            name: identifier-test
+            prefixes:
+              linkml: https://w3id.org/linkml/
+              ex: https://example.org/identifier-test/
+            imports:
+              - linkml:types
+            default_prefix: ex
+            default_range: string
+            classes:
+              MyClass:
+                attributes:
+                  id:
+                    identifier: true
+                    range: string
+                    required: true
+            """
+        )
+    )
+    generator = ContextGenerator(str(schema_file), mergeimports=True, use_curies=use_curies)
+    ctx = json.loads(generator.serialize())["@context"]
+    assert ctx.get("id") == "@id"
+    # no CURIE alias should be emitted for the identifier
+    assert not any(k.endswith(":id") for k in ctx)
+
+
+@pytest.mark.parametrize("use_curies", [True, False])
+def test_identifier_slot_with_slot_uri_aliases_id(tmp_path, use_curies):
+    """Identifier slots with slot_uri must still alias @id (slot_uri is ignored).
+
+    Even when a slot_uri is declared on an identifier slot, the context must
+    still map the slot name to @id and NOT emit the slot_uri as an alias.
+    This is consistent with LinkML's RDF semantics: identifier values become
+    the node subject IRI only; no predicate triple is emitted.
+    """
+    schema_file = tmp_path / "identifier_slot_uri_test.yaml"
+    schema_file.write_text(
+        textwrap.dedent(
+            """            id: https://example.org/identifier-slot-uri-test
+            name: identifier-slot-uri-test
+            prefixes:
+              linkml: https://w3id.org/linkml/
+              ex: https://example.org/identifier-slot-uri-test/
+              sh: http://www.w3.org/ns/shacl#
+            imports:
+              - linkml:types
+            default_prefix: ex
+            default_range: string
+            classes:
+              MyClass:
+                attributes:
+                  id:
+                    identifier: true
+                    range: string
+                    required: true
+                    slot_uri: sh:focusNode
+            """
+        )
+    )
+    generator = ContextGenerator(str(schema_file), mergeimports=True, use_curies=use_curies)
+    ctx = json.loads(generator.serialize())["@context"]
+    assert ctx.get("id") == "@id"
+    # no slot_uri key should appear, even with use_curies
+    assert "sh:focusNode" not in ctx
+    assert "focusNode" not in ctx
+    # no CURIE alias should be emitted for the identifier
+    assert not any(k.endswith(":id") for k in ctx)
+
+
+@pytest.mark.parametrize("use_curies", [True, False])
+def test_identifier_context_round_trips_to_rdf(tmp_path, use_curies):
+    """Data keyed per the generated context yields triples with the identifier as subject.
+
+    Regression test for https://github.com/linkml/linkml/issues/4056: a CURIE-keyed
+    ``@id`` alias is invalid JSON-LD 1.1, and rdflib silently produced no triples.
+    """
+    schema_file = tmp_path / "identifier_test.yaml"
+    schema_file.write_text(
+        textwrap.dedent(
+            """            id: https://example.org/identifier-test
+            name: identifier-test
+            prefixes:
+              linkml: https://w3id.org/linkml/
+              ex: https://example.org/identifier-test/
+            imports:
+              - linkml:types
+            default_prefix: ex
+            default_range: string
+            classes:
+              MyClass:
+                attributes:
+                  id:
+                    identifier: true
+                  name: {}
+            """
+        )
+    )
+    ctx = json.loads(ContextGenerator(str(schema_file), mergeimports=True, use_curies=use_curies).serialize())
+    name_key = "ex:name" if use_curies else "name"
+    doc = {**ctx, "id": "ex:thing1", name_key: "n"}
+
+    graph = Graph().parse(data=json.dumps(doc), format="json-ld")
+
+    ex = "https://example.org/identifier-test/"
+    assert set(graph) == {(URIRef(ex + "thing1"), URIRef(ex + "name"), Literal("n"))}
+
+
+def test_normalize_prefixes_renames_nonstandard_alias(tmp_path):
+    """When --normalize-prefixes is set, non-standard aliases are replaced by rdflib defaults.
+
+    rdflib binds ``dc`` to ``http://purl.org/dc/elements/1.1/`` by default.
+    A schema that declares ``dce`` for the same URI should have it normalised
+    to ``dc`` when the flag is enabled.
+
+    See: rdflib default namespace bindings.
+    """
+    schema = tmp_path / "schema.yaml"
+    schema.write_text(
+        """\
+id: https://example.org/test
+name: test_normalize
+default_prefix: ex
+prefixes:
+  ex: https://example.org/
+  linkml: https://w3id.org/linkml/
+  dce: http://purl.org/dc/elements/1.1/
+imports:
+  - linkml:types
+classes:
+  Record:
+    class_uri: ex:Record
+    attributes:
+      title:
+        range: string
+        slot_uri: dce:title
+""",
+        encoding="utf-8",
+    )
+
+    # Flag OFF (default): non-standard alias preserved
+    ctx_off = json.loads(ContextGenerator(str(schema), normalize_prefixes=False).serialize())["@context"]
+    assert "dce" in ctx_off, "With flag off, original prefix 'dce' must be preserved"
+
+    # Flag ON: rdflib default name used
+    ctx_on = json.loads(ContextGenerator(str(schema), normalize_prefixes=True).serialize())["@context"]
+    assert "dc" in ctx_on, "With flag on, 'dce' should be normalised to 'dc'"
+    assert "dce" not in ctx_on, "With flag on, original alias 'dce' should be removed"
+    assert ctx_on["dc"] == "http://purl.org/dc/elements/1.1/"
+
+
+def test_normalize_prefixes_default_is_off(tmp_path):
+    """The --normalize-prefixes flag defaults to False — no prefix renaming.
+
+    Ensures backward compatibility: existing schemas produce identical output.
+    """
+    schema = tmp_path / "schema.yaml"
+    schema.write_text(
+        """\
+id: https://example.org/test
+name: test_default
+default_prefix: ex
+prefixes:
+  ex: https://example.org/
+  linkml: https://w3id.org/linkml/
+  sdo: https://schema.org/
+imports:
+  - linkml:types
+classes:
+  Thing:
+    class_uri: sdo:Thing
+    attributes:
+      name:
+        range: string
+        slot_uri: sdo:name
+""",
+        encoding="utf-8",
+    )
+
+    ctx = json.loads(ContextGenerator(str(schema)).serialize())["@context"]
+    # Without the flag, the schema's own prefix name must be preserved
+    assert "sdo" in ctx, "Default behavior must preserve schema-declared prefix 'sdo'"
+
+
+def test_normalize_prefixes_curie_remapping(tmp_path):
+    """CURIEs in element @id values use the normalised prefix name.
+
+    When ``sdo`` is normalised to ``schema``, slot URIs like ``sdo:name``
+    must appear as ``schema:name`` in the generated context.
+    """
+    schema = tmp_path / "schema.yaml"
+    schema.write_text(
+        """\
+id: https://example.org/test
+name: test_curie
+default_prefix: ex
+prefixes:
+  ex: https://example.org/
+  linkml: https://w3id.org/linkml/
+  sdo: https://schema.org/
+imports:
+  - linkml:types
+classes:
+  Person:
+    class_uri: sdo:Person
+    attributes:
+      full_name:
+        range: string
+        slot_uri: sdo:name
+""",
+        encoding="utf-8",
+    )
+
+    ctx = json.loads(ContextGenerator(str(schema), normalize_prefixes=True).serialize())["@context"]
+    # The prefix declaration must use the standard name
+    assert "schema" in ctx, "Normalised prefix 'schema' must appear"
+    # Element @id must use the normalised prefix
+    person = ctx.get("Person", {})
+    assert person.get("@id", "").startswith("schema:"), (
+        f"Person @id should use normalised prefix 'schema:', got {person}"
+    )

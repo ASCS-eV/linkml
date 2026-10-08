@@ -67,6 +67,150 @@ Mapping
 
 .. note:: The current default settings for ``metaclasses`` and ``type-objects`` may change in the future
 
+Prefix normalization
+^^^^^^^^^^^^^^^^^^^^
+
+Schemas sometimes declare non-standard aliases for well-known namespaces
+(e.g. ``sh1:`` for the SHACL namespace, or a versioned alias for ``skos:``).
+By default these aliases are carried through into the generated artifact.
+
+Use ``--normalize-prefixes`` to remap declared prefixes whose namespace IRI
+matches a well-known vocabulary to that vocabulary's conventional name in the
+output (``owl``, ``rdf``, ``rdfs``, ``skos``, ``sh``, ``xsd``, ...):
+
+.. code:: bash
+
+   gen-owl --normalize-prefixes schema.yaml
+
+The mapping is a static, version-independent table; namespace IRIs that are
+not in the table are left untouched. The option is also available on
+``gen-shacl`` and ``gen-jsonld-context``.
+
+Declared annotation values
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+An annotation property name does not determine whether its value is a literal
+or an RDF node. For example, ``rdfs:Resource`` includes literals, and OWL permits
+both IRIs and literals as annotation values. The generator does not maintain a
+list of vocabulary properties whose string values should be changed into IRIs.
+
+Use LinkML's metamodel extension mechanism to declare the distinction. An
+``instantiates`` reference identifies a metaclass whose slots describe the
+annotations on that schema element. ``nodeidentifier`` denotes an IRI, CURIE or
+blank node; ``string`` denotes text, even when the text looks like a URL:
+
+.. code-block:: yaml
+
+    id: https://example.org/model
+    name: model
+    prefixes:
+      ex: https://example.org/
+      linkml: https://w3id.org/linkml/
+      owl: http://www.w3.org/2002/07/owl#
+    imports: [linkml:types]
+    default_prefix: ex
+    instantiates: [ex:OntologyMetadata]
+    annotations:
+      prior_version: ex:previous
+      version_label: https://example.org/a-textual-label
+    classes:
+      OntologyMetadata:
+        attributes:
+          prior_version:
+            slot_uri: owl:priorVersion
+            range: nodeidentifier
+          version_label:
+            slot_uri: owl:versionInfo
+            range: string
+
+The ontology has ``owl:priorVersion <https://example.org/previous>`` and
+``owl:versionInfo "https://example.org/a-textual-label"``. The same mechanism
+works for custom properties and annotations on classes, slots, local types,
+enums and non-literal permissible values. Metaclass inheritance and imported
+metaclasses are supported. Tags may be slot names, CURIEs or full slot IRIs.
+
+The SHACL generator uses the same conversion when its existing
+``--include-annotations`` option is enabled. Those annotations describe shapes;
+they do not add constraints to ordinary data instances. Schema RDF and JSON-LD
+serialization retain the LinkML annotation objects and their declarations;
+they do not project annotations onto ontology properties as this generator does.
+
+Declared scalar ranges determine term representation. ``curie`` expands to an
+IRI, ``nodeidentifier`` allows IRIs and blank nodes, and XSD datatypes produce
+literals. In particular, ``xsd:anyURI`` alone does not mean an IRI node. Use
+``nodeidentifier`` when that distinction matters; no new generator flag is
+required. Language tags apply to textual literals only.
+
+This is serialization of declared scalar annotations, not complete metamodel
+extension validation. Structured values, non-type ranges and boolean range
+expressions currently raise an error rather than guessing a term. Conflicting
+metaclass declarations also raise an error. Unresolved external metaclasses and
+undeclared tags retain each generator's existing behavior; a declaration must
+be available locally or through a schema import to determine the RDF term.
+Ordinary string-valued metamodel fields such as ``license`` retain their
+metamodel representation. An explicit annotation declaration is required for
+an IRI-valued alternative; avoid assigning the same property in both forms
+unless both RDF values are intended.
+
+References: `LinkML metamodel refinement
+<https://linkml.io/linkml-model/latest/docs/specification/05validation/>`__,
+`OWL annotation values <https://www.w3.org/TR/owl2-syntax/#Annotations>`__,
+`RDF Schema resources <https://www.w3.org/TR/rdf-schema/#ch_resource>`__, and
+`DCMI license guidance
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#http://purl.org/dc/terms/license>`__.
+
+DCMI agent metadata
+^^^^^^^^^^^^^^^^^^^
+
+To name an agent by IRI, declare a ``nodeidentifier`` annotation. To record a
+name or other textual identifier, declare ``string``. This works for
+``dcterms:creator``, ``dcterms:contributor``, ``dcterms:publisher`` and
+``dcterms:rightsHolder`` through the same range conversion as custom properties:
+
+.. code-block:: yaml
+
+    id: https://example.org/model
+    name: model
+    prefixes:
+      ex: https://example.org/
+      linkml: https://w3id.org/linkml/
+      dcterms: http://purl.org/dc/terms/
+    imports: [linkml:types]
+    default_prefix: ex
+    instantiates: [ex:AgentMetadata]
+    annotations:
+      creator_label: The Example Team
+      publisher: ex:team
+    classes:
+      AgentMetadata:
+        attributes:
+          creator_label:
+            slot_uri: dcterms:creator
+            range: string
+          publisher:
+            slot_uri: dcterms:publisher
+            range: nodeidentifier
+
+The ontology header contains ``dcterms:creator "The Example Team"`` and
+``dcterms:publisher <https://example.org/team>``. A string declaration stays
+literal even when its value looks like a URL. For SHACL, put the same
+``instantiates`` and ``annotations`` on a class or slot to annotate its shape,
+with ``--include-annotations`` enabled.
+
+The current `DCMI definitions
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/>`__ use
+``rangeIncludes: Agent`` for these properties, a suggested range rather than
+an ``rdfs:range`` restriction. Creator and rights-holder guidance recommends
+URIs while permitting literal identifiers. These definitions do not prescribe
+a lexical heuristic for converting LinkML annotation strings into nodes.
+
+The standard ``contributors`` metamodel field already carries URI-or-CURIE
+identifiers; an annotation with the same RDF predicate needs its own declaration.
+Do not replace a textual creator with a URL just to trigger conversion, and do
+not put a person's name in a node-identifier field. Declaring the representation
+in the schema avoids another generator flag or a vocabulary-specific list.
+
+
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -134,6 +278,52 @@ You can control enum and permissible value representation directly in your schem
             description: A literal value
             implements:
               - rdfs:Literal
+
+**Metaclass membership with ``instantiates``** - This LinkML field types a schema
+element itself; it does not add slots or type that element's data instances. The OWL
+generator maps each declared membership to ``rdf:type`` on the emitted resource.
+The mapping applies consistently to schemas, classes, slots, locally emitted types,
+enums, and non-literal permissible values. No additional option is required: the
+schema already declares the relationship.
+
+For example, a permissible value represented as a named individual can declare
+membership in an external vocabulary class:
+
+.. code-block:: yaml
+
+    enums:
+      LinkCategory:
+        implements:
+          - owl:NamedIndividual
+        permissible_values:
+          isLicense:
+            meaning: ex:isLicense
+            instantiates:
+              - vocab:LicenseCategory
+
+.. code-block:: turtle
+
+    ex:isLicense a owl:NamedIndividual, ex:LinkCategory, vocab:LicenseCategory .
+
+For an enum of named individuals, its own class still uses ``owl:oneOf``; this does
+not close the external class. A permissible value rendered as an OWL class retains
+that representation and also participates as an individual in the membership
+assertion (OWL punning). Membership does not become ``rdfs:subClassOf`` and is not
+inherited by instances of the emitted class. ``instantiates`` is ignored, with a
+warning, on a permissible value rendered as a literal, because RDF literals cannot
+be subjects of ``rdf:type`` triples.
+
+``gen-rdf`` and ``gen-jsonld`` serialize the schema as metamodel data and retain
+``linkml:instantiates``. ``gen-owl`` translates that declaration into ontology
+membership. Instance validators such as JSON Schema and SHACL must not apply the
+schema element's metaclass to ordinary data instances.
+
+See the `LinkML instantiation guide
+<https://linkml.io/linkml/howtos/implements-instantiates-guide.html#instantiates-metamodel-extension>`_,
+the `instantiates metamodel definition
+<https://linkml.io/linkml-model/latest/docs/instantiates/>`_, and the OWL 2
+specifications for `metamodeling <https://www.w3.org/TR/owl2-syntax/#Metamodeling>`_
+and `mapping class assertions to RDF <https://www.w3.org/TR/owl2-mapping-to-rdf/>`_.
 
 **Using URIs vs. text for permissible values:**
 
@@ -309,6 +499,49 @@ Other examples
 
 - `Biolink <https://bioportal.bioontology.org/ontologies/BIOLINK>`_ :
   translation of Biolink schema to OWL
+
+
+Deterministic output
+^^^^^^^^^^^^^^^^^^^^
+
+``gen-owl`` output is deterministic by default. The graph is canonicalized with
+`RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_ before serialization, so repeated
+runs over the same schema -- and any two isomorphic graphs -- produce
+byte-identical Turtle. No flag is needed, and checked-in artifacts do not churn
+between runs.
+
+RDFC-1.0 numbers blank nodes sequentially (``_:c14n0``, ``_:c14n1``, ...) in
+canonical order. That is stable for a fixed graph, but inserting a single
+statement can shift the numbering of every blank node ordered after it, so an
+unrelated one-line schema edit may rewrite large parts of the file. Pass
+``--diff-stable`` to derive labels from blank-node neighbourhoods instead,
+reducing label churn across edits. Connected or symmetric structures can still
+cause other labels to change; minimal diffs are not guaranteed:
+
+.. code:: bash
+
+   gen-owl --diff-stable schema.yaml
+
+Both modes are deterministic and yield isomorphic graphs; only the choice of
+label differs. ``--diff-stable`` is off by default because turning it on
+relabels the blank nodes in existing output once.
+
+The same ``--diff-stable/--no-diff-stable`` option is available on ``gen-rdf``,
+``gen-shacl`` and ``gen-shex --format rdf``.
+
+Graphs that are not standard RDF -- literal predicates, as produced by
+``gen-shacl`` in annotation mode, or relative IRIs such as the metamodel's
+``bibo:status <testing>`` -- cannot be canonicalized under RDFC-1.0. Those fall
+back to plain rdflib serialization, with blank-node labels canonicalized by
+``rdflib.compare.to_canonical_graph``. Those labels are content-derived rather
+than run-local, so the fallback remains reproducible across processes. It emits
+an ``RDFCanonicalizationWarning``, and ``--diff-stable`` has no effect on that
+path -- it warns rather than silently ignoring the request.
+
+Canonicalization itself is implemented by the
+`diffable-rdf <https://github.com/ASCS-eV/diffable-rdf>`_ library;
+``linkml_runtime.utils.rdf_canonicalize.canonicalize_rdf_graph`` is a thin
+adapter that re-emits the library's log warnings as Python warnings.
 
 
 Docs

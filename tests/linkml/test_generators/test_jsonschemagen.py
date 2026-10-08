@@ -278,6 +278,12 @@ def test_multivalued_element_constraints(subtests, input_path):
     external_file_test(subtests, input_path("jsonschema_multivalued_element_constraints.yaml"))
 
 
+def test_multivalued_has_member(subtests, input_path):
+    """Tests that has_member asks for a value satisfying its expression, which an empty or absent list lacks."""
+
+    external_file_test(subtests, input_path("jsonschema_multivalued_has_member.yaml"))
+
+
 def test_collection_forms(subtests, input_path):
     """Tests that expanded, compact, and simple dicts can be validated"""
 
@@ -1785,3 +1791,347 @@ def test_top_class_matches_regardless_of_case(tmp_path):
 
     assert schema["additionalProperties"] is False
     assert "name" in schema["properties"]
+
+
+IDENTIFIER_CURIES_SCHEMA = """
+id: https://example.org/identifier-test
+name: identifier-test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/identifier-test/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  id:
+    identifier: true
+  name: {}
+classes:
+  MyClass:
+    slots: [id, name]
+    rules:
+      - preconditions:
+          slot_conditions:
+            name:
+              equals_string: x
+        postconditions:
+          slot_conditions:
+            id:
+              pattern: "^ex:"
+"""
+
+
+@pytest.mark.parametrize("use_curies", [True, False])
+def test_identifier_property_keeps_slot_name(tmp_path, use_curies):
+    """Identifier properties are keyed by slot name, with or without ``--use-curies``.
+
+    Regression test for https://github.com/linkml/linkml/issues/4056: the identifier
+    maps to the JSON-LD ``@id`` alias, which cannot be CURIE-keyed, so the JSON Schema
+    must key it the same way the JSON-LD context does. Other slots still use CURIEs.
+    """
+    schema_file = tmp_path / "identifier_test.yaml"
+    schema_file.write_text(IDENTIFIER_CURIES_SCHEMA)
+    generated = json.loads(JsonSchemaGenerator(str(schema_file), use_curies=use_curies).serialize())
+    cls_def = generated["$defs"]["ex:MyClass" if use_curies else "MyClass"]
+    name_key = "ex:name" if use_curies else "name"
+
+    assert set(cls_def["properties"]) == {"id", name_key}
+    assert cls_def["required"] == ["id"]
+    assert cls_def["then"]["properties"] == {"id": {"pattern": "^ex:"}}
+    assert cls_def["then"]["required"] == ["id"]
+
+    instance = {"id": "ex:thing1", name_key: "x"}
+    jsonschema.validate(instance, {**generated, "$ref": f"#/$defs/{'ex:MyClass' if use_curies else 'MyClass'}"})
+
+
+_CLASS_EXPRESSION_INHERITANCE_SCHEMA = """
+id: https://example.org/class-expressions
+name: class_expressions
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/class-expressions/
+imports:
+  - linkml:types
+default_prefix: ex
+default_range: string
+slots:
+  a: {}
+  b: {}
+classes:
+  Marker:
+    mixin: true
+    none_of:
+      - slot_conditions:
+          a:
+            equals_string: forbidden
+  Parent:
+    slots: [a, b]
+    any_of:
+      - slot_conditions:
+          a:
+            required: true
+      - slot_conditions:
+          b:
+            required: true
+  Child:
+    is_a: Parent
+    mixins: [Marker]
+  GrandChild:
+    is_a: Child
+"""
+
+
+@pytest.mark.parametrize("target_class", ["Parent", "Child", "GrandChild"])
+@pytest.mark.parametrize(
+    "instance,valid_for_parent,valid_for_marker_users",
+    [
+        pytest.param({"a": "1"}, True, True, id="a"),
+        pytest.param({"b": "2"}, True, True, id="b"),
+        pytest.param({}, False, False, id="neither"),
+        pytest.param({"a": "forbidden"}, True, False, id="forbidden-by-mixin"),
+    ],
+)
+def test_class_expressions_apply_to_subclasses(target_class, instance, valid_for_parent, valid_for_marker_users):
+    """A class expression constrains every instance of its class, so the
+    definitions of its subclasses, and of the classes using a mixin, carry it."""
+    json_schema = json.loads(
+        JsonSchemaGenerator(_CLASS_EXPRESSION_INHERITANCE_SCHEMA, top_class=target_class).serialize()
+    )
+    expected = valid_for_parent if target_class == "Parent" else valid_for_marker_users
+    assert jsonschema.Draft7Validator(json_schema).is_valid(instance) == expected
+
+
+_TWO_ABSENT_RULE_SCHEMA = """
+id: https://example.org/absent
+name: absent
+prefixes:
+  linkml: https://w3id.org/linkml/
+imports:
+  - linkml:types
+default_range: string
+classes:
+  Thing:
+    attributes:
+      trigger: {}
+      a: {}
+      b: {}
+    rules:
+      - preconditions:
+          slot_conditions:
+            trigger:
+              value_presence: PRESENT
+        postconditions:
+          slot_conditions:
+            a:
+              value_presence: ABSENT
+            b:
+              value_presence: ABSENT
+"""
+
+
+@pytest.mark.parametrize(
+    "instance,valid",
+    [
+        pytest.param({"trigger": "t"}, True, id="neither"),
+        pytest.param({"trigger": "t", "a": "x"}, False, id="one"),
+        pytest.param({"trigger": "t", "a": "x", "b": "y"}, False, id="both"),
+        pytest.param({"a": "x", "b": "y"}, True, id="not-triggered"),
+    ],
+)
+def test_several_absent_slots_each_must_be_absent(instance, valid):
+    """value_presence: ABSENT on several slots of one expression requires each
+    to be absent, not merely that they aren't all present."""
+    json_schema = json.loads(JsonSchemaGenerator(_TWO_ABSENT_RULE_SCHEMA, top_class="Thing").serialize())
+    assert jsonschema.Draft7Validator(json_schema).is_valid(instance) == valid
+
+
+@pytest.mark.parametrize("tags,valid", [(["A"], True), (["A", "B"], False), ([], True)])
+def test_class_expression_condition_uses_the_induced_slot(tags, valid):
+    """A condition constrains the slot as induced for the class, so a
+    slot_usage that makes it multivalued applies the condition to every value."""
+    schema = """
+id: https://example.org/induced
+name: induced
+prefixes:
+  linkml: https://w3id.org/linkml/
+imports:
+  - linkml:types
+default_range: string
+slots:
+  tags: {}
+classes:
+  Thing:
+    slots: [tags]
+    slot_usage:
+      tags:
+        multivalued: true
+    all_of:
+      - slot_conditions:
+          tags:
+            equals_string: A
+"""
+    json_schema = json.loads(JsonSchemaGenerator(schema, top_class="Thing").serialize())
+    assert jsonschema.Draft7Validator(json_schema).is_valid({"tags": tags}) == valid
+
+
+def _inlined_dict_schema(
+    key_slot_yaml: str,
+    key_decl: str = "identifier: true",
+    key_range: str = "string",
+    extra_yaml: str = "",
+) -> str:
+    """Build a schema with an inlined-as-dict slot whose key slot is configured by
+    ``key_decl`` (``identifier: true`` or ``key: true``), ``key_range`` (the key slot
+    range), and ``key_slot_yaml`` (extra YAML lines for the key slot). ``extra_yaml`` is
+    appended at the top level, for declaring extra ``types``/``enums``."""
+    return f"""
+id: https://example.org/test-key-constraints
+name: test-key-constraints
+prefixes:
+  linkml: https://w3id.org/linkml/
+default_range: string
+imports:
+  - linkml:types
+{extra_yaml}
+classes:
+  Container:
+    tree_root: true
+    attributes:
+      entries:
+        range: Entry
+        multivalued: true
+        inlined: true
+        inlined_as_list: false
+  Entry:
+    attributes:
+      key:
+        {key_decl}
+        range: {key_range}
+{key_slot_yaml}
+      val:
+        range: string
+"""
+
+
+@pytest.mark.parametrize("key_decl", ["identifier: true", "key: true"])
+def test_inlined_dict_key_pattern_emits_property_names(key_decl):
+    """A literal ``pattern`` on the inlined-dict key slot (identifier or key) must be
+    rendered onto ``propertyNames``."""
+    schema = _inlined_dict_schema('        pattern: "^[0-9]+$"', key_decl=key_decl)
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+    assert generated["properties"]["entries"]["propertyNames"] == {"pattern": "^[0-9]+$"}
+
+
+def test_inlined_dict_key_enum_emits_property_names():
+    """``equals_string_in`` on the key slot becomes an ``enum`` constraint on keys."""
+    schema = _inlined_dict_schema("        equals_string_in:\n          - a\n          - b")
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+    assert generated["properties"]["entries"]["propertyNames"] == {"enum": ["a", "b"]}
+
+
+def test_inlined_dict_no_key_constraint_emits_no_property_names():
+    """No constraint on the key slot -> no ``propertyNames`` (unchanged behavior)."""
+    schema = _inlined_dict_schema("")
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+    assert "propertyNames" not in generated["properties"]["entries"]
+
+
+def test_inlined_dict_key_structured_pattern_emits_property_names():
+    """``structured_pattern`` on the key slot is resolved and rendered onto
+    ``propertyNames`` -- identical to how value patterns are handled."""
+    schema = _inlined_dict_schema("        structured_pattern:\n          syntax: '[0-9]+'")
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+
+    key_pattern = generated["$defs"]["Entry"]["properties"]["key"]["pattern"]
+    assert generated["properties"]["entries"]["propertyNames"] == {"pattern": key_pattern}
+    jsonschema.validate({"entries": {"12": {"val": "x"}}}, generated)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"entries": {"bad-key": {"val": "x"}}}, generated)
+
+
+def test_inlined_dict_property_names_rejects_nonmatching_keys():
+    """Behavioral check: keys matching the pattern validate; non-matching keys fail."""
+    schema = _inlined_dict_schema('        pattern: "^[0-9]+$"')
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+
+    jsonschema.validate({"entries": {"0": {"val": "x"}}}, generated)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"entries": {"bad-key": {"val": "x"}}}, generated)
+
+
+def test_inlined_dict_key_string_const_emits_property_names():
+    """A string ``const`` (``equals_string``) on the key slot becomes a key const."""
+    schema = _inlined_dict_schema("        equals_string: fixed")
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+    assert generated["properties"]["entries"]["propertyNames"] == {"const": "fixed"}
+    jsonschema.validate({"entries": {"fixed": {"val": "x"}}}, generated)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"entries": {"other": {"val": "x"}}}, generated)
+
+
+def test_inlined_dict_key_numeric_const_is_not_emitted():
+    """A numeric ``const`` (``equals_number``) must NOT be emitted onto propertyNames:
+    keys are always strings, so a numeric const would reject every key. The keys are
+    left unconstrained instead."""
+    schema = _inlined_dict_schema("        equals_number: 5", key_range="integer")
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+    assert "propertyNames" not in generated["properties"]["entries"]
+    # numeric-looking string keys still validate (unconstrained)
+    jsonschema.validate({"entries": {"5": {"val": "x"}}}, generated)
+    jsonschema.validate({"entries": {"anything": {"val": "x"}}}, generated)
+
+
+def test_inlined_dict_key_numeric_bounds_are_not_emitted():
+    """Numeric ``minimum``/``maximum`` on the key slot are no-ops on string keys and
+    must not be emitted (they would be misleading clutter)."""
+    schema = _inlined_dict_schema("        minimum_value: 1\n        maximum_value: 10", key_range="integer")
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+    assert "propertyNames" not in generated["properties"]["entries"]
+
+
+@pytest.mark.parametrize(
+    ("key_range", "extra_yaml"),
+    [
+        ("ncname", ""),
+        ("DigitString", "types:\n  DigitString:\n    typeof: string\n    pattern: '^[0-9]+$'"),
+    ],
+    ids=["base-implied-pattern", "user-defined-type-pattern"],
+)
+def test_inlined_dict_key_type_pattern_emits_property_names(key_range, extra_yaml):
+    """A pattern inherited from the key slot's *type* constrains the identifier value just
+    as a slot-level pattern does, so it must reach ``propertyNames`` too. The emitted key
+    pattern is exactly the one applied to the identifier inside the value object, so keys
+    and the (optional) in-object identifier are validated identically."""
+    schema = _inlined_dict_schema("", key_range=key_range, extra_yaml=extra_yaml)
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+
+    value_key_pattern = generated["$defs"]["Entry__identifier_optional"]["properties"]["key"]["pattern"]
+    assert generated["properties"]["entries"]["propertyNames"] == {"pattern": value_key_pattern}
+
+
+def test_inlined_dict_key_enum_range_emits_no_property_names():
+    """A key slot whose range is a LinkML *enum* is compiled to a ``$ref`` on the value
+    side; ``get_value_constraints_for_slot`` reports no string-applicable constraint for
+    it, so no ``propertyNames`` is emitted and the keys stay unconstrained."""
+    schema = _inlined_dict_schema(
+        "", key_range="Colour", extra_yaml="enums:\n  Colour:\n    permissible_values:\n      red:\n      green:"
+    )
+    generated = json.loads(JsonSchemaGenerator(schema).serialize())
+    assert "propertyNames" not in generated["properties"]["entries"]
+
+
+def test_inlined_dict_key_constraints_helper_drops_non_string_values():
+    """``get_key_constraints_for_slot`` keeps only string-applicable keywords, regardless
+    of which upstream constraint produced them: a numeric ``const`` or a non-string
+    ``enum`` would reject every key, so both are dropped."""
+    schema = _inlined_dict_schema("")
+    generator = JsonSchemaGenerator(schema)
+    generator.generate()
+
+    slot = SlotDefinition("key", pattern="^[0-9]+$")
+    assert generator.get_key_constraints_for_slot(slot) == {"pattern": "^[0-9]+$"}
+
+    assert generator.get_key_constraints_for_slot(SlotDefinition("key", equals_number=5)) == {}
+    assert generator.get_key_constraints_for_slot(SlotDefinition("key", minimum_value=1)) == {}
+    assert generator.get_key_constraints_for_slot(None) == {}

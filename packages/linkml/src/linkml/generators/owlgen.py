@@ -19,9 +19,10 @@ from rdflib.plugin import plugins as rdflib_plugins
 
 from linkml import METAMODEL_NAMESPACE_NAME
 from linkml._version import __version__
+from linkml.generators.common.annotations import declared_annotation
 from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml.utils.deprecation import deprecation_warning
-from linkml.utils.generator import Generator, shared_arguments
+from linkml.utils.generator import Generator, normalize_graph_prefixes, shared_arguments
 from linkml.utils.language_tags import LanguageTagResolver
 from linkml_runtime import SchemaView
 from linkml_runtime.linkml_model.meta import (
@@ -32,6 +33,7 @@ from linkml_runtime.linkml_model.meta import (
     ClassDefinitionName,
     ClassRule,
     Definition,
+    Element,
     EnumDefinition,
     EnumDefinitionName,
     PermissibleValue,
@@ -122,6 +124,9 @@ class OwlSchemaGenerator(Generator):
     """Suffix to add to the schema name to create the ontology URI, e.g. .owl.ttl"""
 
     # ObjectVars
+    diff_stable: bool = False
+    """Reduce blank-node label churn. See :ref:`rdf-in-version-control`."""
+
     metadata_profile: MetadataProfile | None = None
     """Deprecated - use metadata_profiles."""
 
@@ -316,6 +321,10 @@ class OwlSchemaGenerator(Generator):
             self.graph.bind(prefix, self.metamodel.namespaces[prefix])
         for pfx in schema.prefixes.values():
             self.graph.namespace_manager.bind(pfx.prefix_prefix, URIRef(pfx.prefix_reference))
+        if self.normalize_prefixes:
+            normalize_graph_prefixes(
+                graph, {str(v.prefix_prefix): str(v.prefix_reference) for v in schema.prefixes.values()}
+            )
         graph.add((base, RDF.type, OWL.Ontology))
 
         # Add main schema elements
@@ -353,11 +362,11 @@ class OwlSchemaGenerator(Generator):
         """
         self.as_graph()
         fmt = "turtle" if self.format in ["owl", "ttl"] else self.format
-        return canonicalize_rdf_graph(self.graph, output_format=fmt)
+        return canonicalize_rdf_graph(self.graph, output_format=fmt, diff_stable=self.diff_stable)
 
-    def add_metadata(self, e: Definition | PermissibleValue, uri: URIRef) -> None:
+    def add_metadata(self, e: Element | PermissibleValue, uri: URIRef) -> None:
         """
-        Add annotation properties.
+        Add annotation properties and explicit metaclass membership.
 
         Set the profile attribute to the appropriate OWL profile.
         Human-readable string literals are language-tagged when
@@ -372,6 +381,8 @@ class OwlSchemaGenerator(Generator):
         this_sv = self.schemaview
         sn_mappings = msv.slot_name_mappings()
         lang = self._resolve_language(e)
+
+        self._add_instantiates(e, uri)
 
         # iterate through all the assigned metamodel slots
         for metaslot_name, metaslot_value in vars(e).items():
@@ -421,8 +432,18 @@ class OwlSchemaGenerator(Generator):
                     obj = Literal(v)
                 self.graph.add((uri, metaslot_uri, obj))
 
+        self._add_annotations(e, uri)
+
+    def _add_annotations(self, e: Element | PermissibleValue, uri: URIRef) -> None:
+        """Emit explicit annotations on any generated schema resource."""
+        this_sv = self.schemaview
+        lang = self._resolve_language(e)
         for k, v in e.annotations.items():
             if isinstance(v, dict) or isinstance(v, list):
+                continue
+            declared = declared_annotation(this_sv, e, k, v.value, lang)
+            if declared is not None:
+                self.graph.add((uri, *declared))
                 continue
             if ":" not in k:
                 default_prefix = this_sv.schema.default_prefix
@@ -1080,11 +1101,23 @@ class OwlSchemaGenerator(Generator):
         for mixin in slot.mixins:
             self.graph.add((slot_uri, RDFS.subPropertyOf, self._prop_uri(mixin)))
 
+    def _add_instantiates(self, element: Element | PermissibleValue, uri: URIRef) -> None:
+        """Type the emitted schema resource itself, without typing its data instances.
+
+        ``instantiates`` declares metaclass membership in LinkML. In OWL's RDF
+        mapping, class assertions are ``rdf:type`` triples; a resource also used
+        as an OWL class or property is interpreted separately as an individual.
+        """
+        for instantiated in element.instantiates:
+            self.graph.add((uri, RDF.type, URIRef(self.schemaview.expand_curie(instantiated))))
+
     def add_type(self, typ: TypeDefinition) -> None:
         type_uri = self._type_uri(typ.name)
         if typ.from_schema == "https://w3id.org/linkml/types":
             return
 
+        self._add_instantiates(typ, type_uri)
+        self._add_annotations(typ, type_uri)
         if self.metaclasses:
             self.graph.add(
                 (
@@ -1196,6 +1229,8 @@ class OwlSchemaGenerator(Generator):
                 pv_node = Literal(pv.text)
                 if pv.meaning:
                     logger.warning(f"Meaning on literal {pv.text} in {e.name} is ignored")
+                if pv.instantiates:
+                    logger.warning(f"Instantiates on literal {pv.text} in {e.name} is ignored")
             else:
                 pv_node = self._permissible_value_uri(pv, enum_uri, e)
             pv_uris.append(pv_node)
@@ -1842,6 +1877,15 @@ class OwlSchemaGenerator(Generator):
         "(e.g. en, de, zh-Hans).  When set, rdfs:label, rdfs:comment, "
         "skos:definition and other text annotations are emitted with the "
         "specified language tag.  Element-level in_language overrides this."
+    ),
+)
+@click.option(
+    "--diff-stable/--no-diff-stable",
+    default=False,
+    show_default=True,
+    help=(
+        "Reduce blank-node label churn across edits. See "
+        "https://linkml.io/linkml/howtos/collaborative-development.html#rdf-in-version-control"
     ),
 )
 @click.version_option(__version__, "-V", "--version")
