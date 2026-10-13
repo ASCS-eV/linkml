@@ -883,7 +883,10 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">use_curies</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;If true, use class_uri/slot_uri CURIEs instead of calculated URIs.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If true, use class_uri/slot_uri CURIEs for class definitions and non-identifier</span>
+<span class="sd">    slot properties. Identifier properties retain their slot-name aliases so they</span>
+<span class="sd">    remain consistent with the JSON-LD ``@id`` alias.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">materialize_patterns</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1090,14 +1093,17 @@
 
         <span class="n">subschema</span> <span class="o">=</span> <span class="n">JsonSchema</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">slot</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">slot_conditions</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_curies</span><span class="p">:</span>
+            <span class="c1"># Anonymous slot expressions don&#39;t carry the underlying slot&#39;s `identifier` or</span>
+            <span class="c1"># `multivalued` flags, so look them up on the schema&#39;s slot definition.</span>
+            <span class="n">base_slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">name</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="c1"># Identifier slots retain their slot-name alias, matching the direct</span>
+            <span class="c1"># class-slot path and the JSON-LD @id context entry.</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_curies</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">base_slot</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">base_slot</span><span class="o">.</span><span class="n">identifier</span><span class="p">):</span>
                 <span class="n">prop_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_curie</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">prop_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">aliased_slot_name</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
             <span class="n">prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_subschema_for_slot</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">omit_type</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">include_null</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="c1"># Anonymous slot expressions don&#39;t carry the underlying slot&#39;s `multivalued` flag,</span>
-            <span class="c1"># so look it up on the schema&#39;s slot definition and wrap so item-level constraints apply.</span>
-            <span class="n">base_slot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">name</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="c1"># Wrap multivalued slots so item-level constraints apply.</span>
             <span class="k">if</span> <span class="n">base_slot</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">base_slot</span><span class="o">.</span><span class="n">multivalued</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">prop</span><span class="o">.</span><span class="n">is_array</span><span class="p">:</span>
                 <span class="n">prop</span> <span class="o">=</span> <span class="n">JsonSchema</span><span class="o">.</span><span class="n">array_of</span><span class="p">(</span><span class="n">prop</span><span class="p">,</span> <span class="n">include_null</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
             <span class="n">value_required</span> <span class="o">=</span> <span class="kc">False</span>
@@ -1189,8 +1195,10 @@
         <span class="n">slot_is_inlined</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">is_inlined</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">all_types</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="n">schema_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">induced_type</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">range</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">base</span><span class="p">:</span>
-                <span class="p">(</span><span class="n">typ</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span> <span class="o">=</span> <span class="n">json_schema_types</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">schema_type</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="p">(</span><span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+            <span class="c1"># Types without an explicit base have no more specific JSON Schema</span>
+            <span class="c1"># representation available, so treat them like other unknown bases.</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">if</span> <span class="n">schema_type</span><span class="o">.</span><span class="n">base</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+            <span class="p">(</span><span class="n">typ</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span> <span class="o">=</span> <span class="n">json_schema_types</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
         <span class="k">elif</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">all_enums</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="n">reference</span> <span class="o">=</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span>
         <span class="k">elif</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">all_classes</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
@@ -1434,7 +1442,8 @@
         <span class="p">)</span>
         <span class="n">value_disallowed</span> <span class="o">=</span> <span class="n">slot</span><span class="o">.</span><span class="n">value_presence</span> <span class="o">==</span> <span class="n">PresenceEnum</span><span class="p">(</span><span class="n">PresenceEnum</span><span class="o">.</span><span class="n">ABSENT</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_curies</span><span class="p">:</span>
+        <span class="c1"># Identifier properties are the JSON-LD @id alias; never CURIE-key them.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_curies</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">slot</span><span class="o">.</span><span class="n">identifier</span><span class="p">:</span>
             <span class="n">prop_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_curie</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">prop_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">aliased_slot_name</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
@@ -1675,7 +1684,8 @@
     <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
     <span class="n">show_default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="n">help</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
-<span class="s2">Instead of using the element names, use the corresponding CURIEs, based on the corresponding class_uri/slot_uri</span>
+<span class="s2">Use CURIEs based on class_uri/slot_uri for class definitions and non-identifier slot properties.</span>
+<span class="s2">Identifier properties retain their slot-name aliases to match the JSON-LD @id alias.</span>
 <span class="s2">&quot;&quot;&quot;</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
