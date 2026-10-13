@@ -504,44 +504,22 @@ Other examples
 Deterministic output
 ^^^^^^^^^^^^^^^^^^^^
 
-``gen-owl`` output is deterministic by default. The graph is canonicalized with
-`RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_ before serialization, so repeated
-runs over the same schema -- and any two isomorphic graphs -- produce
-byte-identical Turtle. No flag is needed, and checked-in artifacts do not churn
+``gen-owl`` canonicalizes the graph with `RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_
+before serializing it. For standard RDF, repeated runs over the same schema
+therefore produce byte-identical Turtle, and checked-in artifacts do not change
 between runs.
 
-RDFC-1.0 numbers blank nodes sequentially (``_:c14n0``, ``_:c14n1``, ...) in
-canonical order. That is stable for a fixed graph, but inserting a single
-statement can shift the numbering of every blank node ordered after it, so an
-unrelated one-line schema edit may rewrite large parts of the file. Pass
-``--diff-stable`` to derive labels from blank-node neighbourhoods instead,
-reducing label churn across edits. Connected or symmetric structures can still
-cause other labels to change; minimal diffs are not guaranteed:
+RDFC-1.0 numbers blank nodes in canonical order (``_:c14n0``, ``_:c14n1``, ...),
+so adding a statement can renumber unrelated blank nodes. ``--diff-stable``
+derives labels from blank-node neighbourhoods instead, which reduces this churn
+but does not guarantee minimal diffs; see :ref:`rdf-in-version-control`. The
+option is also available on ``gen-rdf``, ``gen-shacl`` and
+``gen-shex --format rdf``.
 
-.. code:: bash
-
-   gen-owl --diff-stable schema.yaml
-
-Both modes are deterministic and yield isomorphic graphs; only the choice of
-label differs. ``--diff-stable`` is off by default because turning it on
-relabels the blank nodes in existing output once.
-
-The same ``--diff-stable/--no-diff-stable`` option is available on ``gen-rdf``,
-``gen-shacl`` and ``gen-shex --format rdf``.
-
-Graphs that are not standard RDF -- literal predicates, as produced by
-``gen-shacl`` in annotation mode, or relative IRIs such as the metamodel's
-``bibo:status <testing>`` -- cannot be canonicalized under RDFC-1.0. Those fall
-back to plain rdflib serialization, with blank-node labels canonicalized by
-``rdflib.compare.to_canonical_graph``. Those labels are content-derived rather
-than run-local, so the fallback remains reproducible across processes. It emits
-an ``RDFCanonicalizationWarning``, and ``--diff-stable`` has no effect on that
-path -- it warns rather than silently ignoring the request.
-
-Canonicalization itself is implemented by the
-`diffable-rdf <https://github.com/ASCS-eV/diffable-rdf>`_ library;
-``linkml_runtime.utils.rdf_canonicalize.canonicalize_rdf_graph`` is a thin
-adapter that re-emits the library's log warnings as Python warnings.
+Graphs that are not standard RDF, such as the metamodel with its relative IRI
+``bibo:status <testing>``, cannot be canonicalized under RDFC-1.0. They are
+serialized by rdflib instead, with an ``RDFCanonicalizationWarning``, and
+``--diff-stable`` has no effect on them.
 
 
 Docs
