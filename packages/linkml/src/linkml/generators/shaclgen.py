@@ -414,8 +414,6 @@ class ShaclGenerator(Generator):
                             )
 
                     self._add_range(g, prop_pv, r)
-                    if s.pattern:
-                        prop_pv(SH.pattern, Literal(s.pattern))
                     if s.equals_string:
                         # Map equal_string and equal_string_in to sh:in
                         self._and_equals_string(g, prop_pv, [s.equals_string])
@@ -430,6 +428,8 @@ class ShaclGenerator(Generator):
                     self._add_range_expression(g, prop_pv, c, s, s.range, s.range_expression)
                 if s.has_member is not None:
                     self._add_member(g, prop_pv, c, s)
+                if s.pattern:
+                    prop_pv(SH.pattern, Literal(s.pattern))
 
                 if s.annotations and self.include_annotations:
                     self._add_annotations(prop_pv, s)
