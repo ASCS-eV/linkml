@@ -1,40 +1,23 @@
-"""Deterministic RDF serialization, delegated to the ``diffable-rdf`` library.
+"""Deterministic RDF serialization, provided by the ``diffable-rdf`` library.
 
-This module used to carry the implementation. It was extracted into
-`diffable-rdf <https://github.com/ASCS-eV/diffable-rdf>`_ at the maintainers'
-request (linkml/linkml#3295: *"the implementation should live elsewhere ...
-independent rdflib sidecar library?"*), and this module is now a thin adapter
-over it. :func:`canonicalize_rdf_graph` keeps its signature, so nothing that
-imports it needs to change.
+The graph is canonicalized with RDFC-1.0, sorted, and serialized. Graphs that
+pyoxigraph cannot hold -- literal predicates from SHACL annotation mode, or
+relative IRIs such as the metamodel's ``bibo:status <testing>`` -- fall back to
+rdflib with content-derived blank-node labels, which is still reproducible
+across processes. The library's ``docs/api.md`` documents the full contract
+and its limitations.
 
-The adapter exists for one reason: the two projects report degraded output
-differently. The library logs through the ``logging`` module, which is silent
-unless the application configured a handler. linkml deliberately uses
-:func:`warnings.warn` so a schema author running ``gen-owl`` sees that the
-output took a fallback path without having to opt in to logging first. So the
-library's warnings are captured and re-emitted as
-:class:`RDFCanonicalizationWarning`.
-
-What the library does, in short: the graph is transferred to pyoxigraph via
-N-Triples, canonicalized with RDFC-1.0, sorted, and serialized back. Graphs
-pyoxigraph refuses -- literal predicates from SHACL annotation mode, relative
-IRIs such as the metamodel's ``bibo:status <testing>`` -- fall back to rdflib
-with blank-node labels canonicalized by :func:`rdflib.compare.to_canonical_graph`,
-which is content-derived rather than run-local, so the fallback is still
-reproducible across processes. The full contract, including the limitations
-that used to be listed here (``xsd:string`` normalization, numeric short forms,
-base/prefix collisions, ``PN_LOCAL`` escaping), is documented in the library's
-``docs/api.md``.
-
-Delegating also adopts nine correctness fixes the extracted copy received and
-this one never did, two of them silent data corruption. Each is pinned by a
-test in ``tests/linkml_runtime/test_utils/test_rdf_canonicalize_defects.py``.
+This module adapts the library's reporting: the library logs degraded output
+through :mod:`logging`, which is silent without a configured handler, while
+linkml emits :class:`RDFCanonicalizationWarning` so that a user running a
+generator sees it by default.
 """
 
 import logging
 import warnings
 
 import rdflib
+from diffable_rdf import canonicalize_rdf_graph as _canonicalize_rdf_graph
 
 
 class RDFCanonicalizationWarning(UserWarning):
@@ -122,22 +105,14 @@ def canonicalize_rdf_graph(
     :param graph: The rdflib Graph to serialize.
     :param output_format: Target serialization format (e.g. ``"turtle"``, ``"nt"``).
     :param diff_stable: Use diffable-rdf labels to reduce blank-node churn across
-        edits. Disabled by default; diffable-rdf is installed with the runtime. The
-        non-standard RDF fallback warns when it cannot apply these labels.
+        edits. Disabled by default. The non-standard RDF fallback warns when it
+        cannot apply these labels.
         See https://linkml.io/linkml/howtos/collaborative-development.html#rdf-in-version-control
     :return: Deterministic string serialization of the graph.
-    :raises ImportError: If diffable-rdf is unavailable, with an installation command.
     :raises ValueError: If the graph cannot be serialized to ``output_format``
         in a form that parses back -- notably a line-oriented format asked to
         write a relative IRI, which N-Triples forbids.
     """
-    try:
-        from diffable_rdf import canonicalize_rdf_graph as _canonicalize_rdf_graph
-    except ImportError as exc:
-        raise ImportError(
-            "diffable-rdf is required for RDF serialization. Install with: pip install 'linkml-runtime[diff-stable]'"
-        ) from exc
-
     # Frames between warnings.warn and this function's caller are counted in
     # _DegradedPathWarnings.__exit__, which is where the re-emission happens.
     with _DegradedPathWarnings():

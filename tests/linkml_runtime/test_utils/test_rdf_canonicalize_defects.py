@@ -1,24 +1,11 @@
-"""Correctness properties shared by linkml's RDF canonicalizer and the library behind it.
+"""Correctness properties of RDF canonicalization, asserted through both entry points.
 
-``linkml_runtime.utils.rdf_canonicalize`` and
-``diffable_rdf.canonicalize_rdf_graph`` are the same code: the module was
-extracted into a standalone library at the maintainers' request
-(linkml/linkml#3295). The two copies then diverged for a while, and this file
-is what made the divergence visible -- each test asserts one correctness
-property against *both* implementations, so a fix that landed on one side and
-not the other showed up as a failure rather than as nothing at all.
-
-Nine properties held only in the library, two of them cases of silent data
-corruption where the output parsed cleanly and said something the input never
-said. One held only in linkml: the library dropped ``@base`` on the degraded
-path. Asserting both directions is what got each of them fixed where it
-belonged -- the ``@base`` gap in diffable-rdf 0.4.0, the other nine in linkml
-by deleting the in-tree copy and calling the library.
-
-Every case is now unmarked, which is the point: the file is the evidence that
-the delegation changed no behaviour it should not have, and it keeps running
-against both entry points so that a future divergence fails the suite instead
-of going unnoticed.
+``linkml_runtime.utils.rdf_canonicalize.canonicalize_rdf_graph`` delegates to
+``diffable_rdf.canonicalize_rdf_graph``. Each test asserts one property --
+for example that a base IRI ending in ``#`` does not rewrite other IRIs, that a
+shared ``rdf:List`` tail is not duplicated, or that output is byte-identical
+across processes -- against both functions, so that the adapter cannot change
+what the library guarantees.
 """
 
 import os

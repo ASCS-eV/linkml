@@ -9,7 +9,6 @@ import subprocess
 import sys
 import textwrap
 import warnings
-from collections.abc import Callable
 from pathlib import Path
 
 import pyoxigraph as ox
@@ -614,27 +613,6 @@ def _changed_line_count(before: str, after: str) -> int:
 
     diff = difflib.unified_diff(before.splitlines(), after.splitlines(), n=0, lineterm="")
     return sum(1 for line in diff if line[:1] in "+-" and not line.startswith(("+++", "---")))
-
-
-def test_diff_stable_without_the_extra_names_the_extra(mock_missing_import) -> None:
-    """Requesting the opt-in path without diffable-rdf says how to install it."""
-    mock_missing_import("diffable_rdf")
-
-    with pytest.raises(ImportError, match=r"linkml-runtime\[diff-stable\]"):
-        canonicalize_rdf_graph(_make_graph_with_bnodes(), diff_stable=True)
-
-
-def test_default_serialization_without_the_library_names_the_dependency(
-    mock_missing_import: Callable[[str], None],
-) -> None:
-    """Default serialization also explains how to repair a missing library installation."""
-    mock_missing_import("diffable_rdf")
-
-    with pytest.raises(ImportError, match="diffable-rdf is required for RDF serialization") as error:
-        canonicalize_rdf_graph(_make_graph_with_bnodes())
-
-    assert "pip install 'linkml-runtime[diff-stable]'" in str(error.value)
-    assert isinstance(error.value.__cause__, ImportError)
 
 
 @pytest.mark.parametrize("diff_stable", [False, pytest.param(True, marks=pytest.mark.diffable_rdf)])
