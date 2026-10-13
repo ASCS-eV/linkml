@@ -2177,8 +2177,6 @@ def test_preconditions(framework, s1, s2, is_valid):
     :param is_valid: whether the data is valid
     :return:
     """
-    if framework == SHACL:
-        pytest.skip("shaclgen does not support rules yet")
     if framework == PANDERA_POLARS_CLASS:
         pytest.skip("panderagen does not support rules yet")
 
@@ -2234,8 +2232,12 @@ def test_preconditions(framework, s1, s2, is_valid):
         ],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework not in [JSON_SCHEMA, OWL]:
-        # only JSON Schema and OWL supports rules
+    if framework not in [JSON_SCHEMA, OWL, SHACL]:
+        # only JSON Schema, OWL and SHACL support rules
+        expected_behavior = ValidationBehavior.INCOMPLETE
+    if framework == SHACL and not is_valid:
+        # gen-shacl skips this rule with a warning: it does not translate
+        # equals_number or slot-level any_of / none_of
         expected_behavior = ValidationBehavior.INCOMPLETE
     check_data(
         schema,
@@ -2393,8 +2395,6 @@ def test_preconditions_combos(
     :param is_valid:
     :return:
     """
-    if framework == SHACL:
-        pytest.skip("shaclgen does not support rules yet")
     rule = {}
     if preconditions:
         rule["preconditions"] = {
@@ -2426,8 +2426,13 @@ def test_preconditions_combos(
         ],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework not in [JSON_SCHEMA, OWL]:
-        # only JSON Schema and OWL supports rules
+    if framework not in [JSON_SCHEMA, OWL, SHACL]:
+        # only JSON Schema, OWL and SHACL support rules
+        expected_behavior = ValidationBehavior.INCOMPLETE
+    if framework == SHACL and not is_valid and schema_name != "ifAthenB":
+        # gen-shacl translates only ifAthenB here and skips the other rules with
+        # a warning: it does not translate equals_number, exactly_one_of or
+        # slot-level any_of
         expected_behavior = ValidationBehavior.INCOMPLETE
     if framework == OWL and schema_name == "Disjunctive":
         # TODO: investigate why the OWLAPI does not correctly parse the resulting structure
@@ -2646,8 +2651,6 @@ def test_value_presence_in_rules(framework, multivalued, data_name, instance, is
     :param is_valid: whether the data is valid or not
     :return:
     """
-    if framework == SHACL:
-        pytest.skip("shaclgen does not support boolean expressions yet")
     if framework == PANDERA_POLARS_CLASS:
         pytest.skip("panderagen does not support boolean expressions yet")
     classes = {
@@ -2704,7 +2707,7 @@ def test_value_presence_in_rules(framework, multivalued, data_name, instance, is
         core_elements=["preconditions", "postconditions", "slot_conditions", "value_presence"],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework != JSON_SCHEMA:
+    if framework not in [JSON_SCHEMA, SHACL]:
         if not is_valid:
             expected_behavior = ValidationBehavior.INCOMPLETE
     if multivalued:

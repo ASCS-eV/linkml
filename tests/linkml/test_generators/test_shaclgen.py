@@ -2429,7 +2429,7 @@ def test_rule_sparql_syntax_valid():
 
 #
 # The "exclusive value" pattern translates a LinkML rule where:
-#   - preconditions: slot X has equals_string (a specific enum value name)
+#   - preconditions: slot X has has_member: {equals_string: V}
 #   - postconditions: same slot X has maximum_cardinality N
 #
 # Semantics: "If value V is present in multivalued slot X, then X has at most
@@ -2501,7 +2501,8 @@ classes:
         preconditions:
           slot_conditions:
             edgeType:
-              equals_string: "EdgeNone"
+              has_member:
+                equals_string: "EdgeNone"
         postconditions:
           slot_conditions:
             edgeType:
@@ -2517,7 +2518,8 @@ classes:
         preconditions:
           slot_conditions:
             edgeType:
-              equals_string: "EdgeNone"
+              has_member:
+                equals_string: "EdgeNone"
         postconditions:
           slot_conditions:
             edgeType:
@@ -2533,7 +2535,8 @@ classes:
         preconditions:
           slot_conditions:
             priority:
-              equals_string: "High"
+              has_member:
+                equals_string: "High"
         postconditions:
           slot_conditions:
             priority:
@@ -2550,7 +2553,8 @@ classes:
         preconditions:
           slot_conditions:
             edgeType:
-              equals_string: "EdgeNone"
+              has_member:
+                equals_string: "EdgeNone"
         postconditions:
           slot_conditions:
             otherSlot:
@@ -2764,7 +2768,8 @@ classes:
         preconditions:
           slot_conditions:
             status:
-              equals_string: "None"
+              has_member:
+                equals_string: "None"
         postconditions:
           slot_conditions:
             status:
@@ -3646,7 +3651,6 @@ def _exclusive_schema(tag_range: str, value: str, max_card: int, *, has_member: 
     )
 
 
-@pytest.mark.parametrize("has_member", [True, False])
 @pytest.mark.parametrize(
     "max_card,values,violates",
     [
@@ -3659,13 +3663,11 @@ def _exclusive_schema(tag_range: str, value: str, max_card: int, *, has_member: 
         pytest.param(2, '"alpha", "beta"', False, id="max2-within"),
     ],
 )
-def test_exclusive_value_matches_value_not_term(has_member, max_card, values, violates):
+def test_exclusive_value_matches_value_not_term(max_card, values, violates):
     """The exclusive value is matched by value, so its RDF 1.1-identical
     ``xsd:string``-typed form triggers the rule as the plain literal does, and
-    a ``maximum_cardinality`` above 1 is enforced.  The precondition
-    ``has_member: {equals_string: V}`` and the bare ``equals_string: V`` are
-    translated alike."""
-    schema = _exclusive_schema("Tag", "alpha", max_card, has_member=has_member)
+    a ``maximum_cardinality`` above 1 is enforced."""
+    schema = _exclusive_schema("Tag", "alpha", max_card)
     data = (
         "@prefix ex: <https://example.org/exclusive-range/> .\n"
         "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n"
@@ -3705,18 +3707,20 @@ def test_exclusive_value_query_yields_distinct_solutions(max_card):
     assert len(list(data.query(query, initBindings={"this": EX_EXR.x}))) == 1
 
 
-def test_exclusive_value_bare_equals_string_warns(caplog):
-    """A bare equals_string precondition on a multivalued slot is translated as
-    "one of the values equals", with a warning: the specification applies a
-    slot constraint to all members of a collection, and has_member states the
-    intended reading explicitly."""
+@pytest.mark.parametrize("multivalued", [True, False])
+def test_exclusive_value_bare_equals_string_skipped(caplog, multivalued):
+    """A bare ``equals_string`` precondition applies to every value of the slot
+    (``05validation.md``), so it is not the exclusive-value pattern: the rule is
+    skipped with a warning that names ``has_member``, which states "one of the
+    values equals"."""
+    if multivalued:
+        schema, shape = _exclusive_schema("Tag", "alpha", 1, has_member=False), EX_EXR.Thing
+    else:
+        schema = _single_rule_schema(_rule({"target": {"equals_string": "x"}}, {"target": {"maximum_cardinality": 1}}))
+        shape = EX_SINGLE.Thing
     with caplog.at_level(logging.WARNING):
-        assert _sparql_queries(_parse_shacl(_exclusive_schema("Tag", "alpha", 1, has_member=False)), EX_EXR.Thing)
-    assert any("has_member" in rec.message and "all members" in rec.message for rec in caplog.records), caplog.text
-    caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        _parse_shacl(_exclusive_schema("Tag", "alpha", 1))
-    assert not any("has_member" in rec.message for rec in caplog.records), caplog.text
+        assert _sparql_queries(_parse_shacl(schema), shape) == []
+    assert any("every value" in rec.message and "has_member" in rec.message for rec in caplog.records), caplog.text
 
 
 @pytest.mark.parametrize(
@@ -4335,15 +4339,6 @@ def test_rule_first_unknown_slot_is_the_reported_problem(caplog):
         _parse_shacl(schema)
     messages = [rec.message for rec in caplog.records if "Rule 1 of class 'Thing'" in rec.message]
     assert len(messages) == 1 and "no_such_guard" in messages[0], messages
-
-
-def test_exclusive_value_bare_equals_string_on_single_valued_slot_does_not_warn(caplog):
-    """On a single-valued slot, "the value equals V" and "one of the values
-    equals V" coincide, so the bare form is translated without a warning."""
-    schema = _single_rule_schema(_rule({"target": {"equals_string": "x"}}, {"target": {"maximum_cardinality": 1}}))
-    with caplog.at_level(logging.WARNING):
-        assert len(_sparql_queries(_parse_shacl(schema), EX_SINGLE.Thing)) == 1
-    assert not any("has_member" in rec.message for rec in caplog.records), caplog.text
 
 
 def test_rule_message_follows_rule_language():
@@ -5004,6 +4999,42 @@ def test_compose_open_world(post, instance, valid, target_class):
     assert _json_schema_and_shacl_verdicts(schema, target_class, instance) == (valid, valid)
 
 
+_TWO_POSTCONDITIONS = {"note": {"equals_string": "ok"}, "level": {"minimum_value": 1}}
+
+
+@pytest.mark.parametrize(
+    "open_world,instance,valid",
+    [
+        pytest.param(False, {"mode": "m", "note": "ok", "level": 2}, True, id="both-met"),
+        pytest.param(False, {"mode": "m", "note": "bad", "level": 2}, False, id="first-fails"),
+        pytest.param(False, {"mode": "m", "note": "ok", "level": 0}, False, id="second-fails"),
+        pytest.param(False, {"mode": "m", "note": "bad", "level": 0}, False, id="both-fail"),
+        pytest.param(False, {"mode": "m", "note": "ok"}, False, id="second-absent"),
+        pytest.param(False, {"mode": "x", "note": "bad", "level": 0}, True, id="precondition-not-met"),
+        pytest.param(True, {"mode": "m", "note": "ok"}, True, id="open-world-second-absent"),
+        pytest.param(True, {"mode": "m", "note": "ok", "level": 0}, False, id="open-world-second-fails"),
+    ],
+)
+@pytest.mark.parametrize("target_class", ["Thing", "SubThing"])
+def test_compose_several_postconditions_agree_with_json_schema(open_world, instance, valid, target_class):
+    """A rule whose postconditions constrain several slots is violated when any
+    of them is: it becomes one constraint per postcondition slot and decides
+    each instance as the JSON Schema generator's ``then`` does."""
+    schema = _compose_schema(_rule(_IF_MODE_M, _TWO_POSTCONDITIONS, open_world=open_world), subclass=True)
+    assert len(_sparql_queries(_parse_shacl(schema), EX_COMP[target_class])) == 2
+    assert _json_schema_and_shacl_verdicts(schema, target_class, instance) == (valid, valid)
+
+
+def test_compose_several_postconditions_report_each_slot():
+    """Each violated postcondition slot is reported with its own ``sh:resultPath`` and value."""
+    schema = _compose_schema(_rule(_IF_MODE_M, _TWO_POSTCONDITIONS))
+    data = _COMP_PREFIXES + 'ex:x a ex:Thing ; ex:mode "m" ; ex:note "bad" ; ex:level 0 .'
+    _, results = _rule_results(schema, data)
+    assert sorted(results) == sorted(
+        [(EX_COMP.x, EX_COMP.note, Literal("bad")), (EX_COMP.x, EX_COMP.level, Literal(0))]
+    )
+
+
 _SPECIAL_KIND = {"kind": {"equals_string": "Special"}}
 
 
@@ -5389,11 +5420,6 @@ def test_compose_bound_fails_on_a_value_that_is_not_a_number(level, violates):
             id="post-value-presence-overrides-required",
         ),
         pytest.param(
-            _rule(_IF_MODE_M, {**_REQUIRE_NOTE, "level": {"required": True}}),
-            "its postconditions constrain more than one slot",
-            id="two-postconditions",
-        ),
-        pytest.param(
             _rule(_IF_MODE_M, {"parts": {"has_member": {"equals_string": "x"}}}),
             "equals_string(_in) on slot 'parts', whose range 'Part' is neither an enum",
             id="has-member-value-on-class-range",
@@ -5488,30 +5514,14 @@ def test_compose_non_numeric_bound_skipped(caplog, bound):
     assert any("is not a finite number" in rec.message for rec in caplog.records), caplog.text
 
 
-@pytest.mark.parametrize(
-    "schema,reason",
-    [
-        pytest.param(
-            _compose_schema(
-                _rule({"part": _inner(kind={"equals_string": "Bogus"}), "mode": {"pattern": "^m"}}, _REQUIRE_NOTE)
-            ),
-            "its precondition on slot 'mode' uses pattern",
-            id="composed",
-        ),
-        pytest.param(
-            _single_rule_schema(
-                _rule({"levels": {"equals_string": "3"}}, {"levels": {"maximum_cardinality": 1}}),
-                {"levels": {"range": "integer", "multivalued": True}},
-            ),
-            "whose range 'integer' is neither an enum",
-            id="exclusive-value",
-        ),
-    ],
-)
-def test_rule_skip_replaces_problems_noted_while_translating(caplog, schema, reason):
+def test_rule_skip_replaces_problems_noted_while_translating(caplog):
     """A rule skipped part-way through its translation reports only why it was
-    skipped: a problem noted earlier (a value no enum permits, the reading of a
-    bare equals_string) describes a constraint that is not emitted."""
+    skipped: a problem noted earlier (a value no enum permits) describes a
+    constraint that is not emitted."""
+    schema = _compose_schema(
+        _rule({"part": _inner(kind={"equals_string": "Bogus"}), "mode": {"pattern": "^m"}}, _REQUIRE_NOTE)
+    )
+    reason = "its precondition on slot 'mode' uses pattern"
     with caplog.at_level(logging.WARNING):
         _parse_shacl(schema)
     messages = [rec.message for rec in caplog.records if "Rule 1 of class 'Thing'" in rec.message]
