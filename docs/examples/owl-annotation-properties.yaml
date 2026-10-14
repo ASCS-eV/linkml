@@ -1,0 +1,25 @@
+id: https://example.org/model
+name: model
+prefixes:
+  ex: https://example.org/
+  linkml: https://w3id.org/linkml/
+  owl: http://www.w3.org/2002/07/owl#
+imports: [linkml:types]
+default_prefix: ex
+instantiates: [ex:OntologyMetadata]
+annotations:
+  reference: ex:target
+  text: https://example.org/a-textual-label
+classes:
+  OntologyMetadata:
+    attributes:
+      reference:
+        slot_uri: ex:reference
+        range: nodeidentifier
+        implements: [owl:AnnotationProperty]
+        required: true
+      text:
+        slot_uri: ex:text
+        range: string
+        implements: [owl:AnnotationProperty]
+        required: true
