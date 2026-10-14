@@ -58,9 +58,8 @@ def test_annotation(
     Note annotations do not affect data, so
     there is no instance data accompanying this test suite.
 
-    LinkML 1.6 introduced the "instantiates" metaslot which
-    can be used to impose structure on annotations. However, this
-    is not yet implemented.
+    LinkML's "instantiates" metaslot supplies metadata declarations.
+    RDF serialization of scalar declarations is distinct from full extension validation.
 
     :param framework: some frameworks like sqlite do not support annotations
     :param name: name of the test
@@ -112,6 +111,7 @@ def test_annotation(
             "attributes": {
                 "class_metaslot": {
                     "required": True,
+                    "implements": ["http://www.w3.org/2002/07/owl#AnnotationProperty"],
                 },
             }
         },

@@ -97,37 +97,68 @@ list of vocabulary properties whose string values should be changed into IRIs.
 Use LinkML's metamodel extension mechanism to declare the distinction. An
 ``instantiates`` reference identifies a metaclass whose slots describe the
 annotations on that schema element. ``nodeidentifier`` denotes an IRI, CURIE or
-blank node; ``string`` denotes text, even when the text looks like a URL:
+blank node; ``string`` denotes text, even when the text looks like a URL.
+Independently, ``implements: [owl:AnnotationProperty]`` selects the existing
+OWL annotation-property projection for a slot:
 
-.. code-block:: yaml
+.. literalinclude:: ../examples/owl-annotation-properties.yaml
+    :language: yaml
 
-    id: https://example.org/model
-    name: model
-    prefixes:
-      ex: https://example.org/
-      linkml: https://w3id.org/linkml/
-      owl: http://www.w3.org/2002/07/owl#
-    imports: [linkml:types]
-    default_prefix: ex
-    instantiates: [ex:OntologyMetadata]
-    annotations:
-      prior_version: ex:previous
-      version_label: https://example.org/a-textual-label
-    classes:
-      OntologyMetadata:
-        attributes:
-          prior_version:
-            slot_uri: owl:priorVersion
-            range: nodeidentifier
-          version_label:
-            slot_uri: owl:versionInfo
-            range: string
-
-The ontology has ``owl:priorVersion <https://example.org/previous>`` and
-``owl:versionInfo "https://example.org/a-textual-label"``. The same mechanism
+The ontology has ``ex:reference <https://example.org/target>`` and
+``ex:text "https://example.org/a-textual-label"``, with both predicates declared
+as annotation properties. The same mechanism
 works for custom properties and annotations on classes, slots, local types,
 enums and non-literal permissible values. Metaclass inheritance and imported
 metaclasses are supported. Tags may be slot names, CURIEs or full slot IRIs.
+Class inheritance, mixins and slot usage use effective slot declarations.
+``implements`` itself is not inherited through a global slot's ``is_a``;
+declare the annotation-property role on both members of a global subproperty
+relationship.
+OWL's nine built-in annotation-property IRIs, including ``rdfs:label``,
+``owl:priorVersion`` and ``owl:versionInfo``, have their specification-defined
+role automatically when used as actual output predicate IRIs. An explicit
+object/datatype role on those IRIs is rejected. With native URIs, a locally
+named property mapped to a built-in can still be an ordinary logical property;
+the local output IRI determines its role.
+Declared annotations accept full predicate IRIs. Undeclared tags retain the
+existing CURIE/name fallback; URL-looking values are never promoted to nodes.
+
+``instantiates`` supplies metadata declarations; it does not automatically
+convert every slot of a metadata class to an OWL annotation property. The
+generator declares predicates used for annotations and rejects collisions
+between annotation and logical property roles, and contradictory explicit
+roles at the same output IRI, including available imported definitions.
+Existing inferred object/datatype range ambiguities are outside this correction.
+Undeclared LinkML annotations and native metadata on already logical schema predicates retain
+their existing RDF metadata projection and literal values; they do not request
+an OWL annotation-property role. Declared metaclass annotations and explicit
+annotation-property mappings still reject logical-role collisions. This
+compatibility behavior does not establish OWL 2 DL conformance for legacy RDF.
+The native-URI option still selects
+local property IRIs; mapped annotation predicates can have different IRIs.
+
+Annotation properties have no OWL logical constraint semantics. Ordinary
+LinkML range, requiredness, cardinality and value constraints on these slots
+remain available to instance validators, but their OWL annotation projection
+omits logical restrictions. LinkML ``identifier`` and singular ``key`` flags
+remain available for identity, inlining and requiredness in other consumers;
+they do not request an OWL ``hasKey`` axiom. This projection does not enforce
+their uniqueness in OWL. Explicit logical uses such as class ``unique_keys``, inverses,
+property characteristics, type designators and rule conditions raise an error.
+Global annotation properties support subproperties and simple named-IRI
+domain/range axioms; those axioms do not validate annotation values. Anonymous
+global annotation-property ranges are unsupported. Reserved structural
+predicates such as ``owl:imports`` and ``owl:versionIRI`` cannot be supplied
+as annotations; they are distinct from annotation properties.
+
+The example above is also executed by the tests. With ``metaclasses=False``
+and either value of ``type_objects`` and ``use_native_uris``, OWLAPI 5.5.0
+loads, saves and reloads it with zero OWL 2 DL profile violations and retains
+both header annotations. This does not establish DL conformance for every
+schema or for the API's default metaclass projection.
+Custom ``typeof``-only datatype aliases can also expose an existing singleton
+datatype-expression profile defect. The non-header consumer fixture uses an
+explicit datatype URI to test type annotations independently of that limitation.
 
 The SHACL generator uses the same conversion when its existing
 ``--include-annotations`` option is enabled. Those annotations describe shapes;
@@ -135,11 +166,13 @@ they do not add constraints to ordinary data instances. Schema RDF and JSON-LD
 serialization retain the LinkML annotation objects and their declarations;
 they do not project annotations onto ontology properties as this generator does.
 
-Declared scalar ranges determine term representation. ``curie`` expands to an
-IRI, ``nodeidentifier`` allows IRIs and blank nodes, and XSD datatypes produce
-literals. In particular, ``xsd:anyURI`` alone does not mean an IRI node. Use
-``nodeidentifier`` when that distinction matters; no new generator flag is
-required. Language tags apply to textual literals only.
+Declared scalar ranges determine term representation, as they do for slot
+values: ``nodeidentifier`` allows IRIs and blank nodes, and other types produce
+literals of their datatype, ``curie`` (``xsd:string``) included. An
+``xsd:anyURI`` value is a literal unless ``--xsd-anyuri-as-iri`` is set, which
+makes ``uri`` and ``uriorcurie`` values IRIs, as it does for slot values. Use
+``nodeidentifier`` for a value that must be a node. Language tags apply to
+textual literals only.
 
 This is serialization of declared scalar annotations, not complete metamodel
 extension validation. Structured values, non-type ranges and boolean range
@@ -147,68 +180,92 @@ expressions currently raise an error rather than guessing a term. Conflicting
 metaclass declarations also raise an error. Unresolved external metaclasses and
 undeclared tags retain each generator's existing behavior; a declaration must
 be available locally or through a schema import to determine the RDF term.
-Ordinary string-valued metamodel fields such as ``license`` retain their
-metamodel representation. An explicit annotation declaration is required for
-an IRI-valued alternative; avoid assigning the same property in both forms
-unless both RDF values are intended.
+Native ``contributors`` and ``license`` retain their metamodel representation;
+native ``license`` remains the authoritative field. Structured agents and
+export mappings for native metadata fields require separate support. Scalar
+annotations do not preserve nested agent descriptions or automatically
+validate all metadata extensions. Generated Python may coerce field values,
+and JSON strings alone do not distinguish RDF node kinds.
+
+The real OWLAPI consumer tests run in a dedicated CI job. To run them locally,
+prepare the fixture POM's pinned dependency tree with
+``maven-dependency-plugin:3.8.1:build-classpath`` and set
+``LINKML_OWLAPI_CLASSPATH_FILE`` to its output file. Set
+``LINKML_REQUIRE_OWLAPI=1`` to fail when that file is not configured. Ordinary
+Python test runs explicitly skip only this external consumer gate when the
+classpath is not configured; the dedicated job requires and executes it.
 
 References: `LinkML metamodel refinement
 <https://linkml.io/linkml-model/latest/docs/specification/05validation/>`__,
 `OWL annotation values <https://www.w3.org/TR/owl2-syntax/#Annotations>`__,
+`OWL property typing <https://www.w3.org/TR/owl2-syntax/#Typing_Constraints_of_OWL_2_DL>`__,
+`OWL annotation axioms <https://www.w3.org/TR/owl2-syntax/#Annotation_Axioms>`__,
+`OWL built-in annotation properties <https://www.w3.org/TR/owl2-syntax/#Annotation_Properties>`__,
+`LinkML identifiers <https://linkml.io/linkml-model/latest/docs/identifier/>`__,
+`LinkML singular keys <https://linkml.io/linkml-model/latest/docs/key/>`__,
+`reserved vocabulary <https://www.w3.org/TR/owl2-syntax/#IRIs>`__,
+`existing implements mapping <https://github.com/linkml/linkml/pull/2095>`__,
 `RDF Schema resources <https://www.w3.org/TR/rdf-schema/#ch_resource>`__, and
 `DCMI license guidance
-<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#http://purl.org/dc/terms/license>`__.
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#license>`__.
 
 DCMI agent metadata
 ^^^^^^^^^^^^^^^^^^^
 
 To name an agent by IRI, declare a ``nodeidentifier`` annotation. To record a
-name or other textual identifier, declare ``string``. This works for
+name or other textual identifier, declare ``string``. Independently, use
+``implements: [owl:AnnotationProperty]`` for the OWL annotation role.
+``instantiates`` identifies the metaclass supplying those declarations; it
+does not select that role automatically. These choices work for
 ``dcterms:creator``, ``dcterms:contributor``, ``dcterms:publisher`` and
-``dcterms:rightsHolder`` through the same range conversion as custom properties:
+``dcterms:rightsHolder`` through the same mechanism as the custom predicates above:
 
-.. code-block:: yaml
-
-    id: https://example.org/model
-    name: model
-    prefixes:
-      ex: https://example.org/
-      linkml: https://w3id.org/linkml/
-      dcterms: http://purl.org/dc/terms/
-    imports: [linkml:types]
-    default_prefix: ex
-    instantiates: [ex:AgentMetadata]
-    annotations:
-      creator_label: The Example Team
-      publisher: ex:team
-    classes:
-      AgentMetadata:
-        attributes:
-          creator_label:
-            slot_uri: dcterms:creator
-            range: string
-          publisher:
-            slot_uri: dcterms:publisher
-            range: nodeidentifier
+.. literalinclude:: ../examples/owl-dcmi-agent-annotations.yaml
+    :language: yaml
 
 The ontology header contains ``dcterms:creator "The Example Team"`` and
-``dcterms:publisher <https://example.org/team>``. A string declaration stays
-literal even when its value looks like a URL. For SHACL, put the same
+``dcterms:publisher <https://example.org/team>``, with both predicates declared
+as annotation properties. This projection omits OWL logical restrictions on
+the metadata slots; their LinkML constraints remain available to instance
+validators. OWL annotation axioms do not validate those values.
+A string declaration stays literal even when its value looks like a URL.
+For SHACL, put the same
 ``instantiates`` and ``annotations`` on a class or slot to annotate its shape,
 with ``--include-annotations`` enabled.
 
-The current `DCMI definitions
-<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/>`__ use
-``rangeIncludes: Agent`` for these properties, a suggested range rather than
-an ``rdfs:range`` restriction. Creator and rights-holder guidance recommends
-URIs while permitting literal identifiers. These definitions do not prescribe
-a lexical heuristic for converting LinkML annotation strings into nodes.
+Tests execute this exact example with ``metaclasses=False`` and both values
+of ``use_native_uris`` and ``type_objects``. OWLAPI 5.5.0 loads, saves and
+reloads each generated artifact with zero OWL 2 DL profile violations and
+retains the literal creator and IRI publisher. This is the same controlled
+consumer contract as the generic example, not a claim about every schema or
+the API's default metaclass projection.
 
-The standard ``contributors`` metamodel field already carries URI-or-CURIE
-identifiers; an annotation with the same RDF predicate needs its own declaration.
-Do not replace a textual creator with a URL just to trigger conversion, and do
-not put a person's name in a node-identifier field. Declaring the representation
-in the schema avoids another generator flag or a vocabulary-specific list.
+The `DCMI definitions
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/>`__ use
+``dcam:rangeIncludes`` with ``dcterms:Agent`` for these properties. The
+`rangeIncludes definition
+<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#rangeIncludes>`__
+suggests a class for values; it is not an ``rdfs:range`` restriction or an
+instruction to coerce strings into IRIs. Creator and rights-holder guidance
+recommends URIs while permitting literal identifiers. The declared LinkML
+range determines the emitted RDF term.
+
+Use the native ``contributors`` field for ordinary contributor identifiers;
+it already carries URI-or-CURIE values and maps to ``dcterms:contributor``.
+A separately declared annotation with that RDF predicate needs its own
+declaration. Native `created_by <https://linkml.io/linkml-model/latest/docs/created_by/>`__
+maps to ``pav:createdBy`` and does not emit ``dcterms:creator``. Although the
+metamodel declares a standalone `publisher <https://linkml.io/linkml-model/latest/docs/publisher/>`__
+slot, the current ``SchemaDefinition`` runtime does not accept
+a top-level ``publisher`` field. The example therefore declares publisher
+metadata through ``instantiates`` and annotations.
+
+Keep native ``contributors`` and ``license`` authoritative; native ``license``
+retains its existing metamodel representation. Scalar agent
+annotations do not preserve structured person or organization descriptions,
+and native-field RDF export mappings require separate support. Declaring the
+value representation and OWL role avoids another generator flag or a
+vocabulary-specific list.
 
 
 Enums and PermissibleValues

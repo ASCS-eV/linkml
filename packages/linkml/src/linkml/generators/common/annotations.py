@@ -4,6 +4,7 @@ from typing import Any
 
 from rdflib import XSD, BNode, Literal, URIRef
 
+from linkml.generators.common.subproperty import is_xsd_anyuri_range
 from linkml_runtime.linkml_model import Element, PermissibleValue, SlotDefinition
 from linkml_runtime.linkml_model.types import SHEX
 from linkml_runtime.utils.schemaview import SchemaView
@@ -16,8 +17,13 @@ def declared_annotation(
     tag: str,
     value: Any,
     language: str | None = None,
+    anyuri_as_iri: bool = False,
 ) -> tuple[URIRef, URIRef | BNode | Literal] | None:
     """Serialize a scalar annotation using an instantiated metaclass's slot.
+
+    The value gets the RDF term its declared range gives a slot value.
+    *anyuri_as_iri* renders ``uri`` and ``uriorcurie`` values as IRIs, as the
+    generator's ``--xsd-anyuri-as-iri`` renders slot values.
 
     Match local slot names or expanded slot URIs in the induced metaclass,
     including inherited and imported definitions. Unresolved external metaclasses
@@ -40,7 +46,7 @@ def declared_annotation(
     if not declarations:
         return None
     terms = {
-        (URIRef(schema.get_uri(slot, expand=True)), _annotation_value(schema, slot, value, language))
+        (URIRef(schema.get_uri(slot, expand=True)), _annotation_value(schema, slot, value, language, anyuri_as_iri))
         for slot in declarations
     }
     if len(terms) != 1:
@@ -49,7 +55,7 @@ def declared_annotation(
 
 
 def _annotation_value(
-    schema: SchemaView, slot: SlotDefinition, value: Any, language: str | None
+    schema: SchemaView, slot: SlotDefinition, value: Any, language: str | None, anyuri_as_iri: bool = False
 ) -> URIRef | BNode | Literal:
     """Convert a declared scalar range to its RDF term without vocabulary guessing."""
     if slot.any_of or slot.all_of or slot.exactly_one_of or slot.none_of or slot.range_expression:
@@ -60,11 +66,11 @@ def _annotation_value(
         raise ValueError(f"Annotation {slot.name!r} has unsupported non-scalar range {slot.range!r}")
     typ = schema.induced_type(slot.range)
     datatype = URIRef(schema.expand_curie(typ.uri)) if typ.uri else None
-    # The standard curie type requires expansion in RDF even though its lexical
-    # datatype is xsd:string. nodeidentifier explicitly denotes a non-literal;
-    # xsd:anyURI alone does not distinguish an IRI node from a URI literal.
-    curie = datatype == XSD.string and "curie" in schema.type_ancestors(slot.range)
-    if datatype in (SHEX.iri, SHEX.nonLiteral) or curie:
+    # nodeidentifier denotes a node. An xsd:anyURI value of the uri family is
+    # a literal unless IRIs are requested, as for slot values; any other
+    # datatype, including curie's xsd:string, gives a literal.
+    as_iri = anyuri_as_iri and is_xsd_anyuri_range(schema, slot.range)
+    if datatype in (SHEX.iri, SHEX.nonLiteral) or as_iri:
         if not isinstance(value, str):
             raise ValueError(f"Annotation {slot.name!r} requires a node identifier")
         if datatype == SHEX.nonLiteral and value.startswith("_:") and len(value) > 2:

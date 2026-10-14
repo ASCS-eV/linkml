@@ -71,6 +71,7 @@ name: integration
 prefixes:
   ex: https://example.org/integration/
   linkml: https://w3id.org/linkml/
+  owl: http://www.w3.org/2002/07/owl#
 default_prefix: ex
 imports: [linkml:types]
 classes:
@@ -80,6 +81,7 @@ classes:
       reference:
         slot_uri: ex:reference
         range: nodeidentifier
+        implements: [owl:AnnotationProperty]
 types:
   Label:
     typeof: string

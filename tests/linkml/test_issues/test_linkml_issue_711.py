@@ -26,6 +26,7 @@ prefixes:
   schema: http://schema.org/
   ae: http://example.org/annotation-export#
   oa: http://www.w3.org/ns/oa#
+  owl: http://www.w3.org/2002/07/owl#
 
 default_prefix: ae
 default_range: string
@@ -49,8 +50,10 @@ classes:
 slots:
   is current:
     range: boolean
+    implements: [owl:AnnotationProperty]
   metadata:
     range: string
+    implements: [owl:AnnotationProperty]
 
   name:
     title: Name
