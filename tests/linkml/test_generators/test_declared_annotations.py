@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 from pyshacl import validate
-from rdflib import RDF, SH, XSD, BNode, Graph, Literal, URIRef
+from rdflib import OWL, RDF, SH, XSD, BNode, Graph, Literal, URIRef
 
 from linkml.generators.owlgen import OwlSchemaGenerator
 from linkml.generators.shaclgen import ShaclGenerator
@@ -236,3 +236,97 @@ def test_annotations_do_not_constrain_data() -> None:
     data = Graph()
     data.add((URIRef(EX + "instance"), RDF.type, URIRef(EX + "Thing")))
     assert validate(data, shacl_graph=graph, meta_shacl=True)[0]
+
+
+@pytest.mark.parametrize("generator", ["owl", "shacl"])
+@pytest.mark.parametrize("property_name", ["creator", "contributor", "publisher", "rightsHolder"])
+@pytest.mark.parametrize(
+    "range_name,value",
+    [
+        ("nodeidentifier", "ex:team"),
+        ("nodeidentifier", "https://example.org/team"),
+        ("string", "The Example Team"),
+        ("string", "https://example.org/team"),
+    ],
+)
+def test_dcmi_agent_annotation_declarations(generator: str, property_name: str, range_name: str, value: str) -> None:
+    """DCMI agent values follow declarations, including deliberately literal URL text."""
+    schema = yaml.safe_load(SCHEMA)
+    schema["prefixes"]["dcterms"] = "http://purl.org/dc/terms/"
+    schema["classes"]["Metadata"]["attributes"] = {
+        "agent": {
+            "slot_uri": "dcterms:" + property_name,
+            "range": range_name,
+            "implements": ["owl:AnnotationProperty"],
+        }
+    }
+    schema["classes"]["Thing"].pop("annotations")
+    metadata = {"instantiates": ["ex:Profile"], "annotations": {"dcterms:" + property_name: value}}
+    # OWL annotates the ontology header; SHACL annotates the class shape.
+    if generator == "owl":
+        schema.update(metadata)
+        subject = URIRef(EX + "model")
+    else:
+        schema["classes"]["Thing"].update(metadata)
+        subject = URIRef(EX + "Thing")
+    graph = _graph(yaml.safe_dump(schema), generator, default_language="en")
+    predicate = URIRef("http://purl.org/dc/terms/" + property_name)
+    expected = URIRef(EX + "team") if range_name == "nodeidentifier" else Literal(value, lang="en")
+    assert set(graph.objects(subject, predicate)) == {expected}
+    if generator == "owl":
+        assert (predicate, RDF.type, OWL.AnnotationProperty) in graph
+        assert (predicate, RDF.type, OWL.ObjectProperty) not in graph
+        assert (predicate, RDF.type, OWL.DatatypeProperty) not in graph
+        for property_uri in [predicate, URIRef(EX + "agent")]:
+            assert not list(graph.subjects(OWL.onProperty, property_uri))
+
+
+def test_declared_contributor_matches_metamodel_field() -> None:
+    """The standard contributors field and an explicitly declared node annotation agree."""
+    schema = yaml.safe_load(SCHEMA)
+    schema["prefixes"]["dcterms"] = "http://purl.org/dc/terms/"
+    schema["classes"]["Metadata"]["attributes"]["contributor"] = {
+        "slot_uri": "dcterms:contributor",
+        "range": "nodeidentifier",
+        "implements": ["owl:AnnotationProperty"],
+    }
+    schema.update(
+        instantiates=["ex:Profile"],
+        contributors=["ex:team"],
+        annotations={"contributor": "ex:team"},
+    )
+    predicate = URIRef("http://purl.org/dc/terms/contributor")
+    for fields in [("contributors", "annotations"), ("contributors",), ("annotations",)]:
+        source = {
+            key: value for key, value in schema.items() if key not in {"contributors", "annotations"} or key in fields
+        }
+        graph = _graph(yaml.safe_dump(source), "owl")
+        assert set(graph.objects(URIRef(EX + "model"), predicate)) == {URIRef(EX + "team")}
+        assert (predicate, RDF.type, OWL.AnnotationProperty) in graph
+        assert not list(graph.subjects(OWL.onProperty, predicate))
+
+
+@pytest.mark.parametrize("property_name", ["creator", "contributor", "publisher", "rightsHolder"])
+def test_undeclared_dcmi_agent_url_stays_literal(property_name: str) -> None:
+    """A familiar DCMI predicate alone does not authorize OWL node coercion."""
+    schema = yaml.safe_load(SCHEMA)
+    schema["prefixes"]["dcterms"] = "http://purl.org/dc/terms/"
+    schema["annotations"] = {"dcterms:" + property_name: EX + "team"}
+    graph = _graph(yaml.safe_dump(schema), "owl")
+    assert set(graph.objects(URIRef(EX + "model"), URIRef("http://purl.org/dc/terms/" + property_name))) == {
+        Literal(EX + "team")
+    }
+    predicate = URIRef("http://purl.org/dc/terms/" + property_name)
+    assert (predicate, RDF.type, OWL.AnnotationProperty) in graph
+    assert not list(graph.subjects(OWL.onProperty, predicate))
+
+
+def test_native_created_by_has_its_own_mapping() -> None:
+    """Native creator metadata emits its PAV predicate independently of custom DCMI annotations."""
+    schema = yaml.safe_load(SCHEMA)
+    schema["created_by"] = "ex:team"
+    graph = _graph(yaml.safe_dump(schema), "owl")
+    predicate = URIRef("http://purl.org/pav/createdBy")
+    assert set(graph.objects(URIRef(EX + "model"), predicate)) == {URIRef(EX + "team")}
+    assert (predicate, RDF.type, OWL.AnnotationProperty) in graph
+    assert not list(graph.objects(URIRef(EX + "model"), URIRef("http://purl.org/dc/terms/creator")))
