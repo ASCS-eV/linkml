@@ -1392,7 +1392,13 @@ class OwlSchemaGenerator(Generator):
         ``instantiates`` declares metaclass membership in LinkML. In OWL's RDF
         mapping, class assertions are ``rdf:type`` triples; a resource also used
         as an OWL class or property is interpreted separately as an individual.
+        A resource in the OWL 2 reserved vocabulary (Structural Specification
+        section 2.4, Table 2), such as a type emitted as ``xsd:integer``, cannot
+        be an individual, so its membership is not asserted.
         """
+        if element.instantiates and any(str(uri).startswith(str(ns)) for ns in (RDF, RDFS, XSD, OWL)):
+            logger.warning(f"Instantiates on {uri}, which is OWL 2 reserved vocabulary, is ignored")
+            return
         for instantiated in element.instantiates:
             self.graph.add((uri, RDF.type, URIRef(self.schemaview.expand_curie(instantiated))))
 

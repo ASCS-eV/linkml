@@ -1295,6 +1295,29 @@ def test_permissible_value_instantiates_ignored_on_literal(caplog: pytest.LogCap
     assert any("Instantiates on literal isLicense" in rec.message for rec in caplog.records)
 
 
+def test_instantiates_ignored_on_reserved_vocabulary(caplog: pytest.LogCaptureFixture) -> None:
+    """Without type objects a type is emitted as its XSD datatype, which cannot be
+    an OWL 2 DL individual, so its ``instantiates`` is not asserted on that IRI."""
+    schema = """
+id: https://example.org/reserved
+name: reserved
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+default_prefix: ex
+types:
+  Count:
+    uri: xsd:integer
+    base: int
+    instantiates: [ex:Metadata]
+"""
+    with caplog.at_level(logging.WARNING):
+        output = OwlSchemaGenerator(schema, type_objects=False, metaclasses=False).serialize()
+    graph = Graph().parse(data=output, format="turtle")
+    assert (XSD.integer, RDF.type, URIRef("https://example.org/Metadata")) not in graph
+    assert "reserved vocabulary" in caplog.text
+
+
 @pytest.mark.parametrize("metaclasses", [False, True])
 @pytest.mark.parametrize("type_objects", [False, True])
 def test_instantiates_applies_to_emitted_schema_elements(metaclasses: bool, type_objects: bool) -> None:
