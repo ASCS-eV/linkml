@@ -2409,7 +2409,7 @@ def test_template_black(array_complex):
 
 
 @pytest.mark.xdist_group("serial")
-def test_template_noblack(array_complex, mock_black_import):
+def test_template_noblack(array_complex, mock_missing_import):
     """
     When we don't have black, we should still be able to render templates normally
 
@@ -2418,6 +2418,7 @@ def test_template_noblack(array_complex, mock_black_import):
         keep this test last in the module because it messed up the objects we have imported previously :)
 
     """
+    mock_missing_import("black")
 
     # ensure our mock worked
     with pytest.raises(ImportError):

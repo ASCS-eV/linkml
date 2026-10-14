@@ -1,17 +1,20 @@
 """Tests for deterministic RDF serialization via pyoxigraph RDFC-1.0."""
 
 import difflib
+import json
 import os
 import re
 import subprocess
 import sys
 import textwrap
+import warnings
 from pathlib import Path
 
 import pyoxigraph as ox
 import pytest
 import rdflib
-from rdflib import BNode, Graph, Literal, Namespace, URIRef
+from packaging.version import Version
+from rdflib import BNode, Dataset, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, SH, XSD
 
 from linkml.generators.owlgen import OwlSchemaGenerator
@@ -45,12 +48,13 @@ def test_determinism():
     assert all(r == results[0] for r in results), "Output was not deterministic across runs"
 
 
-def test_round_trip_isomorphic():
+@pytest.mark.parametrize("output_format", ["turtle", "json-ld"])
+def test_round_trip_isomorphic(output_format):
     """Re-parsing canonicalized output produces an isomorphic graph."""
     g = _make_graph_with_bnodes()
-    ttl = canonicalize_rdf_graph(g, output_format="turtle")
+    serialized = canonicalize_rdf_graph(g, output_format=output_format)
     g2 = Graph()
-    g2.parse(data=ttl, format="turtle")
+    g2.parse(data=serialized, format=output_format)
     assert rdflib.compare.isomorphic(g, g2), "Round-tripped graph is not isomorphic to original"
 
 
@@ -331,7 +335,7 @@ def test_unsupported_format_warns_and_falls_back():
     g.bind("ex", "http://example.com/")
     g.add((URIRef("http://example.com/a"), RDF.type, URIRef("http://example.com/Thing")))
     with pytest.warns(RDFCanonicalizationWarning, match="does not support format"):
-        result = canonicalize_rdf_graph(g, output_format="json-ld")
+        result = canonicalize_rdf_graph(g, output_format="pretty-xml")
     # The fallback should still produce valid output in the requested format.
     assert result
 
@@ -462,58 +466,154 @@ def test_fallback_preserves_relative_iri():
     assert "<testing>" in result
 
 
-@pytest.mark.parametrize("output_format", ["turtle", "nt"])
-def test_fallback_is_deterministic_across_processes(output_format):
-    """The rdflib fallback produces byte-identical output across processes.
+def _forcing_fallback(graph: Graph) -> Graph:
+    """Add a relative IRI, which pyoxigraph rejects, so ``graph`` takes the rdflib fallback."""
+    graph.add((URIRef("testing"), URIRef("http://example.com/p"), Literal("forces-fallback")))
+    return graph
 
-    A graph containing a relative IRI (``<testing>``) forces the pyoxigraph
-    parse to fail, exercising the fallback path.  The graph also contains
-    several blank nodes: a plain ``graph.serialize()`` would label them
-    non-deterministically, so this test would fail without the blank-node
-    canonicalization in ``_deterministic_fallback_serialize``.  Two
-    subprocesses with different ``PYTHONHASHSEED`` values must agree byte for
-    byte.
+
+_ACROSS_PROCESSES = textwrap.dedent(
     """
-    program = textwrap.dedent(
-        f"""
-        from rdflib import BNode, Graph, Literal, URIRef
-        from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
+    import json, warnings
+    from rdflib import BNode, Graph, Literal, URIRef
+    from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
 
+    warnings.simplefilter("ignore")
+
+    def build(force_fallback):
         g = Graph()
         g.bind("ex", "http://example.com/")
-        # Relative IRI -> pyoxigraph SyntaxError -> rdflib fallback.
-        g.add((
-            URIRef("http://example.com/s"),
-            URIRef("http://purl.org/ontology/bibo/status"),
-            URIRef("testing"),
-        ))
-        for i in range(6):
+        if force_fallback:
+            g.add((URIRef("testing"), URIRef("http://example.com/p"), Literal("forces-fallback")))
+        for i in range(12):
             bn = BNode()
-            g.add((URIRef("http://example.com/s"), URIRef("http://example.com/has"), bn))
-            g.add((bn, URIRef("http://example.com/q"), Literal(f"bn_{{i}}")))
+            g.add((URIRef(f"http://example.com/s{i:02d}"), URIRef("http://example.com/has"), bn))
+            g.add((bn, URIRef("http://example.com/q"), Literal(f"bn_{i}")))
+        # Namespaces without a bound prefix, which rdflib names ns1, ns2, ...
+        for host in "abcdefgh":
+            g.add((URIRef(f"http://{host}.example/s"), URIRef(f"http://{host}.example/p"), URIRef(f"http://{host}.example/o")))
+        return g
 
-        print(canonicalize_rdf_graph(g, output_format={output_format!r}), end="")
-        """
-    )
+    cases = [(fmt, True) for fmt in ("turtle", "n3", "trig", "xml", "json-ld")] + [("json-ld", False)]
+    print(json.dumps({f"{fmt}-{fallback}": canonicalize_rdf_graph(build(fallback), fmt) for fmt, fallback in cases}))
+    """
+)
 
-    def run(seed: str) -> str:
+
+def test_output_is_deterministic_across_processes():
+    """The same graph serializes to the same bytes under any hash seed.
+
+    The rdflib fallback is forced with a relative IRI. rdflib labels blank
+    nodes, writes statements, and names unbound namespaces in orders that
+    follow set iteration, which ``PYTHONHASHSEED`` changes; JSON-LD is checked
+    on both paths.
+    """
+
+    def run(seed: str) -> dict[str, str]:
         # Inherit the real environment and vary only the hash seed. Replacing it
         # wholesale drops SystemRoot on Windows, which breaks winsock init.
         env = {**os.environ, "PYTHONHASHSEED": seed}
         result = subprocess.run(
-            [sys.executable, "-c", program],
+            [sys.executable, "-c", _ACROSS_PROCESSES],
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             env=env,
         )
-        return result.stdout
+        return json.loads(result.stdout)
 
-    out_a = run("0")
-    out_b = run("42")
-    assert out_a == out_b, (
-        "Fallback output differs across PYTHONHASHSEED values; blank-node canonicalization may be missing"
+    outputs = [run(seed) for seed in ("0", "1", "42", "999")]
+    for case in outputs[0]:
+        assert len({output[case] for output in outputs}) == 1, f"{case} output differs across PYTHONHASHSEED values"
+
+
+@pytest.mark.parametrize("output_format", ["turtle", "n3", "trig", "xml", "json-ld"])
+@pytest.mark.parametrize("force_fallback", [False, True], ids=["pyoxigraph", "fallback"])
+@pytest.mark.parametrize("base", ["http://ex.org/d#", "http://ex.org/"])
+def test_an_iri_written_against_a_base_reads_back_unchanged(base, force_fallback, output_format):
+    """Writing IRIs relative to a base must not change them.
+
+    RFC 3986 section 5.1 uses a base without its fragment, but rdflib's Turtle
+    parser resolves ``<#a>`` against ``http://ex.org/d#`` to
+    ``http://ex.org/d##a``. On the fallback, rdflib relativizes by string
+    prefix, and its JSON-LD serializer relativizes without declaring the base.
+    """
+    triple = (URIRef("http://ex.org/d#a"), URIRef("http://example.com/p"), Literal("v"))
+    graph = Graph(base=base)
+    graph.add(triple)
+    if force_fallback:
+        _forcing_fallback(graph)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RDFCanonicalizationWarning)
+        serialized = canonicalize_rdf_graph(graph, output_format=output_format)
+    reread = Dataset().parse(data=serialized, format=output_format)
+    assert triple in {quad[:3] for quad in reread.quads()}
+
+
+def test_base_survives_the_fallback():
+    """A base that rdflib relativizes against correctly stays in fallback output."""
+    graph = _forcing_fallback(Graph(base="http://example.org/default/"))
+    with pytest.warns(RDFCanonicalizationWarning, match="non-standard RDF"):
+        serialized = canonicalize_rdf_graph(graph)
+    assert "@base <http://example.org/default/> ." in serialized
+
+
+@pytest.mark.xfail(
+    Version(rdflib.__version__) < Version("7.7.0a0"),
+    reason="rdflib 7.6 and earlier write a shared rdf:List cell once per list",
+    strict=True,
+)
+def test_a_shared_rdf_list_tail_is_not_duplicated():
+    """Two lists sharing a tail must not gain triples on the fallback."""
+    graph = Graph()
+    tail = BNode()
+    graph.add((tail, RDF.first, Literal("shared")))
+    graph.add((tail, RDF.rest, RDF.nil))
+    for name in ("l1", "l2"):
+        head = BNode()
+        graph.add((URIRef(f"http://example.com/{name}"), URIRef("http://example.com/list"), head))
+        graph.add((head, RDF.first, Literal(name)))
+        graph.add((head, RDF.rest, tail))
+    _forcing_fallback(graph)
+    with pytest.warns(RDFCanonicalizationWarning, match="non-standard RDF"):
+        serialized = canonicalize_rdf_graph(graph)
+    assert len(Graph().parse(data=serialized, format="turtle")) == len(graph)
+
+
+@pytest.mark.parametrize("output_format", ["nt", "nquads"])
+@pytest.mark.parametrize(
+    "triple",
+    [
+        (URIRef("testing"), URIRef("http://example.com/p"), Literal("v")),
+        (URIRef("http://example.com/s"), Literal("not_a_predicate"), Literal("v")),
+    ],
+    ids=["relative-iri", "literal-predicate"],
+)
+def test_line_formats_refuse_terms_they_cannot_express(output_format, triple):
+    """N-Triples 1.1 section 2.2 admits only absolute IRIs, and a predicate must be an IRI."""
+    graph = Graph()
+    graph.add(triple)
+    with pytest.raises(ValueError, match="cannot express"):
+        canonicalize_rdf_graph(graph, output_format=output_format)
+
+
+def test_every_format_ends_with_exactly_one_newline():
+    """A committed file should not depend on which format wrote it."""
+    graph = _make_graph_with_bnodes()
+    for output_format in ("turtle", "nt", "xml", "trig", "n3", "json-ld"):
+        serialized = canonicalize_rdf_graph(graph, output_format=output_format)
+        assert serialized.endswith("\n") and not serialized.endswith("\n\n"), output_format
+
+
+def test_a_graph_holding_named_graphs_is_refused():
+    """One document cannot carry graph names, so a Dataset is refused rather than flattened."""
+    dataset = Dataset()
+    dataset.graph(URIRef("http://example.com/g1")).add(
+        (URIRef("http://example.com/a"), URIRef("http://example.com/p"), Literal("in-g1"))
     )
+    with pytest.raises(TypeError, match="named graphs"):
+        canonicalize_rdf_graph(dataset)
 
 
 def _shapes_graph(count: int, extra: bool = False) -> Graph:

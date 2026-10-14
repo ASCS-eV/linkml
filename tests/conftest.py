@@ -422,8 +422,7 @@ class MockImportErrorFinder(MetaPathFinder):
     """
     Fake like we don't have a module when we really do.
 
-    see the ``mock_missing_import`` fixture to hide any module, or ``mock_black_import``
-    for a single-purpose example.
+    see the ``mock_missing_import`` fixture.
 
     .. note::
 
@@ -475,26 +474,6 @@ def mock_missing_import():
     sys.modules.update(removed)
     for finder in finders:
         sys.meta_path.remove(finder)
-
-
-@pytest.fixture(scope="function")
-def mock_black_import():
-    """
-    Pretend like we don't have black even if we do
-    """
-    removed = {}
-    for k, v in sys.modules.items():
-        if k.startswith("black"):
-            removed[k] = v
-    for k in removed.keys():
-        del sys.modules[k]
-    meta_finder = MockImportErrorFinder("black")
-    sys.meta_path.insert(0, meta_finder)
-
-    yield removed
-
-    sys.modules.update(removed)
-    sys.meta_path.remove(meta_finder)
 
 
 @pytest.fixture(autouse=True)
