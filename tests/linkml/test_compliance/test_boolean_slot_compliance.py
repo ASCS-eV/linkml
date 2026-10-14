@@ -505,7 +505,7 @@ def test_class_any_of(framework, data_name, s1value, s2value, is_valid):
         core_elements=["any_of", "ClassDefinition"],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework not in [OWL]:
+    if framework not in [OWL, SHACL]:
         # TODO: rdflib transformer has issues around ranges
         expected_behavior = ValidationBehavior.INCOMPLETE
     # TODO: rdflib transformer has issues around ranges
@@ -632,8 +632,22 @@ def test_class_any_of_with_required(framework, nest, op, name, family_name, give
         core_elements=[op, "ClassDefinition"],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework not in [JSON_SCHEMA]:
+    if framework not in [JSON_SCHEMA, SHACL]:
         expected_behavior = ValidationBehavior.INCOMPLETE
+    elif framework == SHACL and 5 in (name, family_name, given_name):
+        # SHACL validation makes its instances through python dataclasses, which coerce
+        # the integer to a string, so the range violation never reaches the shapes. A
+        # row can then only be detected through the operator itself.
+        present = [value is not None for value in (name, family_name, given_name)]
+        members = [present[0], present[1] and present[2]]
+        operator_holds = {
+            "any_of": any(members),
+            "all_of": all(members),
+            "exactly_one_of": sum(members) == 1,
+            "none_of": not any(members),
+        }[op]
+        if operator_holds:
+            expected_behavior = ValidationBehavior.INCOMPLETE
 
     data = {SLOT_S1: name, SLOT_S2: family_name, SLOT_S3: given_name}
     if nest:
@@ -2163,8 +2177,6 @@ def test_preconditions(framework, s1, s2, is_valid):
     :param is_valid: whether the data is valid
     :return:
     """
-    if framework == SHACL:
-        pytest.skip("shaclgen does not support rules yet")
     if framework == PANDERA_POLARS_CLASS:
         pytest.skip("panderagen does not support rules yet")
 
@@ -2220,8 +2232,12 @@ def test_preconditions(framework, s1, s2, is_valid):
         ],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework not in [JSON_SCHEMA, OWL]:
-        # only JSON Schema and OWL supports rules
+    if framework not in [JSON_SCHEMA, OWL, SHACL]:
+        # only JSON Schema, OWL and SHACL support rules
+        expected_behavior = ValidationBehavior.INCOMPLETE
+    if framework == SHACL and not is_valid:
+        # gen-shacl skips this rule with a warning: it does not translate
+        # equals_number or slot-level any_of / none_of
         expected_behavior = ValidationBehavior.INCOMPLETE
     check_data(
         schema,
@@ -2379,8 +2395,6 @@ def test_preconditions_combos(
     :param is_valid:
     :return:
     """
-    if framework == SHACL:
-        pytest.skip("shaclgen does not support rules yet")
     rule = {}
     if preconditions:
         rule["preconditions"] = {
@@ -2412,8 +2426,13 @@ def test_preconditions_combos(
         ],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework not in [JSON_SCHEMA, OWL]:
-        # only JSON Schema and OWL supports rules
+    if framework not in [JSON_SCHEMA, OWL, SHACL]:
+        # only JSON Schema, OWL and SHACL support rules
+        expected_behavior = ValidationBehavior.INCOMPLETE
+    if framework == SHACL and not is_valid and schema_name != "ifAthenB":
+        # gen-shacl translates only ifAthenB here and skips the other rules with
+        # a warning: it does not translate equals_number, exactly_one_of or
+        # slot-level any_of
         expected_behavior = ValidationBehavior.INCOMPLETE
     if framework == OWL and schema_name == "Disjunctive":
         # TODO: investigate why the OWLAPI does not correctly parse the resulting structure
@@ -2632,8 +2651,6 @@ def test_value_presence_in_rules(framework, multivalued, data_name, instance, is
     :param is_valid: whether the data is valid or not
     :return:
     """
-    if framework == SHACL:
-        pytest.skip("shaclgen does not support boolean expressions yet")
     if framework == PANDERA_POLARS_CLASS:
         pytest.skip("panderagen does not support boolean expressions yet")
     classes = {
@@ -2690,7 +2707,7 @@ def test_value_presence_in_rules(framework, multivalued, data_name, instance, is
         core_elements=["preconditions", "postconditions", "slot_conditions", "value_presence"],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework != JSON_SCHEMA:
+    if framework not in [JSON_SCHEMA, SHACL]:
         if not is_valid:
             expected_behavior = ValidationBehavior.INCOMPLETE
     if multivalued:
@@ -2809,6 +2826,9 @@ def test_membership(framework, name, quantification, expression, instance, is_va
         expected_behavior = ValidationBehavior.INCOMPLETE
     if framework in [SHACL, SQL_DDL_SQLITE, PANDERA_POLARS_CLASS]:
         expected_behavior = ValidationBehavior.INCOMPLETE
+    if framework == SHACL and quantification == "has_member" and s1_range != CLASS_D:
+        # sh:qualifiedValueShape; equals_string on a reference is not translated
+        expected_behavior = ValidationBehavior.IMPLEMENTS
     if framework == OWL and name == "all_obj_members_equals_string" and not is_valid:
         # This test case relies on punning, as s1 is used as both an OP and DP,
         # so we do not expect a DL-reasoner to be able to handle it
@@ -2889,7 +2909,7 @@ def test_range_expression_nesting(framework, data_name, instance, is_valid):
         core_elements=["range_expression"],
     )
     expected_behavior = ValidationBehavior.IMPLEMENTS
-    if framework not in [JSON_SCHEMA, OWL]:
+    if framework not in [JSON_SCHEMA, OWL, SHACL]:
         if not is_valid:
             expected_behavior = ValidationBehavior.INCOMPLETE
     check_data(
