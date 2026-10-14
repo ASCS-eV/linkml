@@ -107,15 +107,16 @@ Two patterns are recognised first:
   guard slot, and postcondition ``equals_string`` or ``equals_string_in`` on a
   target slot.
 * **Exclusive value**: precondition ``has_member: {equals_string: V}``, and
-  postcondition ``maximum_cardinality`` on the same slot. The older form
-  with a bare ``equals_string: V`` precondition is read the same way, with a
-  warning.
+  postcondition ``maximum_cardinality`` on the same slot. A bare
+  ``equals_string: V`` precondition applies to every value of the slot, so it
+  is not this pattern; such a rule is skipped with a warning naming
+  ``has_member``.
 
-Any other rule with one postcondition slot is composed from the operators
-its conditions use: ``value_presence``, ``required``, ``equals_string``,
-``equals_string_in``, ``minimum_value``, ``maximum_value``,
-``range_expression`` (slot conditions on the slot's class) and
-``has_member``.
+Any other rule is composed from the operators its conditions use:
+``value_presence``, ``required``, ``equals_string``, ``equals_string_in``,
+``minimum_value``, ``maximum_value``, ``range_expression`` (slot conditions
+on the slot's class) and ``has_member``. Each postcondition slot gets its own
+constraint, so a rule is violated when any of its postconditions is.
 
 All translations follow the JSON Schema generator's ``if`` / ``then``:
 
