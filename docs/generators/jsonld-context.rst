@@ -53,6 +53,17 @@ derived from ``string`` with ``uri: xsd:anyURI`` keeps URI references as
 ``xsd:anyURI`` literals (see
 :ref:`links-and-uri-references`).
 
+
+JSON-LD version
+^^^^^^^^^^^^^^^
+
+Generated contexts start with ``"@version": 1.1``. They use JSON-LD 1.1
+constructs, such as scoped contexts for enum slots and class-level range
+overrides, and ``@prefix`` (see below), which a JSON-LD 1.0 processor would
+silently ignore. The number ``1.1`` makes such a processor stop instead
+(`JSON-LD 1.1 §1.7 <https://www.w3.org/TR/json-ld11/#syntax-tokens-and-keywords>`__), and selects
+JSON-LD 1.1 processing in processors that support both.
+
 CURIE usage
 ^^^^^^^^^^^
 
