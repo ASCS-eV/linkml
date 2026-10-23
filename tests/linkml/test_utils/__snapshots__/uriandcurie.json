@@ -181,6 +181,7 @@
   "@context": [
     "https://w3id.org/linkml/meta.context.jsonld",
     {
+      "@version": 1.1,
       "xsd": "http://www.w3.org/2001/XMLSchema#",
       "m": {
         "@id": "http://example.org/test/uriandcurie",
@@ -196,7 +197,7 @@
         "@id": "hasNcName"
       },
       "hasURI": {
-        "@type": "xsd:anyURI",
+        "@type": "@id",
         "@id": "hasURI"
       },
       "id": "@id",

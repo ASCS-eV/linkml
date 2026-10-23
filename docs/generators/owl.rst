@@ -33,6 +33,9 @@ Mapping
 * Each LinkML slot maps to an OWL property
 
     - if the range of the slot is class, then an ObjectProperty is used
+    - an ObjectProperty is also used when the range is a type whose values are IRIs or blank
+      nodes: ``uri``, ``uriorcurie`` and the types derived from them, ``objectidentifier`` and
+      ``nodeidentifier`` (see :ref:`links-and-uri-references`)
     - otherwise DataProperty is used
     - Exception to the above: if ``type_objects`` is set then ObjectProperties are always used;
       instead of having ranges of type be mapped to literals, these map to class-shadows of
@@ -66,6 +69,74 @@ Mapping
 
 
 .. note:: The current default settings for ``metaclasses`` and ``type-objects`` may change in the future
+
+Annotation values
+^^^^^^^^^^^^^^^^^
+
+Native metadata takes the RDF term of its metamodel range: ``see_also`` and ``source``
+values are IRIs, ``license`` and ``description`` values are strings, and ``created_on``
+is an ``xsd:dateTime`` literal. A link value that is neither an IRI nor a CURIE, such as
+a bare element name in ``see_also``, is written as a plain literal, with a warning. An annotation
+whose tag a metaclass declares through ``instantiates`` takes the term of that slot's
+range in the same way (see :ref:`annotations-in-rdf`); any other annotation value is a
+string.
+
+.. literalinclude:: ../examples/owl-dcmi-agent-annotations.yaml
+    :language: yaml
+
+The ontology header then carries ``dcterms:creator <https://orcid.org/0000-0002-1825-0097>``
+and ``dcterms:rights "Copyright 2026 The Example Team"``, and the two predicates are
+declared as annotation properties (see below).
+
+Annotation properties
+^^^^^^^^^^^^^^^^^^^^^
+
+A slot that ``implements`` ``owl:AnnotationProperty`` is an annotation property
+(`OWL 2 §5.5 <https://www.w3.org/TR/owl2-syntax/#Annotation_Properties>`__), and so is
+a slot whose property IRI is one of the nine built-in annotation properties, such as a
+slot with ``slot_uri: rdfs:label`` emitted with ``--no-use-native-uris``. An annotation
+property has no logical meaning (`§10.1 <https://www.w3.org/TR/owl2-syntax/#Annotations>`__),
+so the generator emits no class restriction for it: a class that uses the slot gets no
+``owl:allValuesFrom`` or cardinality axiom on it. Its domain, a datatype or class range
+and its super-properties are emitted as the annotation axioms of
+`§10.2 <https://www.w3.org/TR/owl2-syntax/#Annotation_Axioms>`__; a range that is a node
+type such as ``nodeidentifier`` gives no range axiom. Built-in annotation properties are
+not declared, as OWL 2 reserves them.
+
+An IRI is an annotation, an object or a data property, not two of these
+(`§5.8.1 <https://www.w3.org/TR/owl2-syntax/#Typing_Constraints_of_OWL_2_DL>`__), so a slot
+that implements two roles is an error, as is a logical use of an annotation property: an
+inverse or a property characteristic, a unique key, a type designator, or a condition in
+a rule or class expression. A super-property (``is_a`` or a mixin) must have the same
+role as its sub-property, since a sub-property axiom relates two annotation properties
+or two logical properties. Slots without the role keep their object or data property
+projection, also when a metaclass declares them; LinkML then puns the annotated element
+as an individual, as it does for all metadata.
+
+
+Prefix normalization
+^^^^^^^^^^^^^^^^^^^^
+
+Schemas sometimes declare non-standard aliases for well-known namespaces
+(e.g. ``sh1:`` for the SHACL namespace, or a versioned alias for ``skos:``).
+By default these aliases are carried through into the generated artifact.
+
+Use ``--normalize-prefixes`` to remap declared prefixes whose namespace IRI
+matches a well-known vocabulary to that vocabulary's conventional name in the
+output (``owl``, ``rdf``, ``rdfs``, ``skos``, ``sh``, ``xsd``, ...):
+
+.. code:: bash
+
+   gen-owl --normalize-prefixes schema.yaml
+
+The names come from `prefixmaps <https://github.com/linkml/prefixmaps>`_, its
+curated ``linked_data`` context over its broader ``merged`` one, and where rdflib
+binds a namespace by default, from rdflib, which serializes the output. They can
+therefore change with the installed prefixmaps and rdflib versions. Namespace
+IRIs that none of them names are left untouched, and a well-known name that the
+schema declares for another namespace is kept, with a warning. The option is
+also available on ``gen-shacl``, ``gen-jsonld-context`` and ``gen-jsonld``.
+
 
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -134,6 +205,54 @@ You can control enum and permissible value representation directly in your schem
             description: A literal value
             implements:
               - rdfs:Literal
+
+**Metaclass membership with ``instantiates``** - This LinkML field types a schema
+element itself; it does not add slots or type that element's data instances. The OWL
+generator maps each declared membership to ``rdf:type`` on the emitted resource.
+The mapping applies consistently to schemas, classes, slots, locally emitted types,
+enums, and non-literal permissible values. No additional option is required: the
+schema already declares the relationship.
+
+For example, a permissible value represented as a named individual can declare
+membership in an external vocabulary class:
+
+.. code-block:: yaml
+
+    enums:
+      LinkCategory:
+        implements:
+          - owl:NamedIndividual
+        permissible_values:
+          isLicense:
+            meaning: ex:isLicense
+            instantiates:
+              - vocab:LicenseCategory
+
+.. code-block:: turtle
+
+    ex:isLicense a owl:NamedIndividual, ex:LinkCategory, vocab:LicenseCategory .
+
+For an enum of named individuals, its own class still uses ``owl:oneOf``; this does
+not close the external class. A permissible value rendered as an OWL class retains
+that representation and also participates as an individual in the membership
+assertion (OWL punning). Membership does not become ``rdfs:subClassOf`` and is not
+inherited by instances of the emitted class. ``instantiates`` is ignored, with a
+warning, on a permissible value rendered as a literal, because RDF literals cannot
+be subjects of ``rdf:type`` triples, on a resource in the OWL 2 reserved vocabulary,
+which cannot be an individual, and for a value that is neither a CURIE nor an IRI,
+which would become a relative IRI.
+
+``gen-rdf`` and ``gen-jsonld`` serialize the schema as metamodel data and retain
+``linkml:instantiates``. ``gen-owl`` translates that declaration into ontology
+membership. Instance validators such as JSON Schema and SHACL must not apply the
+schema element's metaclass to ordinary data instances.
+
+See the `LinkML instantiation guide
+<https://linkml.io/linkml/howtos/implements-instantiates-guide.html#instantiates-metamodel-extension>`_,
+the `instantiates metamodel definition
+<https://linkml.io/linkml-model/latest/docs/instantiates/>`_, and the OWL 2
+specifications for `metamodeling <https://www.w3.org/TR/owl2-syntax/#Metamodeling>`_
+and `mapping class assertions to RDF <https://www.w3.org/TR/owl2-mapping-to-rdf/>`_.
 
 **Using URIs vs. text for permissible values:**
 
@@ -309,6 +428,28 @@ Other examples
 
 - `Biolink <https://bioportal.bioontology.org/ontologies/BIOLINK>`_ :
   translation of Biolink schema to OWL
+
+
+Deterministic output
+^^^^^^^^^^^^^^^^^^^^
+
+``gen-owl`` canonicalizes the graph with `RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_
+before serializing it. For standard RDF, repeated runs over the same schema
+therefore produce byte-identical Turtle, and checked-in artifacts do not change
+between runs.
+
+RDFC-1.0 numbers blank nodes in canonical order (``_:c14n0``, ``_:c14n1``, ...),
+so adding a statement can renumber unrelated blank nodes. ``--diff-stable``
+derives labels from blank-node neighbourhoods instead, which reduces this churn
+but does not guarantee minimal diffs; see :ref:`rdf-in-version-control`, which
+also names the optional dependency it needs. The option is also available on
+``gen-rdf``, ``gen-shacl`` and ``gen-shex --format rdf``.
+
+Graphs that are not standard RDF, with a relative IRI or a literal as a
+predicate, cannot be canonicalized under RDFC-1.0; ``gen-shacl
+--include-annotations`` writes such a predicate for an annotation whose tag is
+not a CURIE. They are serialized by rdflib instead, with an
+``RDFCanonicalizationWarning``, and ``--diff-stable`` has no effect on them.
 
 
 Docs
