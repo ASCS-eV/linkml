@@ -1,0 +1,46 @@
+name: OWL annotation consumer
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  owlapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.11.21"
+          enable-cache: true
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: tests/linkml/test_generators/input/owl_annotation_properties/pom.xml
+      - name: Install Python dependencies
+        run: uv sync --all-groups
+      - name: Resolve the pinned OWLAPI dependency tree once
+        run: >-
+          mvn --batch-mode
+          -f tests/linkml/test_generators/input/owl_annotation_properties/pom.xml
+          org.apache.maven.plugins:maven-dependency-plugin:3.8.1:build-classpath
+          -Dmdep.outputFile=${{ runner.temp }}/owlapi-classpath.txt
+      - name: Require profile validity and annotation retention on round-trip
+        env:
+          LINKML_REQUIRE_OWLAPI: "1"
+          LINKML_OWLAPI_CLASSPATH_FILE: ${{ runner.temp }}/owlapi-classpath.txt
+        run: >-
+          uv run pytest tests/linkml/test_generators/test_owl_annotation_consumer.py
+          -q -m integration
