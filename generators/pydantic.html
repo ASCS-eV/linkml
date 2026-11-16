@@ -251,6 +251,7 @@
 <li class="toctree-l2"><a class="reference internal" href="protobuf.html">ProtoBuf</a></li>
 <li class="toctree-l2"><a class="reference internal" href="graphql.html">GraphQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="openapi.html">OpenAPI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ossie.html">Ossie</a></li>
 <li class="toctree-l2"><a class="reference internal" href="jsonld-context.html">JSON-LD Contexts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="jsonld.html">JSON-LD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="rdf.html">RDF</a></li>
@@ -716,6 +717,12 @@ and all its descendants (via is_a). Values are formatted according to the
 slot’s range type (string, uriorcurie, uri).</p>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="linkml.generators.pydanticgen.PydanticGenerator.file_extension">
+<span class="sig-name descname"><span class="pre">file_extension</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'py'</span></em><a class="headerlink" href="#linkml.generators.pydanticgen.PydanticGenerator.file_extension" title="Link to this definition">¶</a></dt>
+<dd><p>Extension for output files, without the leading dot.</p>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="linkml.generators.pydanticgen.PydanticGenerator.generate_collection_key">
 <span class="sig-name descname"><span class="pre">generate_collection_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">slot_ranges</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">slot_def</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../code/metamodel.html#linkml_runtime.linkml_model.meta.SlotDefinition" title="linkml_runtime.linkml_model.meta.SlotDefinition"><span class="pre">SlotDefinition</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">class_def</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../code/metamodel.html#linkml_runtime.linkml_model.meta.ClassDefinition" title="linkml_runtime.linkml_model.meta.ClassDefinition"><span class="pre">ClassDefinition</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/linkml/generators/pydanticgen/pydanticgen.html#PydanticGenerator.generate_collection_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#linkml.generators.pydanticgen.PydanticGenerator.generate_collection_key" title="Link to this definition">¶</a></dt>
@@ -774,7 +781,8 @@ the generated modules and their highest common directory.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>schema</strong> (str, <code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code> , <a class="reference internal" href="../code/metamodel.html#linkml_runtime.linkml_model.meta.SchemaDefinition" title="linkml_runtime.linkml_model.meta.SchemaDefinition"><code class="xref py py-class docutils literal notranslate"><span class="pre">SchemaDefinition</span></code></a>) – Main schema to generate</p></li>
 <li><p><strong>output_path</strong> (str, <code class="xref py py-class docutils literal notranslate"><span class="pre">Path</span></code>) – Python <code class="docutils literal notranslate"><span class="pre">.py</span></code> module to generate main schema to</p></li>
-<li><p><strong>split_pattern</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – Pattern to use to generate module names, see <a class="reference internal" href="#linkml.generators.pydanticgen.PydanticGenerator.split_pattern" title="linkml.generators.pydanticgen.PydanticGenerator.split_pattern"><code class="xref py py-attr docutils literal notranslate"><span class="pre">PydanticGenerator.split_pattern</span></code></a></p></li>
+<li><p><strong>split_pattern</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – Pattern to use to generate module names. Defaults to
+<a class="reference internal" href="#linkml.generators.pydanticgen.PydanticGenerator.split_pattern" title="linkml.generators.pydanticgen.PydanticGenerator.split_pattern"><code class="xref py py-attr docutils literal notranslate"><span class="pre">PydanticGenerator.split_pattern</span></code></a></p></li>
 <li><p><strong>split_context</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a>) – Additional variables to pass into jinja context when generating module import names.</p></li>
 </ul>
 </dd>
@@ -787,13 +795,13 @@ the generated modules and their highest common directory.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="linkml.generators.pydanticgen.PydanticGenerator.generatorname">
 <span class="sig-name descname"><span class="pre">generatorname</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'pydanticgen.py'</span></em><a class="headerlink" href="#linkml.generators.pydanticgen.PydanticGenerator.generatorname" title="Link to this definition">¶</a></dt>
-<dd><p>Name of the generator. Override with os.path.basename(__file__)</p>
+<dd><p>Name of the generator. Override with <code class="docutils literal notranslate"><span class="pre">os.path.basename(__file__)</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="linkml.generators.pydanticgen.PydanticGenerator.generatorversion">
 <span class="sig-name descname"><span class="pre">generatorversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'0.0.2'</span></em><a class="headerlink" href="#linkml.generators.pydanticgen.PydanticGenerator.generatorversion" title="Link to this definition">¶</a></dt>
-<dd><p>Version of the generator. Consider deprecating and instead use overall linkml version</p>
+<dd><p>Version of the generator.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1004,7 +1012,7 @@ the default templates will be used.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="linkml.generators.pydanticgen.PydanticGenerator.valid_formats">
 <span class="sig-name descname"><span class="pre">valid_formats</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['pydantic']</span></em><a class="headerlink" href="#linkml.generators.pydanticgen.PydanticGenerator.valid_formats" title="Link to this definition">¶</a></dt>
-<dd><p>Allowed formats - first format is default</p>
+<dd><p>Allowed formats. The first one is the default.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1915,6 +1923,17 @@ is_a relationship), is a valid value for the slot”.</p>
 <p>When disabled, the slot uses its normal <code class="docutils literal notranslate"><span class="pre">range</span></code> without the hierarchy constraint.</p>
 </section>
 </section>
+<section id="slots-named-after-python-keywords">
+<h2>Slots named after Python keywords<a class="headerlink" href="#slots-named-after-python-keywords" title="Link to this heading">¶</a></h2>
+<p>A slot named after a Python keyword, such as <code class="docutils literal notranslate"><span class="pre">from</span></code> or <code class="docutils literal notranslate"><span class="pre">class</span></code>, cannot be a Python field
+name, so its field gets a trailing underscore. The field keeps the slot name as its alias, so
+data still uses <code class="docutils literal notranslate"><span class="pre">from</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">from_</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">date</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;from&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>A class cannot have both a slot named after a keyword and a slot named like its field, such as
+<code class="docutils literal notranslate"><span class="pre">from</span></code> and <code class="docutils literal notranslate"><span class="pre">from_</span></code>. The generator reports an error for it.</p>
+</section>
 <section id="additional-notes">
 <h2>Additional Notes<a class="headerlink" href="#additional-notes" title="Link to this heading">¶</a></h2>
 <p>LinkML contains two Python generators. The Pydantic dataclass generator is specifically
@@ -2035,6 +2054,7 @@ pip<span class="w"> </span>install<span class="w"> </span>linkml
 <li><a class="reference internal" href="#disabling-expansion">Disabling Expansion</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#slots-named-after-python-keywords">Slots named after Python keywords</a></li>
 <li><a class="reference internal" href="#additional-notes">Additional Notes</a></li>
 <li><a class="reference internal" href="#biolink-example">Biolink Example</a></li>
 </ul>

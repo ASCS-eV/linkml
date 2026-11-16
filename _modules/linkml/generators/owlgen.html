@@ -250,6 +250,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/protobuf.html">ProtoBuf</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/graphql.html">GraphQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/openapi.html">OpenAPI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../generators/ossie.html">Ossie</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/jsonld-context.html">JSON-LD Contexts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/jsonld.html">JSON-LD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/rdf.html">RDF</a></li>
@@ -428,6 +429,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml</span><span class="w"> </span><span class="kn">import</span> <span class="n">METAMODEL_NAMESPACE_NAME</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml._version</span><span class="w"> </span><span class="kn">import</span> <span class="n">__version__</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">linkml.generators.common.annotations</span><span class="w"> </span><span class="kn">import</span> <span class="n">declared_annotation</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.utils.deprecation</span><span class="w"> </span><span class="kn">import</span> <span class="n">XSD_ANYURI_AS_IRI_OPTION</span><span class="p">,</span> <span class="n">deprecation_warning</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.utils.generator</span><span class="w"> </span><span class="kn">import</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">shared_arguments</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.utils.language_tags</span><span class="w"> </span><span class="kn">import</span> <span class="n">LanguageTagResolver</span>
@@ -452,7 +454,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.formatutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">camelcase</span><span class="p">,</span> <span class="n">underscore</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.introspection</span><span class="w"> </span><span class="kn">import</span> <span class="n">package_schemaview</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.rdf_canonicalize</span><span class="w"> </span><span class="kn">import</span> <span class="n">canonicalize_rdf_graph</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.rdf_terms</span><span class="w"> </span><span class="kn">import</span> <span class="n">type_term</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">linkml_runtime.utils.rdf_terms</span><span class="w"> </span><span class="kn">import</span> <span class="n">link_iri</span><span class="p">,</span> <span class="n">type_term</span><span class="p">,</span> <span class="n">value_term</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -658,6 +660,89 @@
     <span class="c1"># is technical and must never be language-tagged.</span>
     <span class="n">_LANGUAGE_TAGGABLE_RANGES</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;ncname&quot;</span><span class="p">})</span>
 
+    <span class="c1"># The built-in annotation properties of OWL 2 (Structural Specification §5.5, Table 5).</span>
+    <span class="n">_BUILTIN_ANNOTATION_PROPERTIES</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="n">URIRef</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="n">RDFS</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="n">RDFS</span><span class="o">.</span><span class="n">comment</span><span class="p">,</span>
+            <span class="n">RDFS</span><span class="o">.</span><span class="n">seeAlso</span><span class="p">,</span>
+            <span class="n">RDFS</span><span class="o">.</span><span class="n">isDefinedBy</span><span class="p">,</span>
+            <span class="n">OWL</span><span class="o">.</span><span class="n">deprecated</span><span class="p">,</span>
+            <span class="n">OWL</span><span class="o">.</span><span class="n">versionInfo</span><span class="p">,</span>
+            <span class="n">OWL</span><span class="o">.</span><span class="n">priorVersion</span><span class="p">,</span>
+            <span class="n">OWL</span><span class="o">.</span><span class="n">backwardCompatibleWith</span><span class="p">,</span>
+            <span class="n">OWL</span><span class="o">.</span><span class="n">incompatibleWith</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+    <span class="c1"># The namespaces of the OWL 2 reserved vocabulary (Structural Specification §2.4, Table 2).</span>
+    <span class="n">_RESERVED_NAMESPACES</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">RDF</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">RDFS</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">XSD</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">OWL</span><span class="p">))</span>
+    <span class="c1"># The declarations of a property&#39;s role (§5.3 to §5.5).</span>
+    <span class="n">_PROPERTY_DECLARATIONS</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="n">URIRef</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+        <span class="p">{</span><span class="n">OWL</span><span class="o">.</span><span class="n">ObjectProperty</span><span class="p">,</span> <span class="n">OWL</span><span class="o">.</span><span class="n">DatatypeProperty</span><span class="p">,</span> <span class="n">OWL</span><span class="o">.</span><span class="n">AnnotationProperty</span><span class="p">}</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_declare_annotation_properties</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Declare every predicate of the ontology that has no role as an annotation property.</span>
+
+<span class="sd">        OWL 2 DL requires each IRI used as a property to be declared (Structural</span>
+<span class="sd">        Specification §5.8.1). The generator declares the object and data</span>
+<span class="sd">        properties of the slots it emits; every other predicate it writes outside</span>
+<span class="sd">        the reserved vocabulary (§2.4) is an annotation: the metadata of elements</span>
+<span class="sd">        (``skos:definition``, ``skos:inScheme``, ``dcterms:title``, ...), the</span>
+<span class="sd">        mappings, and annotations. A predicate that a restriction uses</span>
+<span class="sd">        (``owl:onProperty``) is a logical property and is left alone.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">graph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span>
+        <span class="n">declared</span> <span class="o">=</span> <span class="p">{</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">subject_objects</span><span class="p">(</span><span class="n">RDF</span><span class="o">.</span><span class="n">type</span><span class="p">)</span> <span class="k">if</span> <span class="n">role</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_PROPERTY_DECLARATIONS</span><span class="p">}</span>
+        <span class="n">restricted</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">objects</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">OWL</span><span class="o">.</span><span class="n">onProperty</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">predicate</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">predicates</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">predicate</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_RESERVED_NAMESPACES</span><span class="p">)</span> <span class="ow">or</span> <span class="n">predicate</span> <span class="ow">in</span> <span class="n">declared</span> <span class="o">|</span> <span class="n">restricted</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">predicate</span><span class="p">,</span> <span class="n">RDF</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">OWL</span><span class="o">.</span><span class="n">AnnotationProperty</span><span class="p">))</span>
+
+    <span class="c1"># The property roles a slot can declare with ``implements`` (OWL 2 §5.3 to §5.5).</span>
+    <span class="n">_PROPERTY_ROLES</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="n">URIRef</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+        <span class="p">{</span><span class="n">OWL</span><span class="o">.</span><span class="n">AnnotationProperty</span><span class="p">,</span> <span class="n">OWL</span><span class="o">.</span><span class="n">ObjectProperty</span><span class="p">,</span> <span class="n">OWL</span><span class="o">.</span><span class="n">DatatypeProperty</span><span class="p">}</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_declared_property_role</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">URIRef</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the OWL property role that *slot* declares with ``implements``, if any.</span>
+
+<span class="sd">        :raises ValueError: if the slot declares more than one role; an IRI is an</span>
+<span class="sd">            annotation, an object or a data property (OWL 2 §5.8.1)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">roles</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">URIRef</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">slot</span><span class="o">.</span><span class="n">implements</span><span class="p">:</span>
+            <span class="n">uri</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">expand_curie</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">uri</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;owl:&quot;</span><span class="p">):</span>
+                <span class="n">uri</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">OWL</span><span class="p">)</span> <span class="o">+</span> <span class="n">uri</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="s2">&quot;owl:&quot;</span><span class="p">)</span> <span class="p">:]</span>
+            <span class="k">if</span> <span class="n">URIRef</span><span class="p">(</span><span class="n">uri</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_PROPERTY_ROLES</span><span class="p">:</span>
+                <span class="n">roles</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">URIRef</span><span class="p">(</span><span class="n">uri</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">roles</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Slot </span><span class="si">{</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> implements more than one OWL property role: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">roles</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">roles</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_annotation_property</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether *slot* is an OWL annotation property.</span>
+
+<span class="sd">        It is one when it implements ``owl:AnnotationProperty`` or when its property</span>
+<span class="sd">        IRI is a built-in annotation property (OWL 2 §5.5), as for a slot mapped to</span>
+<span class="sd">        ``rdfs:label`` and emitted with that IRI.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_declared_property_role</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span> <span class="o">==</span> <span class="n">OWL</span><span class="o">.</span><span class="n">AnnotationProperty</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prop_uri</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_BUILTIN_ANNOTATION_PROPERTIES</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolved_slot</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">,</span> <span class="bp">cls</span><span class="p">:</span> <span class="s2">&quot;ClassDefinition | AnonymousClassExpression | None&quot;</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SlotDefinition</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return *slot* with its global definition and, within a class, the class&#39;s usage applied.&quot;&quot;&quot;</span>
+        <span class="n">sv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">ClassDefinition</span><span class="p">)</span> <span class="ow">and</span> <span class="n">slot</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="n">sv</span><span class="o">.</span><span class="n">class_slots</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">sv</span><span class="o">.</span><span class="n">induced_slot</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="ow">or</span> <span class="n">slot</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="c1"># Resolver must be assigned before ``super().__post_init__()`` so that</span>
         <span class="c1"># any hook the parent invokes during initialisation can safely call</span>
@@ -744,6 +829,7 @@
 
         <span class="c1"># Add metadata as annotation properties</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">add_metadata</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_declare_annotation_properties</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">graph</span>
 
 <div class="viewcode-block" id="OwlSchemaGenerator.serialize">
@@ -797,14 +883,7 @@
                 <span class="n">metaslot_value</span> <span class="o">=</span> <span class="p">[</span><span class="n">metaslot_value</span><span class="p">]</span>
             <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">metaslot_value</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">metaslot_range</span> <span class="ow">in</span> <span class="n">msv</span><span class="o">.</span><span class="n">all_types</span><span class="p">():</span>
-                    <span class="k">if</span> <span class="n">metaslot_range</span> <span class="o">==</span> <span class="s2">&quot;uri&quot;</span><span class="p">:</span>
-                        <span class="n">obj</span> <span class="o">=</span> <span class="n">URIRef</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-                    <span class="k">elif</span> <span class="n">metaslot_range</span> <span class="o">==</span> <span class="s2">&quot;uriorcurie&quot;</span><span class="p">:</span>
-                        <span class="n">obj</span> <span class="o">=</span> <span class="n">URIRef</span><span class="p">(</span><span class="n">this_sv</span><span class="o">.</span><span class="n">expand_curie</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
-                    <span class="k">elif</span> <span class="n">metaslot_range</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_LANGUAGE_TAGGABLE_RANGES</span> <span class="ow">and</span> <span class="n">lang</span><span class="p">:</span>
-                        <span class="n">obj</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">lang</span><span class="o">=</span><span class="n">lang</span><span class="p">)</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="n">obj</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                    <span class="n">obj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_metaslot_term</span><span class="p">(</span><span class="n">metaslot_range</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">lang</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">metaslot_name</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">uri</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="n">metaslot_range</span> <span class="ow">in</span> <span class="n">msv</span><span class="o">.</span><span class="n">all_subsets</span><span class="p">():</span>
                     <span class="n">obj</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>  <span class="c1"># TODO</span>
                 <span class="k">elif</span> <span class="n">metaslot_range</span> <span class="ow">in</span> <span class="n">msv</span><span class="o">.</span><span class="n">all_classes</span><span class="p">():</span>
@@ -829,6 +908,15 @@
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">annotations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
                 <span class="k">continue</span>
+            <span class="n">declared</span> <span class="o">=</span> <span class="n">declared_annotation</span><span class="p">(</span><span class="n">this_sv</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">lang</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">declared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">is_annotation_property</span><span class="p">(</span><span class="n">declared</span><span class="o">.</span><span class="n">slot</span><span class="p">)</span>
+                    <span class="ow">and</span> <span class="n">declared</span><span class="o">.</span><span class="n">predicate</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_BUILTIN_ANNOTATION_PROPERTIES</span>
+                <span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">declared</span><span class="o">.</span><span class="n">predicate</span><span class="p">,</span> <span class="n">RDF</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">OWL</span><span class="o">.</span><span class="n">AnnotationProperty</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">uri</span><span class="p">,</span> <span class="n">declared</span><span class="o">.</span><span class="n">predicate</span><span class="p">,</span> <span class="n">declared</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+                <span class="k">continue</span>
             <span class="k">if</span> <span class="s2">&quot;:&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">k</span><span class="p">:</span>
                 <span class="n">default_prefix</span> <span class="o">=</span> <span class="n">this_sv</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">default_prefix</span>
                 <span class="k">if</span> <span class="n">default_prefix</span> <span class="ow">in</span> <span class="n">this_sv</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">prefixes</span><span class="p">:</span>
@@ -845,6 +933,32 @@
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">obj</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">uri</span><span class="p">,</span> <span class="n">URIRef</span><span class="p">(</span><span class="n">k_uri</span><span class="p">),</span> <span class="n">obj</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_metaslot_term</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">range_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">language</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">origin</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">URIRef</span> <span class="o">|</span> <span class="n">BNode</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the RDF term of a native metadata value according to the metamodel slot&#39;s range.</span>
+
+<span class="sd">        The term kind follows :func:`~linkml_runtime.utils.rdf_terms.value_term`, so</span>
+<span class="sd">        ``see_also`` and ``source`` values are IRIs and ``license`` values are</span>
+<span class="sd">        strings. A link&#39;s CURIE is expanded with the schema&#39;s prefixes, then with the</span>
+<span class="sd">        metamodel&#39;s. Human-readable text carries the resolved language. A link value</span>
+<span class="sd">        that is neither an IRI nor a CURIE, such as a bare element name in</span>
+<span class="sd">        ``see_also``, cannot be resolved; it is written as a plain literal, with a</span>
+<span class="sd">        warning, since a relative IRI would make the whole graph non-standard RDF</span>
+<span class="sd">        and OWL 2 admits a literal as an annotation value (Structural Specification</span>
+<span class="sd">        §10.1).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metamodel_schemaview</span>
+        <span class="k">if</span> <span class="n">range_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_LANGUAGE_TAGGABLE_RANGES</span> <span class="ow">and</span> <span class="n">language</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Literal</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">lang</span><span class="o">=</span><span class="n">language</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">type_term</span><span class="p">(</span><span class="n">msv</span><span class="p">,</span> <span class="n">range_name</span><span class="p">)</span><span class="o">.</span><span class="n">kind</span><span class="o">.</span><span class="n">is_node</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">value_term</span><span class="p">(</span><span class="n">msv</span><span class="p">,</span> <span class="n">range_name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="n">link</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">expand_curie</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">link_iri</span><span class="p">(</span><span class="n">msv</span><span class="p">,</span> <span class="n">link</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">link</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;_:&quot;</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">origin</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2"> is neither an IRI nor a CURIE; written as a literal&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Literal</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">value_term</span><span class="p">(</span><span class="n">msv</span><span class="p">,</span> <span class="n">range_name</span><span class="p">,</span> <span class="n">link</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">add_class</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">cls</span><span class="p">:</span> <span class="n">ClassDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -927,12 +1041,19 @@
         <span class="c1"># then create an axiom: (t some C) subClassOf C.</span>
         <span class="n">type_designator</span> <span class="o">=</span> <span class="n">sv</span><span class="o">.</span><span class="n">get_type_designator_slot</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">type_designator</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_annotation_property</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_resolved_slot</span><span class="p">(</span><span class="n">type_designator</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Annotation property </span><span class="si">{</span><span class="n">type_designator</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> cannot be the type designator of </span><span class="si">{</span><span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
             <span class="n">td_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prop_uri</span><span class="p">(</span><span class="n">type_designator</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
             <span class="n">restr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_some_values_from</span><span class="p">(</span><span class="n">td_prop</span><span class="p">,</span> <span class="n">subject_expr</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">restr</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">subClassOf</span><span class="p">,</span> <span class="n">subject_expr</span><span class="p">))</span>
         <span class="c1"># unique key constraints are mapped to OWL hasKey</span>
         <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">unique_keys</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">uk</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">unique_keys</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">slot_name</span> <span class="ow">in</span> <span class="n">uk</span><span class="o">.</span><span class="n">unique_key_slots</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_annotation_property</span><span class="p">(</span><span class="n">sv</span><span class="o">.</span><span class="n">induced_slot</span><span class="p">(</span><span class="n">slot_name</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="p">)):</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Annotation property </span><span class="si">{</span><span class="n">slot_name</span><span class="si">!r}</span><span class="s2"> cannot be in a unique key of </span><span class="si">{</span><span class="bp">cls</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
                 <span class="n">uk_props</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_prop_uri</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span> <span class="k">for</span> <span class="n">slot</span> <span class="ow">in</span> <span class="n">uk</span><span class="o">.</span><span class="n">unique_key_slots</span><span class="p">]</span>
                 <span class="n">uk_props_listnode</span> <span class="o">=</span> <span class="n">BNode</span><span class="p">()</span>
                 <span class="n">Collection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">uk_props_listnode</span><span class="p">,</span> <span class="n">uk_props</span><span class="p">)</span>
@@ -1106,6 +1227,11 @@
             <span class="k">if</span> <span class="n">none_of_expr</span><span class="p">:</span>
                 <span class="n">owl_exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">none_of_expr</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">slot</span> <span class="ow">in</span> <span class="n">own_slots</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_annotation_property</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_resolved_slot</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">AnonymousClassExpression</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Annotation property </span><span class="si">{</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> cannot be a condition of a class expression&quot;</span><span class="p">)</span>
+                <span class="c1"># An annotation property has no logical meaning (OWL 2 §10.1), so no restriction.</span>
+                <span class="k">continue</span>
             <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
                 <span class="n">owltypes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slot_node_owltypes</span><span class="p">(</span><span class="n">sv</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">owning_class</span><span class="o">=</span><span class="bp">cls</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1436,7 +1562,9 @@
 
         <span class="c1"># Slots may be modeled as Object or Datatype Properties</span>
         <span class="c1"># if type_objects is True, then ALL slots are ObjectProperties</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDF</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">slot_owl_type</span><span class="p">(</span><span class="n">slot</span><span class="p">)))</span>
+        <span class="n">role</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slot_owl_type</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">slot_uri</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_BUILTIN_ANNOTATION_PROPERTIES</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDF</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">role</span><span class="p">))</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">metaclasses</span><span class="p">:</span>
             <span class="c1"># add metaclass which this property instantiates -- induces punning</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
@@ -1462,6 +1590,10 @@
 
         <span class="k">if</span> <span class="n">attribute</span><span class="p">:</span>
             <span class="k">return</span>
+        <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="n">OWL</span><span class="o">.</span><span class="n">AnnotationProperty</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">slot_uri</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_BUILTIN_ANNOTATION_PROPERTIES</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_add_annotation_property_axioms</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">slot_uri</span><span class="p">)</span>
+            <span class="k">return</span>
 
         <span class="n">range_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_class_slot_expression</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">slot</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">range_expr</span><span class="p">:</span>
@@ -1481,10 +1613,54 @@
             <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">metaslot</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDF</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">uri</span><span class="p">))</span>
 
-        <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">is_a</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">subPropertyOf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prop_uri</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">is_a</span><span class="p">)))</span>
-        <span class="k">for</span> <span class="n">mixin</span> <span class="ow">in</span> <span class="n">slot</span><span class="o">.</span><span class="n">mixins</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">subPropertyOf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prop_uri</span><span class="p">(</span><span class="n">mixin</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_add_super_properties</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">slot_uri</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_add_super_properties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">,</span> <span class="n">slot_uri</span><span class="p">:</span> <span class="n">URIRef</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Emit the ``is_a`` parent and the mixins of *slot* as its super-properties.</span>
+
+<span class="sd">        A sub-property axiom relates two annotation properties (OWL 2 §10.2.1) or two</span>
+<span class="sd">        properties of a logical role (§9.2.1, §9.3.1), so a super-property must have</span>
+<span class="sd">        the role *slot* has: a slot whose ``is_a`` or mixin is an annotation property</span>
+<span class="sd">        while it is none, or the reverse, is an error.</span>
+
+<span class="sd">        :raises ValueError: if *slot* and a super-property differ in the annotation role</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">is_annotation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_annotation_property</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">parent_name</span> <span class="ow">in</span> <span class="p">([</span><span class="n">slot</span><span class="o">.</span><span class="n">is_a</span><span class="p">]</span> <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">is_a</span> <span class="k">else</span> <span class="p">[])</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">mixins</span><span class="p">):</span>
+            <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">get_slot</span><span class="p">(</span><span class="n">parent_name</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">parent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_annotation_property</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span> <span class="o">!=</span> <span class="n">is_annotation</span><span class="p">:</span>
+                <span class="n">kinds</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="p">(</span><span class="s2">&quot;an annotation property&quot;</span><span class="p">,</span> <span class="s2">&quot;not one&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">is_annotation</span> <span class="k">else</span> <span class="p">(</span><span class="s2">&quot;not an annotation property&quot;</span><span class="p">,</span> <span class="s2">&quot;one&quot;</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Slot </span><span class="si">{</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> is </span><span class="si">{</span><span class="n">kinds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> but its super-property </span><span class="si">{</span><span class="n">parent_name</span><span class="si">!r}</span><span class="s2"> is </span><span class="si">{</span><span class="n">kinds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">; &quot;</span>
+                    <span class="s2">&quot;a sub-property axiom needs both to have the same role (OWL 2 §10.2.1)&quot;</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">subPropertyOf</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prop_uri</span><span class="p">(</span><span class="n">parent_name</span><span class="p">)))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_add_annotation_property_axioms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">,</span> <span class="n">slot_uri</span><span class="p">:</span> <span class="n">URIRef</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Emit the axioms OWL 2 allows for an annotation property (§10.2).</span>
+
+<span class="sd">        These are sub-properties and a domain and a range given by a named IRI; a</span>
+<span class="sd">        range that is a type gives its datatype, a node type gives no range. Inverses</span>
+<span class="sd">        and property characteristics are object property axioms (§9.2), so a slot that</span>
+<span class="sd">        declares them with the annotation role is an error.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">metaslot</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;inverse&quot;</span><span class="p">,</span> <span class="s2">&quot;symmetric&quot;</span><span class="p">,</span> <span class="s2">&quot;asymmetric&quot;</span><span class="p">,</span> <span class="s2">&quot;transitive&quot;</span><span class="p">,</span> <span class="s2">&quot;reflexive&quot;</span><span class="p">,</span> <span class="s2">&quot;irreflexive&quot;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">metaslot</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Annotation property </span><span class="si">{</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> cannot declare </span><span class="si">{</span><span class="n">metaslot</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">sv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span>
+        <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">domain</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">domain</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_class_uri</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">domain</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">in</span> <span class="n">sv</span><span class="o">.</span><span class="n">all_types</span><span class="p">():</span>
+            <span class="n">term</span> <span class="o">=</span> <span class="n">type_term</span><span class="p">(</span><span class="n">sv</span><span class="p">,</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">term</span><span class="o">.</span><span class="n">kind</span><span class="o">.</span><span class="n">is_node</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">range</span><span class="p">,</span> <span class="n">URIRef</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">datatype</span><span class="p">)))</span>
+        <span class="k">elif</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">in</span> <span class="n">sv</span><span class="o">.</span><span class="n">all_classes</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">range</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_class_uri</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">range</span><span class="p">)))</span>
+        <span class="k">elif</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">in</span> <span class="n">sv</span><span class="o">.</span><span class="n">all_enums</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">slot_uri</span><span class="p">,</span> <span class="n">RDFS</span><span class="o">.</span><span class="n">range</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enum_uri</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">range</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_add_super_properties</span><span class="p">(</span><span class="n">slot</span><span class="p">,</span> <span class="n">slot_uri</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">add_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">typ</span><span class="p">:</span> <span class="n">TypeDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">type_uri</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_type_uri</span><span class="p">(</span><span class="n">typ</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
@@ -2078,10 +2254,11 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">slot_owl_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">URIRef</span><span class="p">:</span>
         <span class="n">sv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span>
-        <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">implements</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;owl:AnnotationProperty&quot;</span><span class="p">,</span> <span class="s2">&quot;owl:ObjectProperty&quot;</span><span class="p">,</span> <span class="s2">&quot;owl:DatatypeProperty&quot;</span><span class="p">]:</span>
-                <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">slot</span><span class="o">.</span><span class="n">implements</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">OWL</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;owl:&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)]</span>
+        <span class="n">role</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_declared_property_role</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">role</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">role</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prop_uri</span><span class="p">(</span><span class="n">slot</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_BUILTIN_ANNOTATION_PROPERTIES</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">OWL</span><span class="o">.</span><span class="n">AnnotationProperty</span>
         <span class="k">if</span> <span class="n">slot</span><span class="o">.</span><span class="n">range</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">slot_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">schemaview</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">default_range</span>
         <span class="k">else</span><span class="p">:</span>

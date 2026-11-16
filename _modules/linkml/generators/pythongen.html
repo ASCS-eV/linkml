@@ -250,6 +250,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/protobuf.html">ProtoBuf</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/graphql.html">GraphQL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/openapi.html">OpenAPI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../generators/ossie.html">Ossie</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/jsonld-context.html">JSON-LD Contexts</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/jsonld.html">JSON-LD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../generators/rdf.html">RDF</a></li>
@@ -422,6 +423,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">linkml</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml._version</span><span class="w"> </span><span class="kn">import</span> <span class="n">__version__</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">linkml.generators.common.naming</span><span class="w"> </span><span class="kn">import</span> <span class="n">escape_python_keyword</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.generators.pydanticgen.template</span><span class="w"> </span><span class="kn">import</span> <span class="n">Import</span><span class="p">,</span> <span class="n">Imports</span><span class="p">,</span> <span class="n">ObjectImport</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.generators.python.python_ifabsent_processor</span><span class="w"> </span><span class="kn">import</span> <span class="n">PythonIfAbsentProcessor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">linkml.utils.deprecation</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated_fields</span><span class="p">,</span> <span class="n">deprecation_warning</span>
@@ -1727,18 +1729,20 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">keyed</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">if</span> <span class="n">identifier</span><span class="p">:</span>
+                <span class="c1"># underscored name, as in data and dataclass field (``term id`` -&gt; ``term_id``)</span>
+                <span class="n">key_name</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">slot_name</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">slot</span><span class="o">.</span><span class="n">inlined_as_list</span><span class="p">:</span>
                     <span class="n">rlines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                         <span class="sa">f</span><span class="s1">&#39;self._normalize_inlined_as_dict(slot_name=&quot;</span><span class="si">{</span><span class="n">aliased_slot_name</span><span class="si">}</span><span class="s1">&quot;, &#39;</span>
                         <span class="sa">f</span><span class="s2">&quot;slot_type=</span><span class="si">{</span><span class="n">base_type_name</span><span class="si">}</span><span class="s2">, &quot;</span>
-                        <span class="sa">f</span><span class="s1">&#39;key_name=&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">aliased_slot_name</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span><span class="si">}</span><span class="s1">&quot;, &#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39;key_name=&quot;</span><span class="si">{</span><span class="n">key_name</span><span class="si">}</span><span class="s1">&quot;, &#39;</span>
                         <span class="sa">f</span><span class="s2">&quot;keyed=</span><span class="si">{</span><span class="n">keyed</span><span class="si">}</span><span class="s2">)&quot;</span>
                     <span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">rlines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                         <span class="sa">f</span><span class="s1">&#39;self._normalize_inlined_as_list(slot_name=&quot;</span><span class="si">{</span><span class="n">aliased_slot_name</span><span class="si">}</span><span class="s1">&quot;, &#39;</span>
                         <span class="sa">f</span><span class="s2">&quot;slot_type=</span><span class="si">{</span><span class="n">base_type_name</span><span class="si">}</span><span class="s2">, &quot;</span>
-                        <span class="sa">f</span><span class="s1">&#39;key_name=&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">aliased_slot_name</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span><span class="si">}</span><span class="s1">&quot;, &#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39;key_name=&quot;</span><span class="si">{</span><span class="n">key_name</span><span class="si">}</span><span class="s1">&quot;, &#39;</span>
                         <span class="sa">f</span><span class="s2">&quot;keyed=</span><span class="si">{</span><span class="n">keyed</span><span class="si">}</span><span class="s2">)&quot;</span>
                     <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1856,11 +1860,9 @@
             <span class="k">return</span> <span class="s2">&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">gen_slot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">slot</span><span class="p">:</span> <span class="n">SlotDefinition</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="n">python_slot_name</span> <span class="o">=</span> <span class="n">underscore</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="c1"># If slot name is a reserved keyword, follow PEP8 conventions to append an underscore.</span>
         <span class="c1"># The transformed slot will be accessible as `slots.class_`, not `slots.class`.</span>
-        <span class="k">if</span> <span class="n">keyword</span><span class="o">.</span><span class="n">iskeyword</span><span class="p">(</span><span class="n">python_slot_name</span><span class="p">):</span>
-            <span class="n">python_slot_name</span> <span class="o">=</span> <span class="n">python_slot_name</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span>
+        <span class="n">python_slot_name</span> <span class="o">=</span> <span class="n">escape_python_keyword</span><span class="p">(</span><span class="n">underscore</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
         <span class="n">slot_uri</span><span class="p">,</span> <span class="n">slot_curie</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_uri_for</span><span class="p">(</span><span class="n">slot</span><span class="o">.</span><span class="n">slot_uri</span><span class="p">)</span>
         <span class="n">slot_model_uri</span><span class="p">,</span> <span class="n">slot_model_curie</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_uri_for</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">namespaces</span><span class="o">.</span><span class="n">uri_or_curie_for</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">default_prefix</span><span class="p">,</span> <span class="n">python_slot_name</span><span class="p">)</span>
