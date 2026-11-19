@@ -14,6 +14,13 @@ from jsonasobj2 import JsonObj, as_json
 from rdflib import SKOS, XSD, Namespace
 
 from linkml._version import __version__
+from linkml.generators.common.prefixes import (
+    added_preferred_prefixes,
+    normalize_prefixes_option,
+    preferred_prefixes,
+    standardize_prefix,
+    standardize_values,
+)
 from linkml.utils.deprecation import XSD_ANYURI_AS_IRI_OPTION, deprecated_fields, deprecation_warning
 from linkml.utils.generator import Generator, shared_arguments
 from linkml_runtime.linkml_model.meta import ClassDefinition, EnumDefinition, SlotDefinition
@@ -52,6 +59,9 @@ class ContextGenerator(Generator):
     prefixes: bool | None = True
     flatprefixes: bool | None = False
     fix_multivalue_containers: bool | None = False
+    normalize_prefixes: bool = False
+    """Also define the conventional prefix names of :mod:`linkml.generators.common.prefixes`,
+    e.g. ``dc`` where the schema declares ``dce``, and write compact IRIs with them."""
     exclude_imports: bool = False
     """If True, elements from imported schemas won't be included in the generated context"""
     exclude_external_imports: bool = False
@@ -126,6 +136,8 @@ class ContextGenerator(Generator):
         return external_classes, external_slots
 
     def visit_schema(self, base: str | Namespace | None = None, output: str | None = None, **_):
+        # Whether a class or slot definition carries a scoped context, a JSON-LD 1.1 construct
+        self._uses_scoped_contexts = False
         # Add any explicitly declared prefixes
         for prefix in self.schema.prefixes.values():
             self.emit_prefixes.add(prefix.prefix_prefix)
@@ -178,15 +190,26 @@ class ContextGenerator(Generator):
             comments.source = self.schema.source_file
             context.comments = comments
         context_content = {"xsd": "http://www.w3.org/2001/XMLSchema#"}
+        uses_prefix_flag = False
         if base:
             base = str(base)
             if "://" not in base:
                 self.context_body["@base"] = os.path.relpath(base, os.path.dirname(self.schema.source_file))
             else:
                 self.context_body["@base"] = base
+        preferred = None
+        if self.normalize_prefixes and prefixes:
+            preferred = added_preferred_prefixes(
+                preferred_prefixes(self.prefix_schemaview()),
+                {prefix: str(self.namespaces[prefix]) for prefix in self.emit_prefixes},
+                terms=self.context_body.keys() | self.slot_class_maps.keys(),
+            )
         if prefixes:
-            for prefix in sorted(self.emit_prefixes):
-                url = str(self.namespaces[prefix])
+            urls = {prefix: str(self.namespaces[prefix]) for prefix in self.emit_prefixes}
+            if preferred is not None:
+                urls |= {record.prefix: record.uri_prefix for record in preferred.records}
+            for prefix in sorted(urls):
+                url = urls[prefix]
                 # Derived from line # ~5223 in pyld/lib/jsonld.py
                 if bool(re.match(r".*[:/\?#\[\]@]$", url)) or flatprefixes:
                     context_content[prefix] = url
@@ -194,12 +217,22 @@ class ContextGenerator(Generator):
                     prefix_obj = JsonObj()
                     prefix_obj["@id"] = url
                     prefix_obj["@prefix"] = True
+                    uses_prefix_flag = True
                     context_content[prefix] = prefix_obj
         if model:
             for k, v in self.context_body.items():
                 context_content[k] = v
             for k, v in self.slot_class_maps.items():
                 context_content[k] = v
+        if preferred is not None:
+            context_content = standardize_values(json.loads(as_json(context_content)), preferred)
+        if uses_prefix_flag or (model and self._uses_scoped_contexts):
+            # The context uses a JSON-LD 1.1 construct (``@prefix``, a scoped context), which a
+            # JSON-LD 1.0 processor silently ignores. ``"@version": 1.1`` makes such a processor
+            # stop instead (JSON-LD 1.1 §1.7), and a JSON-LD 1.1 processor then requires 1.1
+            # processing (JSON-LD 1.1 API §4.1.2, step 5.5). A context without such a
+            # construct stays loadable by a 1.0 processor.
+            context_content = {"@version": 1.1, **context_content}
         context["@context"] = context_content
         if output and not self.embed_context_in_frame:
             with open(output, "w", encoding="UTF-8") as outf:
@@ -227,6 +260,8 @@ class ContextGenerator(Generator):
             if root_name:
                 root_cls = self.schema.classes[root_name]
                 frame["@type"] = root_cls.class_uri or root_cls.name
+                if preferred is not None:
+                    frame["@type"] = standardize_prefix(frame["@type"], preferred)
 
             for prop, rule in self.frame_body.items():
                 frame[prop] = rule
@@ -268,6 +303,7 @@ class ContextGenerator(Generator):
         scoped_context = self._build_scoped_context(cls)
         if scoped_context:
             class_def["@context"] = scoped_context
+            self._uses_scoped_contexts = True
 
         if class_def:
             self.slot_class_maps[cn] = class_def
@@ -389,6 +425,7 @@ class ContextGenerator(Generator):
                         slot_def["@context"] = {**ENUM_CONTEXT, "@vocab": vocab_ns}
                     else:
                         slot_def["@context"] = ENUM_CONTEXT
+                    self._uses_scoped_contexts = True
                     # Add the necessary prefixes to the namespace
                     skos = self.namespaces.prefix_for(SKOS)
                     if not skos:
@@ -603,6 +640,7 @@ class ContextGenerator(Generator):
     help="Use class_uri/slot_uri CURIEs as class and non-identifier slot context keys; identifier slots retain their "
     + "slot-name key and map to @id.",
 )
+@normalize_prefixes_option
 @click.version_option(__version__, "-V", "--version")
 def cli(yamlfile, emit_frame, embed_context_in_frame, output, **args):
     """Generate jsonld @context definition from LinkML model"""

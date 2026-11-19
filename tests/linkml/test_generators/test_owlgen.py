@@ -1,5 +1,6 @@
 import logging
 import os
+import textwrap
 from enum import Enum
 
 import pytest
@@ -9,6 +10,7 @@ from rdflib.namespace import OWL, RDF, XSD
 
 from linkml import METAMODEL_CONTEXT_URI
 from linkml.generators.owlgen import MetadataProfile, OwlSchemaGenerator
+from linkml.generators.rdfgen import RDFGenerator
 from linkml_runtime.linkml_model import SlotDefinition
 from linkml_runtime.linkml_model.meta import (
     AnonymousClassExpression,
@@ -1266,3 +1268,699 @@ def test_cli_ontology_uri_suffix(kitchen_sink_path, args: list[str], expected_su
     g = Graph()
     g.parse(data=result.output, format="turtle")
     assert _ontology_iris(g) == {URIRef(f"https://w3id.org/linkml/tests/kitchen_sink{expected_suffix}")}
+
+
+_INSTANTIATES_SCHEMA = """
+id: http://example.org/test-schema
+name: instantiates_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: http://example.org/test-schema/
+  vocab: http://example.org/vocab/
+default_prefix: ex
+imports:
+  - linkml:types
+enums:
+  LinkCategory:
+    implements:
+      - owl:NamedIndividual
+    permissible_values:
+      isLicense:
+        meaning: ex:isLicense
+        instantiates:
+          - vocab:LicenseCategory
+      isManifest:
+        meaning: ex:isManifest
+        instantiates:
+          - vocab:ManifestCategory
+          - vocab:Category
+      isMedia:
+        meaning: ex:isMedia
+"""
+
+VOCAB = Namespace("http://example.org/vocab/")
+
+
+def test_permissible_value_instantiates_types_the_value() -> None:
+    """Each ``instantiates`` value of a permissible value becomes an rdf:type of its IRI."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_INSTANTIATES_SCHEMA, metaclasses=False).serialize(), format="turtle")
+
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.ManifestCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.Category) in g
+    # the value stays an individual of the enum, which still closes its own class
+    for pv in (EX.isLicense, EX.isManifest, EX.isMedia):
+        assert (pv, RDF.type, OWL.NamedIndividual) in g
+        assert (pv, RDF.type, EX.LinkCategory) in g
+    one_of = g.value(EX.LinkCategory, OWL.oneOf)
+    assert set(Collection(g, one_of)) == {EX.isLicense, EX.isManifest, EX.isMedia}
+    # a value without instantiates gets no further type, and the instantiated classes stay open
+    assert set(g.objects(EX.isMedia, RDF.type)) == {OWL.NamedIndividual, EX.LinkCategory}
+    assert g.value(VOCAB.LicenseCategory, OWL.oneOf) is None
+
+
+def test_permissible_value_instantiates_ignored_on_literal(caplog: pytest.LogCaptureFixture) -> None:
+    """A permissible value rendered as a literal cannot be typed, so instantiates is ignored with a warning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", "rdfs:Literal")
+    with caplog.at_level(logging.WARNING):
+        g = Graph()
+        g.parse(data=OwlSchemaGenerator(schema, metaclasses=False).serialize(), format="turtle")
+    assert not list(g.triples((None, RDF.type, VOCAB.LicenseCategory)))
+    assert any("Instantiates on literal isLicense" in rec.message for rec in caplog.records)
+
+
+def test_instantiates_ignored_on_reserved_vocabulary(caplog: pytest.LogCaptureFixture) -> None:
+    """Without type objects a type is emitted as its XSD datatype, which cannot be
+    an OWL 2 DL individual, so its ``instantiates`` is not asserted on that IRI."""
+    schema = """
+id: https://example.org/reserved
+name: reserved
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+default_prefix: ex
+types:
+  Count:
+    uri: xsd:integer
+    base: int
+    instantiates: [ex:Metadata]
+"""
+    with caplog.at_level(logging.WARNING):
+        output = OwlSchemaGenerator(schema, type_objects=False, metaclasses=False).serialize()
+    graph = Graph().parse(data=output, format="turtle")
+    assert (XSD.integer, RDF.type, URIRef("https://example.org/Metadata")) not in graph
+    assert "reserved vocabulary" in caplog.text
+
+
+def test_instantiates_ignored_for_a_bare_name(caplog: pytest.LogCaptureFixture) -> None:
+    """A value that is neither a CURIE nor an IRI would become a relative IRI, so it is skipped with a warning."""
+    schema = (
+        _INSTANTIATES_SCHEMA
+        + """
+classes:
+  Metadata: {}
+  Entry:
+    instantiates: [Metadata, vocab:ClassProfile]
+"""
+    )
+    with caplog.at_level(logging.WARNING):
+        g = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    assert set(g.objects(EX.Entry, RDF.type)) == {OWL.Class, VOCAB.ClassProfile}
+    assert (
+        "Instantiates 'Metadata' on http://example.org/test-schema/Entry, "
+        "which is neither a CURIE nor an IRI, is ignored"
+    ) in caplog.text
+
+
+@pytest.mark.parametrize("use_native_uris", [True, False])
+def test_instantiates_types_the_emitted_class_resource(use_native_uris: bool) -> None:
+    """The assertion goes on the resource the class is emitted as: its native IRI, or its ``class_uri``."""
+    schema = _INSTANTIATES_SCHEMA.replace(
+        "  vocab: http://example.org/vocab/\n", "  vocab: http://example.org/vocab/\n  schema: http://schema.org/\n"
+    )
+    schema += """
+classes:
+  Entry:
+    class_uri: schema:Thing
+    instantiates: [vocab:ClassProfile]
+"""
+    g = OwlSchemaGenerator(schema, metaclasses=False, use_native_uris=use_native_uris).as_graph()
+    expected = EX.Entry if use_native_uris else URIRef("http://schema.org/Thing")
+    assert set(g.subjects(RDF.type, VOCAB.ClassProfile)) == {expected}
+
+
+@pytest.mark.parametrize("metaclasses", [False, True])
+@pytest.mark.parametrize("type_objects", [False, True])
+def test_instantiates_applies_to_emitted_schema_elements(metaclasses: bool, type_objects: bool) -> None:
+    """Metaclass membership is explicit schema metadata, independent of generated metamodel types."""
+    schema = _INSTANTIATES_SCHEMA.replace(
+        "name: instantiates_test", "name: instantiates_test\ninstantiates: [vocab:SchemaProfile]"
+    ).replace("  LinkCategory:\n", "  LinkCategory:\n    instantiates: [vocab:EnumProfile]\n")
+    schema += """
+classes:
+  Entry:
+    instantiates: [vocab:ClassProfile]
+    slots: [code]
+slots:
+  code:
+    range: Code
+    instantiates: [vocab:SlotProfile]
+types:
+  Code:
+    typeof: string
+    uri: ex:Code
+    instantiates: [vocab:TypeProfile]
+"""
+    g = OwlSchemaGenerator(schema, metaclasses=metaclasses, type_objects=type_objects).as_graph()
+    for resource, metaclass in (
+        (URIRef("http://example.org/test-schema"), VOCAB.SchemaProfile),
+        (EX.Entry, VOCAB.ClassProfile),
+        (EX.code, VOCAB.SlotProfile),
+        (EX.Code, VOCAB.TypeProfile),
+        (EX.LinkCategory, VOCAB.EnumProfile),
+        (EX.isLicense, VOCAB.LicenseCategory),
+    ):
+        assert (resource, RDF.type, metaclass) in g
+        assert (resource, RDFS.subClassOf, metaclass) not in g
+    assert (EX.isLicense, RDF.type, VOCAB.EnumProfile) not in g
+
+
+@pytest.mark.parametrize("owl_type", ["owl:NamedIndividual", "owl:Class"])
+@pytest.mark.parametrize("meaning", ["ex:isLicense", "https://example.net/value", None])
+def test_instantiates_uses_the_emitted_value_resource(owl_type: str, meaning: str | None) -> None:
+    """Explicit and minted IRIs both carry membership, including class/individual punning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", owl_type)
+    schema = schema.replace("        meaning: ex:isLicense\n", f"        meaning: {meaning}\n" if meaning else "")
+    schema = schema.replace("vocab:LicenseCategory", "https://example.net/Category")
+    g = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    (resource,) = g.subjects(RDF.type, URIRef("https://example.net/Category"))
+    assert isinstance(resource, URIRef)
+    assert (resource, RDFS.label, Literal("isLicense")) in g
+    assert (resource, RDF.type, OWL[owl_type.split(":")[1]]) in g
+    if meaning:
+        assert resource == (EX.isLicense if meaning.startswith("ex:") else URIRef(meaning))
+
+
+@pytest.mark.parametrize("metaclasses", [False, True])
+def test_instantiated_class_is_declared(metaclasses: bool) -> None:
+    """OWL 2 DL requires a declaration for every class a class assertion uses (§5.8.1)."""
+    g = OwlSchemaGenerator(_INSTANTIATES_SCHEMA, metaclasses=metaclasses).as_graph()
+    for metaclass in (VOCAB.LicenseCategory, VOCAB.ManifestCategory, VOCAB.Category):
+        assert (metaclass, RDF.type, OWL.Class) in g
+
+
+def test_instantiates_rdf_schema_representation_is_distinct_from_owl_assertion() -> None:
+    """gen-rdf preserves the metamodel predicate; gen-owl interprets it as membership."""
+    schema = _INSTANTIATES_SCHEMA.replace("imports:\n  - linkml:types\n", "")
+    rdf = Graph().parse(data=RDFGenerator(schema).serialize(), format="turtle")
+    owl = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    assert {str(value) for value in rdf.objects(EX.isLicense, LINKML.instantiates)} == {"vocab:LicenseCategory"}
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in owl
+
+
+_RX = Namespace("https://example.org/")
+
+_RESTRICTION_SCHEMA = """\
+id: https://example.org/s
+name: s
+prefixes:
+  ex: https://example.org/
+  a: https://example.org/a/
+  b: https://example.org/b/
+  c: https://example.org/c/
+  skos: http://www.w3.org/2004/02/skos/core#
+  rdfs: http://www.w3.org/2000/01/rdf-schema#
+  linkml: https://w3id.org/linkml/
+default_prefix: ex
+imports:
+  - linkml:types
+"""
+
+# Each case: a schema body, and per class the properties its restrictions are stated on with
+# use_native_uris=False. A slot_usage or slot_conditions entry names a slot without its slot_uri.
+_RESTRICTION_CASES = {
+    "boolean_expression": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+        classes:
+          Thing:
+            slots: [note]
+            any_of:
+              - slot_conditions: {note: {required: true}}
+              - none_of:
+                  - slot_conditions: {note: {equals_string: none}}
+        """,
+        {"Thing": {SKOS.note}},
+    ),
+    "nested_boolean_expressions": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Thing:
+            slots: [note, short_name]
+            all_of:
+              - exactly_one_of:
+                  - slot_conditions: {note: {required: true}}
+                  - any_of:
+                      - none_of:
+                          - slot_conditions: {short_name: {equals_string: none}}
+        """,
+        {"Thing": {SKOS.note, _RX.shortName}},
+    ),
+    "slot_usage_of_an_inherited_slot": (
+        """\
+        slots:
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Base:
+            slots: [short_name]
+          Child:
+            is_a: Base
+            slot_usage:
+              short_name: {required: true}
+        """,
+        {"Child": {_RX.shortName}},
+    ),
+    "slot_usage_of_a_mixin_slot": (
+        """\
+        slots:
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Named:
+            mixin: true
+            slots: [short_name]
+          Thing:
+            mixins: [Named]
+            slot_usage:
+              short_name: {required: true}
+        """,
+        {"Thing": {_RX.shortName}},
+    ),
+    "slot_usage_of_an_inherited_attribute": (
+        """\
+        classes:
+          Base:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          Child:
+            is_a: Base
+            slot_usage:
+              label: {required: true}
+        """,
+        {"Child": {_RX["a/label"]}},
+    ),
+    "rule_conditions": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Thing:
+            slots: [note, short_name]
+            rules:
+              - preconditions:
+                  slot_conditions: {note: {equals_string: a}}
+                postconditions:
+                  slot_conditions: {short_name: {equals_string: b}}
+        """,
+        {"Thing": {SKOS.note, _RX.shortName}},
+    ),
+    "classification_rule": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+        classes:
+          Thing:
+            slots: [note]
+          Noted:
+            is_a: Thing
+            classification_rules:
+              - is_a: Thing
+                slot_conditions: {note: {equals_string: a}}
+        """,
+        {"Noted": {SKOS.note}},
+    ),
+    "range_expression": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+          has_part: {slot_uri: ex:hasPart, range: Part}
+        classes:
+          Part:
+            slots: [note]
+          Whole:
+            slots: [has_part]
+            slot_usage:
+              has_part:
+                range_expression:
+                  slot_conditions: {note: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, SKOS.note}},
+    ),
+    # the same attribute name in two classes: each expression names the slot of its own class
+    "attributes_named_alike": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+            any_of:
+              - slot_conditions: {label: {required: true}}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            any_of:
+              - slot_conditions: {label: {required: true}}
+        """,
+        {"A": {_RX["a/label"]}, "B": {_RX["b/label"]}},
+    ),
+    # a range expression names the slots of the class the slot ranges over, not of the class that states it
+    "range_expression_over_a_class_with_a_like_named_attribute": (
+        """\
+        classes:
+          Part:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          Whole:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+              has_part:
+                slot_uri: ex:hasPart
+                range: Part
+                range_expression:
+                  slot_conditions: {label: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["a/label"], _RX["b/label"]}},
+    ),
+    # the class the slot ranges over is the one its owner's slot_usage states
+    "range_expression_in_a_condition_on_a_slot_with_a_refined_range": (
+        """\
+        slots:
+          has_part: {slot_uri: ex:hasPart, range: Part}
+        classes:
+          Part:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          SpecialPart:
+            attributes:
+              label: {slot_uri: c:label, range: string}
+          Whole:
+            slots: [has_part]
+            slot_usage:
+              has_part: {range: SpecialPart}
+            any_of:
+              - slot_conditions:
+                  has_part:
+                    range_expression:
+                      slot_conditions: {label: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["c/label"]}},
+    ),
+    # a range expression of an any_of branch names the slots of that branch's range
+    "range_expressions_of_any_of_branches": (
+        """\
+        classes:
+          PartA:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          PartB:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          Whole:
+            attributes:
+              has_part:
+                slot_uri: ex:hasPart
+                any_of:
+                  - range: PartA
+                    range_expression:
+                      slot_conditions: {label: {required: true}}
+                  - range: PartB
+                    range_expression:
+                      slot_conditions: {label: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["a/label"], _RX["b/label"]}},
+    ),
+    # like-named attributes: all_of, none_of and exactly_one_of name the slot of the stating class
+    "attributes_named_alike_in_all_of_none_of_exactly_one_of": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            all_of:
+              - slot_conditions: {label: {equals_string: p}}
+            none_of:
+              - slot_conditions: {label: {equals_string: q}}
+            any_of:
+              - exactly_one_of:
+                  - slot_conditions: {label: {equals_string: r}}
+                  - slot_conditions: {label: {equals_string: s}}
+        """,
+        {"B": {_RX["b/label"]}},
+    ),
+    # like-named attributes: rule and classification-rule conditions name the slot of the stating class
+    "attributes_named_alike_in_rules": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            rules:
+              - preconditions:
+                  slot_conditions: {label: {equals_string: p}}
+                postconditions:
+                  slot_conditions: {label: {equals_string: q}}
+            classification_rules:
+              - slot_conditions: {label: {equals_string: r}}
+        """,
+        {"B": {_RX["b/label"]}},
+    ),
+    # a classification rule with is_a is an axiom about the instances of that class, also where the
+    # stating class has no slot of that name
+    "classification_rule_about_another_class": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            classification_rules:
+              - is_a: A
+                slot_conditions: {label: {equals_string: p}}
+          D:
+            classification_rules:
+              - is_a: A
+                slot_conditions: {label: {equals_string: p}}
+        """,
+        {"B": {_RX["a/label"], _RX["b/label"]}, "D": {_RX["a/label"]}},
+    ),
+    # a slot expression nested in a condition keeps the owner whose slot_usage refines the range
+    "range_expressions_in_nested_slot_expressions_of_a_condition": (
+        """\
+        slots:
+          has_part: {slot_uri: ex:hasPart, range: Part, multivalued: true}
+        classes:
+          Part:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          SpecialPart:
+            attributes:
+              label: {slot_uri: c:label, range: string}
+          Whole:
+            slots: [has_part]
+            slot_usage:
+              has_part: {range: SpecialPart}
+            any_of:
+              - slot_conditions:
+                  has_part:
+                    any_of:
+                      - range_expression:
+                          slot_conditions: {label: {equals_string: p}}
+                    all_members:
+                      range_expression:
+                        slot_conditions: {label: {equals_string: q}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["c/label"]}},
+    ),
+    # a condition and a slot_usage may name a slot in its underscored form
+    "slot_named_in_its_underscored_form": (
+        """\
+        slots:
+          exact mappings: {slot_uri: skos:exactMatch, range: string}
+          short name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Base:
+            slots: [exact mappings, short name]
+            any_of:
+              - slot_conditions: {exact_mappings: {equals_string: p}}
+              - slot_conditions: {"short name": {equals_string: q}}
+          Child:
+            is_a: Base
+            slot_usage:
+              short_name: {required: true}
+        """,
+        {"Base": {SKOS.exactMatch, _RX.shortName}, "Child": {_RX.shortName}},
+    ),
+}
+
+
+def _declared_properties(g: Graph) -> set:
+    return {s for kind in (OWL.ObjectProperty, OWL.DatatypeProperty) for s in g.subjects(RDF.type, kind)}
+
+
+def _restricted_properties(g: Graph, node: URIRef | BNode, seen: set | None = None) -> set:
+    """The properties of the restrictions in the class expressions reachable from *node*."""
+    seen = set() if seen is None else seen
+    if node in seen:
+        return set()
+    seen.add(node)
+    found = set(g.objects(node, OWL.onProperty))
+    for obj in g.objects(node, None):
+        if isinstance(obj, BNode):
+            found |= _restricted_properties(g, obj, seen)
+    return found
+
+
+def _class_expressions(g: Graph, cls: URIRef) -> set:
+    """The class and both sides of the general class axioms about it: those whose subclass
+    expression is an intersection with the class (rules) or whose superclass is the class
+    (classification rules)."""
+    nodes: set = {cls}
+    for sub, sup in g.subject_objects(RDFS.subClassOf):
+        if isinstance(sub, BNode):
+            operands = {member for lst in g.objects(sub, OWL.intersectionOf) for member in Collection(g, lst)}
+            if sup == cls or cls in operands:
+                nodes |= {sub, sup}
+    return nodes
+
+
+@pytest.mark.parametrize("case", sorted(_RESTRICTION_CASES))
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_restrictions_from_slot_usage_and_conditions_are_on_declared_properties(
+    case: str, use_native_uris: bool
+) -> None:
+    """A ``slot_usage`` or ``slot_conditions`` entry names a slot and carries no ``slot_uri``; its
+    restriction is on the property the named slot is declared as, as OWL 2 DL requires (§5.8.1)."""
+    body, _ = _RESTRICTION_CASES[case]
+    owl = OwlSchemaGenerator(
+        _RESTRICTION_SCHEMA + textwrap.dedent(body), use_native_uris=use_native_uris, metadata=False
+    ).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    restricted = set(g.objects(None, OWL.onProperty))
+    assert restricted
+    assert restricted <= _declared_properties(g)
+
+
+@pytest.mark.parametrize("case", sorted(_RESTRICTION_CASES))
+def test_restrictions_use_the_slot_uri_of_the_class_they_are_about(case: str) -> None:
+    """With ``use_native_uris=False`` each class's restrictions are on its own slots' ``slot_uri``."""
+    body, expected = _RESTRICTION_CASES[case]
+    owl = OwlSchemaGenerator(
+        _RESTRICTION_SCHEMA + textwrap.dedent(body), use_native_uris=False, metadata=False
+    ).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    for class_name, properties in expected.items():
+        found = set()
+        for node in _class_expressions(g, _RX[class_name]):
+            found |= _restricted_properties(g, node)
+        assert found == properties, class_name
+
+
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_restrictions_on_an_imported_slot_keep_the_property_of_its_schema(tmp_path, use_native_uris: bool) -> None:
+    """A slot's name-derived IRI is in the namespace of the schema that defines it, also where
+    another schema refines the slot in ``slot_usage`` or names it in ``slot_conditions``."""
+    (tmp_path / "base.yaml").write_text(
+        textwrap.dedent(
+            """\
+            id: https://example.org/base
+            name: base
+            prefixes:
+              base: https://example.org/base/
+              skos: http://www.w3.org/2004/02/skos/core#
+              linkml: https://w3id.org/linkml/
+            default_prefix: base
+            imports:
+              - linkml:types
+            slots:
+              note: {range: string}
+              short_name: {slot_uri: skos:altLabel, range: string}
+            classes:
+              Base:
+                slots: [note, short_name]
+            """
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "main.yaml").write_text(
+        textwrap.dedent(
+            """\
+            id: https://example.org/main
+            name: main
+            prefixes:
+              main: https://example.org/main/
+              linkml: https://w3id.org/linkml/
+            default_prefix: main
+            imports:
+              - linkml:types
+              - base
+            classes:
+              Child:
+                is_a: Base
+                slot_usage:
+                  note: {required: true}
+                any_of:
+                  - slot_conditions: {short_name: {required: true}}
+            """
+        ),
+        encoding="utf-8",
+    )
+    owl = OwlSchemaGenerator(str(tmp_path / "main.yaml"), use_native_uris=use_native_uris, metadata=False).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    base = Namespace("https://example.org/base/")
+    short_name = base.short_name if use_native_uris else SKOS.altLabel
+    assert _restricted_properties(g, URIRef("https://example.org/main/Child")) == {base.note, short_name}
+    assert set(g.objects(None, OWL.onProperty)) <= _declared_properties(g)
+
+
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_kitchen_sink_restrictions_are_on_declared_properties(kitchen_sink_path, use_native_uris: bool) -> None:
+    """The kitchen sink refines inherited and imported slots in ``slot_usage``; their restrictions
+    stay on declared properties, as they are without this fix."""
+    g = Graph().parse(
+        data=OwlSchemaGenerator(str(kitchen_sink_path), use_native_uris=use_native_uris).serialize(), format="turtle"
+    )
+    assert set(g.objects(None, OWL.onProperty)) <= _declared_properties(g)
+
+
+def test_annotation_property_of_the_owner_cannot_be_a_condition() -> None:
+    """The annotation-property check reads the slot of the class the condition is about: ``label`` is
+    ``rdfs:label`` in B, whatever a like-named attribute of another class is."""
+    schema = _RESTRICTION_SCHEMA + textwrap.dedent(
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: rdfs:label, range: string}
+            any_of:
+              - slot_conditions: {label: {equals_string: p}}
+        """
+    )
+    with pytest.raises(ValueError, match="Annotation property 'label' cannot be a condition"):
+        OwlSchemaGenerator(schema, use_native_uris=False, metadata=False).serialize()
+
+
+def test_annotation_property_of_another_class_does_not_block_a_condition() -> None:
+    """... and a top-level ``label`` that is ``rdfs:label`` does not make B's own attribute one."""
+    schema = _RESTRICTION_SCHEMA + textwrap.dedent(
+        """\
+        slots:
+          label: {slot_uri: rdfs:label, range: string}
+        classes:
+          A:
+            slots: [label]
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            any_of:
+              - slot_conditions: {label: {equals_string: p}}
+        """
+    )
+    owl = OwlSchemaGenerator(schema, use_native_uris=False, metadata=False).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    assert _restricted_properties(g, _RX.B) == {_RX["b/label"]}
