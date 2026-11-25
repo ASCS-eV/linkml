@@ -22,6 +22,7 @@ from linkml.generators.shacl.shacl_data_type import ShaclDataType
 from linkml.generators.shacl.shacl_ifabsent_processor import ShaclIfAbsentProcessor
 from linkml.utils.generator import Generator, shared_arguments
 from linkml.utils.language_tags import LanguageTagResolver
+from linkml.utils.pattern_dialects import regex_for_xpath
 from linkml_runtime.linkml_model.meta import (
     AnonymousClassExpression,
     AnonymousSlotExpression,
@@ -33,6 +34,7 @@ from linkml_runtime.linkml_model.meta import (
     PresenceEnum,
     SlotDefinition,
     SlotExpression,
+    TypeDefinition,
 )
 from linkml_runtime.utils.formatutils import underscore
 from linkml_runtime.utils.rdf_canonicalize import canonicalize_rdf_graph
@@ -422,7 +424,7 @@ class ShaclGenerator(Generator):
                         if r in all_classes:
                             self._add_class(branch_pv, r)
                         elif r in sv.all_types():
-                            self._add_type(branch_pv, r)
+                            self._add_type(g, branch_pv, r)
                         elif r in sv.all_enums():
                             self._add_enum(g, branch_pv, r)
                         else:
@@ -431,7 +433,7 @@ class ShaclGenerator(Generator):
                         # A branch may combine range + pattern (e.g. range: string
                         # with pattern: "^...") or specify pattern alone (no range).
                         if any.pattern:
-                            branch_pv(SH.pattern, Literal(any.pattern))
+                            branch_pv(SH.pattern, Literal(regex_for_xpath(any.pattern)))
                         if any.range_expression is not None:
                             self._add_range_expression(g, branch_pv, c, s, r, any.range_expression)
                         range_list.append(branch)
@@ -447,19 +449,16 @@ class ShaclGenerator(Generator):
                                 f" require range 'string' and not '{r}'"
                             )
 
-                    self._add_range(g, prop_pv, r)
-                    if s.equals_string:
-                        # Map equal_string and equal_string_in to sh:in
-                        self._and_equals_string(g, prop_pv, [s.equals_string])
-                    if s.equals_string_in:
-                        # Map equal_string and equal_string_in to sh:in
-                        self._and_equals_string(g, prop_pv, s.equals_string_in)
+                    self._add_range(g, prop_pv, r, s)
+                    if r not in sv.all_types():
+                        # _add_type writes them together with the strings the type allows
+                        self._add_allowed_strings(g, prop_pv, s)
                     if self.expand_subproperty_of and s.subproperty_of:
                         # Map subproperty_of to sh:in with slot descendants
                         self._add_subproperty_constraint(g, prop_pv, s)
 
                 if s.pattern:
-                    prop_pv(SH.pattern, Literal(s.pattern))
+                    prop_pv(SH.pattern, Literal(regex_for_xpath(s.pattern)))
                 if s.range_expression is not None:
                     self._add_range_expression(g, prop_pv, c, s, s.range, s.range_expression)
                 if s.has_member is not None:
@@ -775,7 +774,7 @@ class ShaclGenerator(Generator):
         if condition.maximum_value is not None:
             pv(SH.maxInclusive, Literal(condition.maximum_value))
         if condition.pattern is not None:
-            pv(SH.pattern, Literal(condition.pattern))
+            pv(SH.pattern, Literal(regex_for_xpath(condition.pattern)))
         for values in (
             [condition.equals_string] if condition.equals_string is not None else [],
             condition.equals_string_in,
@@ -1527,7 +1526,7 @@ class ShaclGenerator(Generator):
                 return None
             parts.append(self._sparql_is_one_of(var, terms))
         if condition.pattern is not None:
-            pattern = self._sparql_string_literal(condition.pattern)
+            pattern = self._sparql_string_literal(regex_for_xpath(condition.pattern))
             parts.append(f"COALESCE( REGEX( STR( {var} ), {pattern} ), false )")
         bounds = {
             name: (bound, operator)
@@ -1887,8 +1886,11 @@ class ShaclGenerator(Generator):
             return sv.get_uri(slot, expand=True)
         return sv.expand_curie(f"{sv.schema.default_prefix}:{underscore(slot.name)}")
 
-    def _add_range(self, g: Graph, func: Callable, r: ElementName) -> None:
-        """Add the value-type constraint for range *r*: a class, type, enum or built-in datatype."""
+    def _add_range(self, g: Graph, func: Callable, r: ElementName, slot: SlotDefinition | None = None) -> None:
+        """Add the value-type constraint for range *r*: a class, type, enum or built-in datatype.
+
+        For a type, the strings that *slot* allows are written with those of the type (see :meth:`_add_type`).
+        """
         sv = self.schemaview
         if r in sv.all_classes():
             cls_def = sv.get_class(r)
@@ -1900,7 +1902,7 @@ class ShaclGenerator(Generator):
                 else:
                     func(SH.nodeKind, SH.BlankNodeOrIRI)
         elif r in sv.all_types():
-            self._add_type(func, r)
+            self._add_type(g, func, r, slot)
         elif r in sv.all_enums():
             self._add_enum(g, func, r)
         else:
@@ -1927,31 +1929,47 @@ class ShaclGenerator(Generator):
         TermKind.BLANK_NODE_OR_IRI: SH.BlankNodeOrIRI,
     }
 
-    def _add_type(self, func: Callable, r: ElementName) -> None:
+    def _add_type(self, g: Graph, func: Callable, r: ElementName, slot: SlotDefinition | None = None) -> None:
+        """Add the constraints of the type *r* with *func*: its node kind or datatype, for literals its pattern,
+        and the strings that the ``equals_string`` and ``equals_string_in`` of a literal type and of *slot* allow."""
         sv = self.schemaview
         # Types can inherit URI and pattern constraints.
         rt = sv.induced_type(r)
         term = type_term(sv, r) if rt.uri else None
+        restricted: list[SlotDefinition | TypeDefinition] = [] if slot is None else [slot]
         if term is not None and term.kind.is_node:
             func(SH.nodeKind, self._SH_NODE_KINDS[term.kind])
         elif term is not None:
             func(SH.nodeKind, SH.Literal)
             func(SH.datatype, URIRef(term.datatype))
             if rt.pattern:
-                func(SH.pattern, Literal(rt.pattern))
+                func(SH.pattern, Literal(regex_for_xpath(rt.pattern)))
+            restricted.append(rt)
             if rt.annotations and self.include_annotations:
                 self._add_annotations(func, rt)
         else:
             logger.error(f"No URI for type {rt.name}")
+        self._add_allowed_strings(g, func, *restricted)
 
-    def _and_equals_string(self, g: Graph, func: Callable, values: list) -> None:
-        pv_node = BNode()
-        Collection(
-            g,
-            pv_node,
-            [Literal(v) for v in values],
-        )
-        func(SH["in"], pv_node)
+    @staticmethod
+    def _add_allowed_strings(g: Graph, func: Callable, *elements: SlotDefinition | TypeDefinition) -> None:
+        """Add the strings that the ``equals_string`` and ``equals_string_in`` of all *elements* allow as ``sh:in``.
+
+        A shape has at most one value for ``sh:in`` (SHACL 4.8.3), so the list holds the strings that every one of
+        them allows, in the order of the first, and is empty if they allow none in common.
+        """
+        allowed: list[str] | None = None
+        for element in elements:
+            settings = ([element.equals_string] if element.equals_string is not None else [], element.equals_string_in)
+            for values in settings:
+                if values:
+                    allowed = list(values) if allowed is None else [value for value in allowed if value in values]
+        if allowed is None:
+            return
+        node = BNode() if allowed else RDF.nil
+        if allowed:
+            Collection(g, node, [Literal(value) for value in allowed])
+        func(SH["in"], node)
 
     def _add_subproperty_constraint(self, g: Graph, func: Callable, slot) -> None:
         """

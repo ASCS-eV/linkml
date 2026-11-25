@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import textwrap
 from enum import Enum
 
@@ -11,7 +10,7 @@ from rdflib.compare import isomorphic
 from rdflib.namespace import OWL, RDF, XSD
 
 from linkml import METAMODEL_CONTEXT_URI
-from linkml.generators.owlgen import MetadataProfile, OwlSchemaGenerator, _regex_as_xsd
+from linkml.generators.owlgen import MetadataProfile, OwlSchemaGenerator
 from linkml.generators.rdfgen import RDFGenerator
 from linkml_runtime.linkml_model import SlotDefinition
 from linkml_runtime.linkml_model.meta import (
@@ -136,94 +135,6 @@ classes:
     assert value_slot.pattern is None
 
 
-SPACE = "\\s\\p{Z}\x85"  # Python's \s over the characters XML allows
-
-
-@pytest.mark.parametrize(
-    ("pattern", "expected"),
-    [
-        (r"^[a-z_]+$", r"[a-z_]+\n?"),
-        (r"[a-z]+", r"(.|\n|\r)*[a-z]+(.|\n|\r)*"),
-        (r"^https?:\/\/", r"https?://(.|\n|\r)*"),
-        (r"^(this)|(that)|(whatever)$", r"(this)(.|\n|\r)*|(.|\n|\r)*(that)(.|\n|\r)*|(.|\n|\r)*(whatever)\n?"),
-        (r"^(?:a|b)$", r"a\n?|b\n?"),
-        (r"(a|b)", r"(.|\n|\r)*(a|b)(.|\n|\r)*"),
-        (r".*(Z|[+-]\d{2}:\d{2})$", r"(.|\n|\r)*(Z|[+\-]\d{2}:\d{2})\n?"),
-        (r"^a.*", r"a(.|\n|\r)*"),
-        (r"^.*a", r"(.|\r)*a(.|\n|\r)*"),
-        (r"a.*$", r"(.|\n|\r)*a(.|\r)*\n?"),
-        (r"^a.b$", r"a(.|\r)b\n?"),
-        (r"^a\.b$", r"a\.b\n?"),
-        (r"^$", r"\n?"),
-        (r"^^a$$", r"a\n?"),
-        (r"", r"(.|\n|\r)*"),
-        (r".*$", r"(.|\n|\r)*"),
-        (r"a|", r"(.|\n|\r)*a(.|\n|\r)*|(.|\n|\r)*"),
-        (r"^\d{2,}?-\w+$", r"\d{2,}-[\p{L}\p{N}_]+\n?"),
-        (r"^[\w.-]+$", r"[\p{L}\p{N}_.\-]+\n?"),
-        (r"^\W+$", r"[^\p{L}\p{N}_]+\n?"),
-        (r"^[^\w]$", r"[^\p{L}\p{N}_]\n?"),
-        (r"^\S+ \S+$", rf"[^{SPACE}]+ [^{SPACE}]+\n?"),
-        (r"^[^\s]\s$", rf"[^{SPACE}][{SPACE}]\n?"),
-        # XML Schema cannot add a negated class to a class
-        (r"[\W]", r"(.|\n|\r)*[^\p{L}\p{N}_](.|\n|\r)*"),
-        (r"^[\S+.]+$", rf"([+.]|[^{SPACE}])+\n?"),
-        (r"^[\S\W]$", "([^" + SPACE + r"]|[^\p{L}\p{N}_])\n?"),
-        (r"^[]\S]$", rf"([\]]|[^{SPACE}])\n?"),
-        (r"^[\S]]$", rf"[^{SPACE}]\]\n?"),
-        (r"^[^\S]$", rf"[{SPACE}]\n?"),
-        (r"^[^\S\r\n]$", rf"[{SPACE}-[\r\n]]\n?"),
-        (r"^[^\W\d_]+$", r"[\p{L}\p{N}_-[\d_]]+\n?"),
-        (r"^[]a]$", r"[\]a]\n?"),
-        (r"^[^]a]$", r"[^\]a]\n?"),
-        (r"^[\^a]$", r"[\^a]\n?"),
-        (r"^[^|]+\|$", r"[^|]+\|\n?"),
-        (r"^[--/]$", r"[\-.-/]\n?"),
-        (r"^[!-\]]$", r"[!-,\-.-Z\[\\\]]\n?"),
-        (r"^[\^-z]$", r"[\^_-z]\n?"),
-        (r"^[\t-\r]$", r"[\t\n\r]\n?"),
-        (r"^a{,3}$", r"a{0,3}\n?"),
-        (r"^a{x}{}$", r"a\{x\}\{\}\n?"),
-        (r"^a{,٣}$", r"a\{,٣\}\n?"),
-        (r"^\$\d+$", r"$\d+\n?"),
-        ("^a\tb$", "a\tb\\n?"),
-        # a structured pattern without partial_match resolves to "^(?:syntax)$"
-        (r"^(?:^(https?://|(mailto|tel):)\w+$)$", r"(https?://|(mailto|tel):)[\p{L}\p{N}_]+\n?"),
-        (r"^(?:^a$|b)$", r"a\n?|b\n?"),
-        (r"^(?:a)|(b)$", r"(a)(.|\n|\r)*|(.|\n|\r)*(b)\n?"),
-        # constructs the translation leaves out
-        (r"^(?=a)a$", None),
-        (r"^(a)\1$", None),
-        (r"\bword\b", None),
-        (r"(?i)a", None),
-        (r"(^a)", None),
-        (r"(a$)", None),
-        (r"a^b", None),
-        (r"^a$b", None),
-        (r"[^\S\W]", None),
-        (r"a++", None),
-        (r"[!-\x7f]", None),
-        # characters XML excludes
-        ("^a\x01b$", None),
-        ("^[\x01-\x08]$", None),
-        # patterns Python cannot compile
-        (r"[", None),
-        (r"a{99999999999999999999}", None),
-        pytest.param("a{" + "9" * 4500 + "}", None, id="too-many-digits"),
-    ],
-)
-def test_regex_as_xsd(pattern: str, expected: str | None) -> None:
-    """Translate a pattern to a regular expression that matches the values in which Python's re.search finds it."""
-    assert _regex_as_xsd(pattern) == expected
-
-
-def test_regex_nested_too_deep_for_python_is_left_out() -> None:
-    """A pattern nested deeper than Python's recursion limit allows cannot be compiled, so it has no translation."""
-    # the limit is read at run time, as an imported module may have raised it
-    depth = sys.getrecursionlimit()
-    assert _regex_as_xsd("^" + "(" * depth + "a" + ")" * depth + "$") is None
-
-
 def test_patterns_become_xsd_facets(caplog) -> None:
     """A pattern becomes an xsd:pattern facet, or none with a warning if XML Schema cannot express it."""
     generator = OwlSchemaGenerator(
@@ -288,13 +199,14 @@ slots:
     range: string
   kind:
     range: string
-  free: {}
+  note:
+    description: a slot without a range of its own, which has the default_range
 classes:
   C:
     slots:
       - code
       - kind
-      - free
+      - note
 """
 
 
@@ -377,7 +289,7 @@ classes:
             """
     none_of:
       - slot_conditions:
-          free: {}
+          note: {}
 """,
             id="class none_of with the default range",
         ),
@@ -2791,3 +2703,95 @@ def test_conditions_filled_with_the_default_range_record_no_kind_of_property(cap
             """
         )
     assert not any("Ambiguous type" in msg for msg in caplog.messages)
+
+
+def _pattern_schema(body: str) -> str:
+    return (
+        """
+id: https://example.org/p
+name: p
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+default_prefix: ex
+imports:
+  - linkml:types
+"""
+        + body
+    )
+
+
+def test_equals_string_keeps_a_pattern_and_is_negated_as_a_data_range() -> None:
+    """A pattern next to equals_string stays a facet, and none_of an equals_string excludes the one literal
+    (a complement of the restriction to a one-literal owl:oneOf), not the values a pattern finds."""
+    schema = _pattern_schema(
+        """
+types:
+  Code:
+    typeof: string
+    pattern: "^[a-z]+$"
+    equals_string: abc
+slots:
+  code:
+    range: Code
+  label:
+    range: string
+classes:
+  C:
+    slots: [code, label]
+    none_of:
+      - slot_conditions:
+          label:
+            equals_string: xyz
+"""
+    )
+    graph = OwlSchemaGenerator(schema, metaclasses=False, type_objects=False).as_graph()
+    assert set(graph.objects(None, XSD.pattern)) == {Literal(r"[a-z]+\n?")}
+    one_ofs = {tuple(Collection(graph, members)): node for node, members in graph.subject_objects(OWL.oneOf)}
+    assert set(one_ofs) == {(Literal("abc"),), (Literal("xyz"),)}
+    (restriction,) = graph.subjects(OWL.allValuesFrom, one_ofs[(Literal("xyz"),)])
+    assert (restriction, OWL.onProperty, URIRef("https://example.org/label")) in graph
+    assert (None, OWL.complementOf, restriction) in graph
+
+
+def test_structured_pattern_of_an_anonymous_expression_leaves_its_any_of_out(caplog) -> None:
+    """SchemaView resolves the structured pattern of a definition only. An any_of operand with one would
+    otherwise give no restriction, and the union would admit fewer values than LinkML's validators."""
+    schema = _pattern_schema(
+        """
+slots:
+  code:
+    range: string
+    any_of:
+      - structured_pattern:
+          syntax: "^a$"
+      - pattern: "^b$"
+classes:
+  C:
+    slots: [code]
+"""
+    )
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        graph = OwlSchemaGenerator(schema, metaclasses=False, type_objects=False).as_graph()
+    assert set(graph.objects(None, XSD.pattern)) == set()
+    assert any("structured pattern '^a$' of an anonymous expression is not resolved" in msg for msg in caplog.messages)
+    assert any(msg.startswith("The any_of of slot 'code' is left out") for msg in caplog.messages)
+
+
+def test_pattern_of_an_object_valued_slot_is_not_a_facet_of_its_range() -> None:
+    """The values of a class-ranged slot are individuals, which an xsd:pattern facet cannot restrict."""
+    schema = _pattern_schema(
+        """
+slots:
+  owner:
+    range: D
+    pattern: "^y"
+classes:
+  D: {}
+  C:
+    slots: [owner]
+"""
+    )
+    graph = OwlSchemaGenerator(schema, metaclasses=False, type_objects=False).as_graph()
+    assert set(graph.objects(None, XSD.pattern)) == set()
+    assert list(graph.objects(URIRef("https://example.org/owner"), RDFS.range)) == [URIRef("https://example.org/D")]
