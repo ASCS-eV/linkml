@@ -44,7 +44,7 @@ dependencies = [ # Specifier syntax: https://peps.python.org/pep-0631/
     "jsonasobj2 >= 1.0.3, < 2.0.0",
     "jsonschema[format]>=4.26.0",
     "linkml-runtime >= 1.12.0, < 2.0.0",
-    "neverblink-linkml >= 0.18.1, < 0.19.0",
+    "neverblink-linkml>=0.18.2,<0.19.0",
     "openpyxl",
     "prefixcommons >= 0.1.7",
     "prefixmaps >= 0.2.2",
@@ -96,11 +96,9 @@ dev = [
   "nbconvert",
   "nbformat",
   "coverage>=7.16.2",
-  "tox>=4.64.1",
-  "tox-uv",
   "uv",
   "myst-nb>=1.4.0",
-  "sphinx-design >= 0.5.0",
+  "sphinx-design>=0.7.0",
   "rich>=15.0.0",
   "gql>=4.4.0",
 ]
@@ -143,7 +141,7 @@ docs = [
   "matplotlib>=3.11.2",
   "sphinx-jinja >= 2.0.2",
   "sphinxcontrib-programoutput>=0.20",
-  "sphinx-design>=0.6.1",
+  "sphinx-design>=0.7.0",
 ]
 
 [tool.uv.sources]
