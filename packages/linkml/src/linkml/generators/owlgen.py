@@ -883,12 +883,17 @@ class OwlSchemaGenerator(Generator):
                 # An annotation property has no logical meaning (OWL 2 §10.1), so no restriction.
                 continue
             if slot.name:
-                owltypes = self.slot_node_owltypes(sv.get_slot(slot.name), owning_class=cls)
+                owltypes = self.slot_node_owltypes(sv.get_slot(named_slot.name), owning_class=cls)
             else:
                 owltypes = self.slot_node_owltypes(slot, owning_class=cls)
             x = self.transform_class_slot_expression(cls, slot, slot, owltypes, owner=owner)
             if not x:
-                range = sv.schema.default_range
+                # An entry without a range of its own has the range of the slot it names. A type whose values are
+                # nodes has no datatype to restrict to (see slot_node_owltypes); for one the default_range applies.
+                range = named_slot.range
+                if range in sv.all_types() and self._type_values_are_nodes(range):
+                    range = None
+                range = range or sv.schema.default_range
                 if range and OWL.Thing not in owltypes:
                     if range in sv.all_types():
                         x = self._type_uri(range)
@@ -899,6 +904,10 @@ class OwlSchemaGenerator(Generator):
                     else:
                         raise ValueError(f"Unknown range {range}")
                         # x = self._class_uri(range)
+                    if not sv.schema.default_range:
+                        # Without a default_range, the kinds of a slot's fillers decide whether a slot without a
+                        # range of its own is a data or an object property (slot_owl_type); this is the named range.
+                        self.slot_is_literal_map[named_slot.name].add(range in sv.all_types())
                 else:
                     x = OWL.Thing
             slot_uri = self._named_prop_uri(slot, named_slot)
@@ -1508,7 +1517,9 @@ class OwlSchemaGenerator(Generator):
         2. ``x`` is a plain URI equal to the globally declared ``rdfs:range`` of the
            property.  Top-level (non-attribute) slots have their range emitted as a
            global ``rdfs:range`` axiom by ``add_slot``; a local ``allValuesFrom``
-           with the same filler is then fully entailed and adds nothing new.
+           with the same filler is then fully entailed and adds nothing new. A slot
+           without a range of its own has the range of its parent slots, which their
+           ``rdfs:range`` declares for it through ``rdfs:subPropertyOf``.
            Attribute slots do *not* get a global ``rdfs:range``, so for those the
            ``allValuesFrom`` is the only range declaration and must be kept.
         """
@@ -1524,8 +1535,7 @@ class OwlSchemaGenerator(Generator):
         # sv.all_slots(attributes=True) would include them and give a false positive.
         if top_slot.name not in sv.all_slots(imports=True, attributes=False):
             return False
-        ts = sv.get_slot(top_slot.name)
-        range_name = (ts.range if ts else None) or sv.schema.default_range
+        range_name = sv.induced_slot(top_slot.name).range or sv.schema.default_range
         if not range_name:
             return False
         if range_name in sv.all_types(imports=True):
