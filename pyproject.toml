@@ -1,7 +1,9 @@
 [tool.uv]
 required-version = ">=0.9.17"
 exclude-newer = "7 days"
-exclude-newer-package = { neverblink-linkml = false }
+# diffable-rdf is exempt: linkml_runtime delegates canonicalization to it, so a fix
+# there is a fix here, and ASCS-eV, which maintains this fork, publishes it.
+exclude-newer-package = { neverblink-linkml = false, diffable-rdf = false }
 constraint-dependencies = ["click>=8.3.3,<8.4", "pillow>=13.0.0,<13.1"]
 
 [tool.uv.workspace]
