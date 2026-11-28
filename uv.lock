@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -25,6 +25,7 @@ exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
 neverblink-linkml = false
+diffable-rdf = false
 
 [manifest]
 members = [
@@ -939,15 +940,15 @@ wheels = [
 
 [[package]]
 name = "diffable-rdf"
-version = "0.4.0"
+version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyoxigraph" },
     { name = "rdflib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/86/df/1d71c0c984eac1cfd25531aabf84528941b01083c875da49d44882d1b5af/diffable_rdf-0.4.0.tar.gz", hash = "sha256:a84afaa10332e6a039b6ddcabf76bced3049e4da467c88ee786d0fa35218111e", size = 838040, upload-time = "2026-09-11T11:43:12.844Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/69/72f43ec8a4a9dc4c67ba91ed575e6fe884e8fafbad660022bb19a30bc686/diffable_rdf-0.4.2.tar.gz", hash = "sha256:e6d2df25bb7a352cfae3cd8e3efd1422ef292790b8458e1606ca41a42a51d5f9", size = 846932, upload-time = "2026-11-28T08:18:21.229Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/49/b62ee864fe6769b759f04e3709fd79711b1cdf49223b1bb0e985e507ead3/diffable_rdf-0.4.0-py3-none-any.whl", hash = "sha256:c59c57429465f786fdbc8d38ddbb687da16748c5752f0c2ac4a77b5527aa9aed", size = 46126, upload-time = "2026-09-11T11:43:11.536Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/08/658cd2f2593abbe6b4e7e1250fe4968484b697df6d42314bbc7127b12c2a/diffable_rdf-0.4.2-py3-none-any.whl", hash = "sha256:fb9ffca6919a5106296b78525936846273e961115e57606d5cd2ed4727d90e7b", size = 47397, upload-time = "2026-11-28T08:18:19.903Z" },
 ]
 
 [[package]]
@@ -2400,6 +2401,7 @@ dependencies = [
     { name = "click" },
     { name = "curies" },
     { name = "deprecated" },
+    { name = "diffable-rdf" },
     { name = "hbreader" },
     { name = "json-flattener" },
     { name = "jsonasobj2" },
@@ -2434,7 +2436,8 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'dev'" },
     { name = "curies", specifier = ">=0.14.6" },
     { name = "deprecated" },
-    { name = "diffable-rdf", marker = "extra == 'diff-stable'", specifier = ">=0.4.0" },
+    { name = "diffable-rdf", specifier = ">=0.4.2" },
+    { name = "diffable-rdf", marker = "extra == 'diff-stable'", specifier = ">=0.4.2" },
     { name = "hbreader" },
     { name = "json-flattener", specifier = ">=0.1.9" },
     { name = "jsonasobj2", specifier = "==1.*,>=1.0.0,>=1.0.4" },

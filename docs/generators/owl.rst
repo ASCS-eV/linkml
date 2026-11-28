@@ -30,14 +30,41 @@ Mapping
 ^^^^^^^
 
 * Each LinkML class maps to an OWL class
-* Each LinkML slot maps to an OWL property
+* Each LinkML slot maps to an OWL property, whose kind depends on the values of the slot's
+  ranges. The ranges of a slot are its ``range`` and those in its ``any_of``, ``all_of``,
+  ``exactly_one_of``, ``none_of`` and ``all_members`` (or the default range if these give
+  none), and those in its ``has_member``; a ``range_expression`` with slot conditions counts
+  as a class. A branch of ``any_of`` or ``exactly_one_of`` without a range, for example with
+  only a ``pattern``, has the range of the expression it is in, or else of the slot, or else
+  the default range. ``Any`` (``linkml:Any``) adds nothing to the other ranges of a slot, so
+  a slot whose range is ``Any`` and whose ``any_of`` lists ranges (see Unions as ranges in
+  `Advanced features <https://linkml.io/linkml/schemas/advanced.html>`_) ranges over those
 
-    - if the range of the slot is class, then an ObjectProperty is used
-    - an ObjectProperty is also used when the range is a type whose values are IRIs or blank
-      nodes: ``uri``, ``uriorcurie`` and the types derived from them, ``objectidentifier`` and
-      ``nodeidentifier`` (see :ref:`links-and-uri-references`)
-    - otherwise DataProperty is used
-    - Exception to the above: if ``type_objects`` is set then ObjectProperties are always used;
+    - if the values of each range are literals, a DataProperty is used. These are the ranges
+      that are types, except those below, and enums whose permissible values are all
+      literals (``rdfs:Literal``), which are datatypes (see `OWL Output Patterns`_)
+    - if the values of each range are IRIs or blank nodes, an ObjectProperty is used. These
+      are the ranges that are classes, class expressions, other enums, and types whose values
+      are IRIs or blank nodes: ``uri``, ``uriorcurie`` and the types derived from them,
+      ``objectidentifier`` and ``nodeidentifier`` (see :ref:`links-and-uri-references`)
+    - neither an object nor a data property has both literals and IRIs or blank nodes as
+      values, so a slot that ranges over both, for example with ``any_of`` a type and a class,
+      is left an ObjectProperty without a range, and its values are not restricted; a
+      warning is logged
+    - likewise, values that the property of a slot cannot have are not restricted, and a
+      warning is logged: for example, where a class narrows a slot whose range is a type to a
+      class, or the range of a slot that implements a property role it does not fit. A
+      class expression with a condition on such a slot, which OWL cannot state, is left out
+      where leaving out only the condition could make an axiom stronger: a rule or
+      classification rule with it, and the whole ``any_of`` or ``exactly_one_of`` of a class
+      with it as an operand; of ``all_of`` and ``none_of``, only that operand is left out.
+      The values of a slot are not restricted either where such a condition is in its
+      ``range_expression``, or in that of its ``has_member``, its ``all_members`` or an
+      operand of its ``any_of``, ``all_of``, ``exactly_one_of`` or ``none_of``
+    - a slot without ranges is a DataProperty if the classes that use it narrow it to ranges
+      whose values are literals, and otherwise an ObjectProperty
+    - Exception to the above: if ``type_objects`` is set then ObjectProperties are always used,
+      except for a slot that ranges only over enums of literals;
       instead of having ranges of type be mapped to literals, these map to class-shadows of
       literals, that have a data property ``value``.
       This can be useful in some scenarios - for example, if you want to use the same property and
@@ -69,6 +96,24 @@ Mapping
 
 
 .. note:: The current default settings for ``metaclasses`` and ``type-objects`` may change in the future
+
+Patterns
+^^^^^^^^
+
+A LinkML ``pattern`` is a Python regular expression, and a value conforms where Python's
+``re.search`` finds it. OWL 2 takes ``xsd:pattern`` from XML Schema, whose regular expressions
+match the whole value and read ``^`` and ``$`` as ordinary characters, with other meanings for
+``.``, ``\s`` and ``\w``
+(`XML Schema 1.1 Part 2, Appendix G <https://www.w3.org/TR/xmlschema11-2/#regexs>`__).
+The generator translates each pattern so that the facet admits the values LinkML accepts:
+``^[a-z_]+$`` becomes ``[a-z_]+\n?``, as Python's ``$`` also matches before a final line feed,
+and ``[a-z]+`` becomes ``(.|\n|\r)*[a-z]+(.|\n|\r)*``. A pattern that XML Schema cannot express,
+such as one with a lookahead or a backreference, gets no facet and a warning. Where leaving the
+facet out would make an expression exclude *more* values (``none_of``, an ``any_of`` operand,
+``exactly_one_of``, the preconditions of a rule, a classification rule), the expression is left
+out as well, so the ontology admits more values, never fewer.
+
+``equals_string`` on a literal becomes an ``owl:oneOf`` of that one literal.
 
 Annotation values
 ^^^^^^^^^^^^^^^^^
@@ -112,9 +157,21 @@ role as its sub-property, since a sub-property axiom relates two annotation prop
 or two logical properties. Every other predicate the generator writes outside the
 reserved vocabulary, such as ``skos:definition`` and ``skos:inScheme`` for element
 metadata, is declared as an annotation property, as OWL 2 DL requires a declaration
-for each property (§5.8.1). Slots without the role keep their object or data property
-projection, also when a metaclass declares them; LinkML then puns the annotated element
-as an individual, as it does for all metadata.
+for each property (§5.8.1). With ``--no-mergeimports``, a predicate that is the IRI of
+an object or data property of an imported schema is not declared again, as the imported
+ontology declares it; the declarations do not depend on whether imports are merged. This
+assumes the imported ontologies are generated with the same options, so it does not apply
+to ``linkml:`` imports, whose ontologies the metamodel publishes.
+Slots without the role keep their object or data property projection, also when a
+metaclass declares them; LinkML then puns the annotated element as an individual, as it
+does for all metadata.
+
+Prefix normalization
+^^^^^^^^^^^^^^^^^^^^
+
+``--normalize-prefixes`` writes the conventional names of well-known namespaces, the same in
+every generator; see :ref:`prefix-normalization`.
+
 
 Enums and PermissibleValues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -129,7 +186,7 @@ CLI Options for Controlling Enum/PV Generation
 
   - ``owl:Class`` (default) - PVs become OWL classes, enum uses ``owl:unionOf``
   - ``owl:NamedIndividual`` - PVs become named individuals, enum uses ``owl:oneOf``
-  - ``rdfs:Literal`` - PVs become RDF literals, enum uses ``owl:oneOf``
+  - ``rdfs:Literal`` - PVs become RDF literals, the enum is a datatype that uses ``owl:oneOf``
 
 * ``--enum-iri-separator`` - Changes the separator character in enum IRIs (default: ``#``)
 
@@ -184,6 +241,56 @@ You can control enum and permissible value representation directly in your schem
             implements:
               - rdfs:Literal
 
+**Metaclass membership with ``instantiates``** - This LinkML field types a schema
+element itself; it does not add slots or type that element's data instances. The OWL
+generator maps each declared membership to ``rdf:type`` on the emitted resource.
+The mapping applies consistently to schemas, classes, slots, locally emitted types,
+enums, and non-literal permissible values. No additional option is required: the
+schema already declares the relationship.
+
+For example, a permissible value represented as a named individual can declare
+membership in an external vocabulary class:
+
+.. code-block:: yaml
+
+    enums:
+      LinkCategory:
+        implements:
+          - owl:NamedIndividual
+        permissible_values:
+          isLicense:
+            meaning: ex:isLicense
+            instantiates:
+              - vocab:LicenseCategory
+
+.. code-block:: turtle
+
+    ex:isLicense a owl:NamedIndividual, ex:LinkCategory, vocab:LicenseCategory .
+    vocab:LicenseCategory a owl:Class .
+
+The instantiated class is declared, as OWL 2 DL requires for every class a class
+assertion uses. For an enum of named individuals, its own class still uses ``owl:oneOf``; this does
+not close the external class. A permissible value rendered as an OWL class retains
+that representation and also participates as an individual in the membership
+assertion (OWL punning). Membership does not become ``rdfs:subClassOf`` and is not
+inherited by instances of the emitted class. ``instantiates`` is ignored, with a
+warning, on a permissible value rendered as a literal, because RDF literals cannot
+be subjects of ``rdf:type`` triples, on a resource in the OWL 2 reserved vocabulary,
+which cannot be an individual, and for a value that is neither a CURIE nor an IRI,
+which would become a relative IRI.
+
+``gen-rdf`` and ``gen-jsonld`` serialize the schema as metamodel data and retain
+``linkml:instantiates``. ``gen-owl`` translates that declaration into ontology
+membership. Instance validators such as JSON Schema and SHACL must not apply the
+schema element's metaclass to ordinary data instances.
+
+See the `LinkML instantiation guide
+<https://linkml.io/linkml/howtos/implements-instantiates-guide.html#instantiates-metamodel-extension>`_,
+the `instantiates metamodel definition
+<https://linkml.io/linkml-model/latest/docs/instantiates/>`_, and the OWL 2
+specifications for `metamodeling <https://www.w3.org/TR/owl2-syntax/#Metamodeling>`_
+and `mapping class assertions to RDF <https://www.w3.org/TR/owl2-mapping-to-rdf/>`_.
+
 **Using URIs vs. text for permissible values:**
 
 .. code-block:: yaml
@@ -222,10 +329,23 @@ The choice of permissible value type affects the generated OWL structure:
 
 **rdfs:Literal:**
 
+An enum whose permissible values are all literals is a datatype, and a slot with this
+range is a data property:
+
 .. code-block:: turtle
 
-    :StatusEnum a owl:Class ;
-        owl:oneOf ( "active" "inactive" ) .
+    :StatusEnum a rdfs:Datatype ;
+        owl:equivalentClass [ a rdfs:Datatype ;
+            owl:oneOf ( "active" "inactive" ) ] .
+    :status a owl:DatatypeProperty ;
+        rdfs:range :StatusEnum .
+
+OWL 2 has no subtype axiom for datatypes, as ``rdfs:subClassOf`` is for classes, so the
+parent enums of such an enum (``is_a``, ``mixins``, and ``inherits`` with
+``--enum-inherits-as-subclass-of``) are not emitted, and an enum that stays a class does
+not get such an enum as a parent either; the generator warns when it drops a parent.
+An enum without permissible values, or with values that are not all literals, stays a
+class.
 
 Mixed Types in One Enum
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -351,13 +471,37 @@ OWL-DL, and the resulting RDF triples are said to be [OWL Full](https://www.w3.o
 For example, if you have slots in your schema that have an `Any`
 range, then there is no direct translation of that slot to an OWL-DL
 property, since each property needs to explicitly commit to being a
-`DatatypeProperty` or `ObjectProperty` in OWL-DL.
+`DatatypeProperty` or `ObjectProperty` in OWL-DL. Likewise, a slot that ranges over both
+literals and IRIs or blank nodes becomes an `ObjectProperty` whose values are not
+restricted (see `Mapping`_).
 
 Other examples
 ^^^^^^^^^^^^^^
 
 - `Biolink <https://bioportal.bioontology.org/ontologies/BIOLINK>`_ :
   translation of Biolink schema to OWL
+
+
+Deterministic output
+^^^^^^^^^^^^^^^^^^^^
+
+``gen-owl`` canonicalizes the graph with `RDFC-1.0 <https://www.w3.org/TR/rdf-canon/>`_
+before serializing it. For standard RDF, repeated runs over the same schema
+therefore produce byte-identical Turtle, and checked-in artifacts do not change
+between runs.
+
+RDFC-1.0 numbers blank nodes in canonical order (``_:c14n0``, ``_:c14n1``, ...),
+so adding a statement can renumber unrelated blank nodes. ``--diff-stable``
+derives labels from blank-node neighbourhoods instead, which reduces this churn
+but does not guarantee minimal diffs; see :ref:`rdf-in-version-control`, which
+also names the optional dependency it needs. The option is also available on
+``gen-rdf``, ``gen-shacl`` and ``gen-shex --format rdf``.
+
+Graphs that are not standard RDF, with a relative IRI or a literal as a
+predicate, cannot be canonicalized under RDFC-1.0; ``gen-shacl
+--include-annotations`` writes such a predicate for an annotation whose tag is
+not a CURIE. They are serialized by rdflib instead, with an
+``RDFCanonicalizationWarning``, and ``--diff-stable`` has no effect on them.
 
 
 Docs

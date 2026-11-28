@@ -1,14 +1,20 @@
 import logging
 import os
+import textwrap
 from enum import Enum
 
 import pytest
 from rdflib import RDFS, SKOS, BNode, Graph, Literal, Namespace, URIRef
 from rdflib.collection import Collection
+from rdflib.compare import isomorphic
 from rdflib.namespace import OWL, RDF, XSD
 
 from linkml import METAMODEL_CONTEXT_URI
 from linkml.generators.owlgen import MetadataProfile, OwlSchemaGenerator
+from linkml.generators.pythongen import PythonGenerator
+from linkml.generators.rdfgen import RDFGenerator
+from linkml_runtime import SchemaView
+from linkml_runtime.dumpers import rdflib_dumper
 from linkml_runtime.linkml_model import SlotDefinition
 from linkml_runtime.linkml_model.meta import (
     AnonymousClassExpression,
@@ -16,6 +22,7 @@ from linkml_runtime.linkml_model.meta import (
     ClassRule,
     PermissibleValue,
 )
+from linkml_runtime.utils.compile_python import compile_python
 from linkml_runtime.utils.schema_builder import SchemaBuilder
 
 SYMP = Namespace("http://purl.obolibrary.org/obo/SYMP_")
@@ -94,8 +101,8 @@ def test_owlgen(kitchen_sink_path, metaclasses, type_objects):
 @pytest.mark.parametrize(
     ("partial_match", "expected_pattern"),
     [
-        (False, r"[a-z]+"),
-        (True, r".*([a-z]+).*"),
+        (False, r"[a-z]+\n?"),
+        (True, r"(.|\n|\r)*[a-z]+(.|\n|\r)*"),
     ],
 )
 def test_as_graph_materializes_xsd_structured_patterns(partial_match: bool, expected_pattern: str) -> None:
@@ -130,6 +137,254 @@ classes:
     patterns = list(graph.objects(None, XSD.pattern))
     assert Literal(expected_pattern) in patterns, patterns
     assert value_slot.pattern is None
+
+
+def test_patterns_become_xsd_facets(caplog) -> None:
+    """A pattern becomes an xsd:pattern facet, or none with a warning if XML Schema cannot express it."""
+    generator = OwlSchemaGenerator(
+        """
+id: https://example.org/pattern
+name: pattern
+prefixes:
+  ex: https://example.org/
+default_prefix: ex
+slots:
+  code:
+    pattern: "^[a-z_]+$"
+  label:
+    pattern: "^(?!-)[a-z-]+$"
+  name:
+    all_of:
+      - pattern: "^[a-z]+$"
+      - pattern: "^(?!x)"
+  owner:
+    range: C
+classes:
+  C:
+    slots:
+      - code
+      - label
+      - name
+      - owner
+    slot_usage:
+      owner:
+        pattern: "^(?=y)"
+""",
+        metaclasses=False,
+        type_objects=False,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        graph = generator.as_graph()
+
+    # a conjunction keeps the patterns it can express
+    assert set(graph.objects(None, XSD.pattern)) == {Literal(r"[a-z_]+\n?"), Literal(r"[a-z]+\n?")}
+    assert any("'^(?!-)[a-z-]+$' has no XML Schema equivalent" in msg for msg in caplog.messages)
+    # a class does not restrict an object-valued slot with a pattern (#1841), so it is not translated
+    assert not any("(?=y)" in msg for msg in caplog.messages)
+
+
+LOSSY_SCHEMA = """
+id: https://example.org/lossy
+name: lossy
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+default_prefix: ex
+default_range: Folded
+imports:
+  - linkml:types
+types:
+  Folded:
+    typeof: string
+    pattern: "PATTERN"
+slots:
+  code:
+    range: string
+  kind:
+    range: string
+  note:
+    description: a slot without a range of its own, which has the default_range
+classes:
+  C:
+    slots:
+      - code
+      - kind
+      - note
+"""
+
+
+@pytest.mark.parametrize(
+    "construct",
+    [
+        pytest.param(
+            """
+    slot_usage:
+      code:
+        any_of:
+          - pattern: "PATTERN"
+          - pattern: "^y$"
+""",
+            id="slot any_of",
+        ),
+        pytest.param(
+            """
+    slot_usage:
+      code:
+        any_of:
+          - range: Folded
+          - pattern: "^y$"
+""",
+            id="slot any_of with a type",
+        ),
+        pytest.param(
+            """
+    slot_usage:
+      code:
+        exactly_one_of:
+          - pattern: "PATTERN"
+          - pattern: "^y$"
+""",
+            id="slot exactly_one_of",
+        ),
+        pytest.param(
+            """
+    slot_usage:
+      code:
+        none_of:
+          - pattern: "PATTERN"
+""",
+            id="slot none_of",
+        ),
+        pytest.param(
+            """
+    any_of:
+      - slot_conditions:
+          code:
+            pattern: "PATTERN"
+      - slot_conditions:
+          kind:
+            pattern: "^y$"
+""",
+            id="class any_of",
+        ),
+        pytest.param(
+            """
+    exactly_one_of:
+      - slot_conditions:
+          code:
+            pattern: "PATTERN"
+      - slot_conditions:
+          kind:
+            pattern: "^y$"
+""",
+            id="class exactly_one_of",
+        ),
+        pytest.param(
+            """
+    none_of:
+      - slot_conditions:
+          code:
+            pattern: "PATTERN"
+""",
+            id="class none_of",
+        ),
+        pytest.param(
+            """
+    none_of:
+      - slot_conditions:
+          note: {}
+""",
+            id="class none_of with the default range",
+        ),
+        pytest.param(
+            """
+    rules:
+      - preconditions:
+          slot_conditions:
+            code:
+              pattern: "PATTERN"
+        postconditions:
+          slot_conditions:
+            kind:
+              pattern: "^y$"
+""",
+            id="rule",
+        ),
+        pytest.param(
+            """
+    classification_rules:
+      - slot_conditions:
+          code:
+            pattern: "PATTERN"
+""",
+            id="classification rule",
+        ),
+    ],
+)
+def test_expressions_needing_an_inexpressible_pattern_are_left_out(construct: str, caplog) -> None:
+    """Leaving out a pattern admits more values, so a negation or union that needs one is left out as a whole."""
+
+    def as_graph(pattern: str, construct: str) -> Graph:
+        schema = (LOSSY_SCHEMA + construct).replace("PATTERN", pattern)
+        return OwlSchemaGenerator(schema, metaclasses=False, type_objects=False).as_graph()
+
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        graph = as_graph("(?i)^x$", construct)
+
+    assert isomorphic(graph, as_graph("(?i)^x$", ""))
+    assert any(
+        msg.endswith("is left out, as it needs a pattern that has no XML Schema equivalent") for msg in caplog.messages
+    )
+    # the expression is generated where XML Schema can express its pattern
+    assert not isomorphic(as_graph("^x$", construct), as_graph("^x$", ""))
+
+
+def test_equals_string_on_literals_becomes_one_of() -> None:
+    """equals_string compares the whole value, so it is a one-literal owl:oneOf and not an xsd:pattern."""
+    graph = OwlSchemaGenerator(
+        """
+id: https://example.org/equals
+name: equals
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+default_prefix: ex
+imports:
+  - linkml:types
+types:
+  JsonLd:
+    typeof: string
+    equals_string: application/ld+json
+slots:
+  media_type:
+    range: string
+  format:
+    range: JsonLd
+  document:
+    range: Document
+classes:
+  Document:
+    slots:
+      - media_type
+      - format
+  C:
+    slots:
+      - document
+    slot_usage:
+      document:
+        range_expression:
+          slot_conditions:
+            media_type:
+              equals_string: application/ld+json
+""",
+        metaclasses=False,
+        type_objects=False,
+    ).as_graph()
+
+    one_ofs = [list(Collection(graph, members)) for members in graph.objects(None, OWL.oneOf)]
+    assert one_ofs == [[Literal("application/ld+json")]] * 2
+    assert not list(graph.objects(None, XSD.pattern))
 
 
 def test_rdfs_profile(kitchen_sink_path):
@@ -621,7 +876,8 @@ def _union_members(g: Graph, cls_uri: URIRef) -> set[URIRef] | None:
 
 
 def _owl_graph(sb: SchemaBuilder, **gen_kwargs) -> Graph:
-    gen = OwlSchemaGenerator(sb.schema, mergeimports=False, metaclasses=False, type_objects=False, **gen_kwargs)
+    gen_kwargs = {"metaclasses": False, "type_objects": False, **gen_kwargs}
+    gen = OwlSchemaGenerator(sb.schema, mergeimports=False, **gen_kwargs)
     g = Graph()
     g.parse(data=gen.serialize(), format="turtle")
     return g
@@ -1266,3 +1522,1997 @@ def test_cli_ontology_uri_suffix(kitchen_sink_path, args: list[str], expected_su
     g = Graph()
     g.parse(data=result.output, format="turtle")
     assert _ontology_iris(g) == {URIRef(f"https://w3id.org/linkml/tests/kitchen_sink{expected_suffix}")}
+
+
+_INSTANTIATES_SCHEMA = """
+id: http://example.org/test-schema
+name: instantiates_test
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: http://example.org/test-schema/
+  vocab: http://example.org/vocab/
+default_prefix: ex
+imports:
+  - linkml:types
+enums:
+  LinkCategory:
+    implements:
+      - owl:NamedIndividual
+    permissible_values:
+      isLicense:
+        meaning: ex:isLicense
+        instantiates:
+          - vocab:LicenseCategory
+      isManifest:
+        meaning: ex:isManifest
+        instantiates:
+          - vocab:ManifestCategory
+          - vocab:Category
+      isMedia:
+        meaning: ex:isMedia
+"""
+
+VOCAB = Namespace("http://example.org/vocab/")
+
+
+def test_permissible_value_instantiates_types_the_value() -> None:
+    """Each ``instantiates`` value of a permissible value becomes an rdf:type of its IRI."""
+    g = Graph()
+    g.parse(data=OwlSchemaGenerator(_INSTANTIATES_SCHEMA, metaclasses=False).serialize(), format="turtle")
+
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.ManifestCategory) in g
+    assert (EX.isManifest, RDF.type, VOCAB.Category) in g
+    # the value stays an individual of the enum, which still closes its own class
+    for pv in (EX.isLicense, EX.isManifest, EX.isMedia):
+        assert (pv, RDF.type, OWL.NamedIndividual) in g
+        assert (pv, RDF.type, EX.LinkCategory) in g
+    one_of = g.value(EX.LinkCategory, OWL.oneOf)
+    assert set(Collection(g, one_of)) == {EX.isLicense, EX.isManifest, EX.isMedia}
+    # a value without instantiates gets no further type, and the instantiated classes stay open
+    assert set(g.objects(EX.isMedia, RDF.type)) == {OWL.NamedIndividual, EX.LinkCategory}
+    assert g.value(VOCAB.LicenseCategory, OWL.oneOf) is None
+
+
+def test_permissible_value_instantiates_ignored_on_literal(caplog: pytest.LogCaptureFixture) -> None:
+    """A permissible value rendered as a literal cannot be typed, so instantiates is ignored with a warning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", "rdfs:Literal")
+    with caplog.at_level(logging.WARNING):
+        g = Graph()
+        g.parse(data=OwlSchemaGenerator(schema, metaclasses=False).serialize(), format="turtle")
+    assert not list(g.triples((None, RDF.type, VOCAB.LicenseCategory)))
+    assert any("Instantiates on literal isLicense" in rec.message for rec in caplog.records)
+
+
+def test_instantiates_ignored_on_reserved_vocabulary(caplog: pytest.LogCaptureFixture) -> None:
+    """Without type objects a type is emitted as its XSD datatype, which cannot be
+    an OWL 2 DL individual, so its ``instantiates`` is not asserted on that IRI."""
+    schema = """
+id: https://example.org/reserved
+name: reserved
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+default_prefix: ex
+types:
+  Count:
+    uri: xsd:integer
+    base: int
+    instantiates: [ex:Metadata]
+"""
+    with caplog.at_level(logging.WARNING):
+        output = OwlSchemaGenerator(schema, type_objects=False, metaclasses=False).serialize()
+    graph = Graph().parse(data=output, format="turtle")
+    assert (XSD.integer, RDF.type, URIRef("https://example.org/Metadata")) not in graph
+    assert "reserved vocabulary" in caplog.text
+
+
+def test_instantiates_ignored_for_a_bare_name(caplog: pytest.LogCaptureFixture) -> None:
+    """A value that is neither a CURIE nor an IRI would become a relative IRI, so it is skipped with a warning."""
+    schema = (
+        _INSTANTIATES_SCHEMA
+        + """
+classes:
+  Metadata: {}
+  Entry:
+    instantiates: [Metadata, vocab:ClassProfile]
+"""
+    )
+    with caplog.at_level(logging.WARNING):
+        g = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    assert set(g.objects(EX.Entry, RDF.type)) == {OWL.Class, VOCAB.ClassProfile}
+    assert (
+        "Instantiates 'Metadata' on http://example.org/test-schema/Entry, "
+        "which is neither a CURIE nor an IRI, is ignored"
+    ) in caplog.text
+
+
+@pytest.mark.parametrize("use_native_uris", [True, False])
+def test_instantiates_types_the_emitted_class_resource(use_native_uris: bool) -> None:
+    """The assertion goes on the resource the class is emitted as: its native IRI, or its ``class_uri``."""
+    schema = _INSTANTIATES_SCHEMA.replace(
+        "  vocab: http://example.org/vocab/\n", "  vocab: http://example.org/vocab/\n  schema: http://schema.org/\n"
+    )
+    schema += """
+classes:
+  Entry:
+    class_uri: schema:Thing
+    instantiates: [vocab:ClassProfile]
+"""
+    g = OwlSchemaGenerator(schema, metaclasses=False, use_native_uris=use_native_uris).as_graph()
+    expected = EX.Entry if use_native_uris else URIRef("http://schema.org/Thing")
+    assert set(g.subjects(RDF.type, VOCAB.ClassProfile)) == {expected}
+
+
+@pytest.mark.parametrize("metaclasses", [False, True])
+@pytest.mark.parametrize("type_objects", [False, True])
+def test_instantiates_applies_to_emitted_schema_elements(metaclasses: bool, type_objects: bool) -> None:
+    """Metaclass membership is explicit schema metadata, independent of generated metamodel types."""
+    schema = _INSTANTIATES_SCHEMA.replace(
+        "name: instantiates_test", "name: instantiates_test\ninstantiates: [vocab:SchemaProfile]"
+    ).replace("  LinkCategory:\n", "  LinkCategory:\n    instantiates: [vocab:EnumProfile]\n")
+    schema += """
+classes:
+  Entry:
+    instantiates: [vocab:ClassProfile]
+    slots: [code]
+slots:
+  code:
+    range: Code
+    instantiates: [vocab:SlotProfile]
+types:
+  Code:
+    typeof: string
+    uri: ex:Code
+    instantiates: [vocab:TypeProfile]
+"""
+    g = OwlSchemaGenerator(schema, metaclasses=metaclasses, type_objects=type_objects).as_graph()
+    for resource, metaclass in (
+        (URIRef("http://example.org/test-schema"), VOCAB.SchemaProfile),
+        (EX.Entry, VOCAB.ClassProfile),
+        (EX.code, VOCAB.SlotProfile),
+        (EX.Code, VOCAB.TypeProfile),
+        (EX.LinkCategory, VOCAB.EnumProfile),
+        (EX.isLicense, VOCAB.LicenseCategory),
+    ):
+        assert (resource, RDF.type, metaclass) in g
+        assert (resource, RDFS.subClassOf, metaclass) not in g
+    assert (EX.isLicense, RDF.type, VOCAB.EnumProfile) not in g
+
+
+@pytest.mark.parametrize("owl_type", ["owl:NamedIndividual", "owl:Class"])
+@pytest.mark.parametrize("meaning", ["ex:isLicense", "https://example.net/value", None])
+def test_instantiates_uses_the_emitted_value_resource(owl_type: str, meaning: str | None) -> None:
+    """Explicit and minted IRIs both carry membership, including class/individual punning."""
+    schema = _INSTANTIATES_SCHEMA.replace("owl:NamedIndividual", owl_type)
+    schema = schema.replace("        meaning: ex:isLicense\n", f"        meaning: {meaning}\n" if meaning else "")
+    schema = schema.replace("vocab:LicenseCategory", "https://example.net/Category")
+    g = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    (resource,) = g.subjects(RDF.type, URIRef("https://example.net/Category"))
+    assert isinstance(resource, URIRef)
+    assert (resource, RDFS.label, Literal("isLicense")) in g
+    assert (resource, RDF.type, OWL[owl_type.split(":")[1]]) in g
+    if meaning:
+        assert resource == (EX.isLicense if meaning.startswith("ex:") else URIRef(meaning))
+
+
+@pytest.mark.parametrize("metaclasses", [False, True])
+def test_instantiated_class_is_declared(metaclasses: bool) -> None:
+    """OWL 2 DL requires a declaration for every class a class assertion uses (§5.8.1)."""
+    g = OwlSchemaGenerator(_INSTANTIATES_SCHEMA, metaclasses=metaclasses).as_graph()
+    for metaclass in (VOCAB.LicenseCategory, VOCAB.ManifestCategory, VOCAB.Category):
+        assert (metaclass, RDF.type, OWL.Class) in g
+
+
+def test_instantiates_rdf_schema_representation_is_distinct_from_owl_assertion() -> None:
+    """gen-rdf preserves the metamodel predicate; gen-owl interprets it as membership."""
+    schema = _INSTANTIATES_SCHEMA.replace("imports:\n  - linkml:types\n", "")
+    rdf = Graph().parse(data=RDFGenerator(schema).serialize(), format="turtle")
+    owl = OwlSchemaGenerator(schema, metaclasses=False).as_graph()
+    assert {str(value) for value in rdf.objects(EX.isLicense, LINKML.instantiates)} == {"vocab:LicenseCategory"}
+    assert (EX.isLicense, RDF.type, VOCAB.LicenseCategory) in owl
+
+
+_RX = Namespace("https://example.org/")
+
+_RESTRICTION_SCHEMA = """\
+id: https://example.org/s
+name: s
+prefixes:
+  ex: https://example.org/
+  a: https://example.org/a/
+  b: https://example.org/b/
+  c: https://example.org/c/
+  skos: http://www.w3.org/2004/02/skos/core#
+  rdfs: http://www.w3.org/2000/01/rdf-schema#
+  linkml: https://w3id.org/linkml/
+default_prefix: ex
+imports:
+  - linkml:types
+"""
+
+# Each case: a schema body, and per class the properties its restrictions are stated on with
+# use_native_uris=False. A slot_usage or slot_conditions entry names a slot without its slot_uri.
+_RESTRICTION_CASES = {
+    "boolean_expression": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+        classes:
+          Thing:
+            slots: [note]
+            any_of:
+              - slot_conditions: {note: {required: true}}
+              - none_of:
+                  - slot_conditions: {note: {equals_string: none}}
+        """,
+        {"Thing": {SKOS.note}},
+    ),
+    "nested_boolean_expressions": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Thing:
+            slots: [note, short_name]
+            all_of:
+              - exactly_one_of:
+                  - slot_conditions: {note: {required: true}}
+                  - any_of:
+                      - none_of:
+                          - slot_conditions: {short_name: {equals_string: none}}
+        """,
+        {"Thing": {SKOS.note, _RX.shortName}},
+    ),
+    "slot_usage_of_an_inherited_slot": (
+        """\
+        slots:
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Base:
+            slots: [short_name]
+          Child:
+            is_a: Base
+            slot_usage:
+              short_name: {required: true}
+        """,
+        {"Child": {_RX.shortName}},
+    ),
+    "slot_usage_of_a_mixin_slot": (
+        """\
+        slots:
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Named:
+            mixin: true
+            slots: [short_name]
+          Thing:
+            mixins: [Named]
+            slot_usage:
+              short_name: {required: true}
+        """,
+        {"Thing": {_RX.shortName}},
+    ),
+    "slot_usage_of_an_inherited_attribute": (
+        """\
+        classes:
+          Base:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          Child:
+            is_a: Base
+            slot_usage:
+              label: {required: true}
+        """,
+        {"Child": {_RX["a/label"]}},
+    ),
+    "rule_conditions": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+          short_name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Thing:
+            slots: [note, short_name]
+            rules:
+              - preconditions:
+                  slot_conditions: {note: {equals_string: a}}
+                postconditions:
+                  slot_conditions: {short_name: {equals_string: b}}
+        """,
+        {"Thing": {SKOS.note, _RX.shortName}},
+    ),
+    "classification_rule": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+        classes:
+          Thing:
+            slots: [note]
+          Noted:
+            is_a: Thing
+            classification_rules:
+              - is_a: Thing
+                slot_conditions: {note: {equals_string: a}}
+        """,
+        {"Noted": {SKOS.note}},
+    ),
+    "range_expression": (
+        """\
+        slots:
+          note: {slot_uri: skos:note, range: string}
+          has_part: {slot_uri: ex:hasPart, range: Part}
+        classes:
+          Part:
+            slots: [note]
+          Whole:
+            slots: [has_part]
+            slot_usage:
+              has_part:
+                range_expression:
+                  slot_conditions: {note: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, SKOS.note}},
+    ),
+    # the same attribute name in two classes: each expression names the slot of its own class
+    "attributes_named_alike": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+            any_of:
+              - slot_conditions: {label: {required: true}}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            any_of:
+              - slot_conditions: {label: {required: true}}
+        """,
+        {"A": {_RX["a/label"]}, "B": {_RX["b/label"]}},
+    ),
+    # a range expression names the slots of the class the slot ranges over, not of the class that states it
+    "range_expression_over_a_class_with_a_like_named_attribute": (
+        """\
+        classes:
+          Part:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          Whole:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+              has_part:
+                slot_uri: ex:hasPart
+                range: Part
+                range_expression:
+                  slot_conditions: {label: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["a/label"], _RX["b/label"]}},
+    ),
+    # the class the slot ranges over is the one its owner's slot_usage states
+    "range_expression_in_a_condition_on_a_slot_with_a_refined_range": (
+        """\
+        slots:
+          has_part: {slot_uri: ex:hasPart, range: Part}
+        classes:
+          Part:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          SpecialPart:
+            attributes:
+              label: {slot_uri: c:label, range: string}
+          Whole:
+            slots: [has_part]
+            slot_usage:
+              has_part: {range: SpecialPart}
+            any_of:
+              - slot_conditions:
+                  has_part:
+                    range_expression:
+                      slot_conditions: {label: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["c/label"]}},
+    ),
+    # a range expression of an any_of branch names the slots of that branch's range
+    "range_expressions_of_any_of_branches": (
+        """\
+        classes:
+          PartA:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          PartB:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          Whole:
+            attributes:
+              has_part:
+                slot_uri: ex:hasPart
+                any_of:
+                  - range: PartA
+                    range_expression:
+                      slot_conditions: {label: {required: true}}
+                  - range: PartB
+                    range_expression:
+                      slot_conditions: {label: {required: true}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["a/label"], _RX["b/label"]}},
+    ),
+    # like-named attributes: all_of, none_of and exactly_one_of name the slot of the stating class
+    "attributes_named_alike_in_all_of_none_of_exactly_one_of": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            all_of:
+              - slot_conditions: {label: {equals_string: p}}
+            none_of:
+              - slot_conditions: {label: {equals_string: q}}
+            any_of:
+              - exactly_one_of:
+                  - slot_conditions: {label: {equals_string: r}}
+                  - slot_conditions: {label: {equals_string: s}}
+        """,
+        {"B": {_RX["b/label"]}},
+    ),
+    # like-named attributes: rule and classification-rule conditions name the slot of the stating class
+    "attributes_named_alike_in_rules": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            rules:
+              - preconditions:
+                  slot_conditions: {label: {equals_string: p}}
+                postconditions:
+                  slot_conditions: {label: {equals_string: q}}
+            classification_rules:
+              - slot_conditions: {label: {equals_string: r}}
+        """,
+        {"B": {_RX["b/label"]}},
+    ),
+    # a classification rule with is_a is an axiom about the instances of that class, also where the
+    # stating class has no slot of that name
+    "classification_rule_about_another_class": (
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: a:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            classification_rules:
+              - is_a: A
+                slot_conditions: {label: {equals_string: p}}
+          D:
+            classification_rules:
+              - is_a: A
+                slot_conditions: {label: {equals_string: p}}
+        """,
+        {"B": {_RX["a/label"], _RX["b/label"]}, "D": {_RX["a/label"]}},
+    ),
+    # a slot expression nested in a condition keeps the owner whose slot_usage refines the range
+    "range_expressions_in_nested_slot_expressions_of_a_condition": (
+        """\
+        slots:
+          has_part: {slot_uri: ex:hasPart, range: Part, multivalued: true}
+        classes:
+          Part:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          SpecialPart:
+            attributes:
+              label: {slot_uri: c:label, range: string}
+          Whole:
+            slots: [has_part]
+            slot_usage:
+              has_part: {range: SpecialPart}
+            any_of:
+              - slot_conditions:
+                  has_part:
+                    any_of:
+                      - range_expression:
+                          slot_conditions: {label: {equals_string: p}}
+                    all_members:
+                      range_expression:
+                        slot_conditions: {label: {equals_string: q}}
+        """,
+        {"Whole": {_RX.hasPart, _RX["c/label"]}},
+    ),
+    # a condition and a slot_usage may name a slot in its underscored form
+    "slot_named_in_its_underscored_form": (
+        """\
+        slots:
+          exact mappings: {slot_uri: skos:exactMatch, range: string}
+          short name: {slot_uri: ex:shortName, range: string}
+        classes:
+          Base:
+            slots: [exact mappings, short name]
+            any_of:
+              - slot_conditions: {exact_mappings: {equals_string: p}}
+              - slot_conditions: {"short name": {equals_string: q}}
+          Child:
+            is_a: Base
+            slot_usage:
+              short_name: {required: true}
+        """,
+        {"Base": {SKOS.exactMatch, _RX.shortName}, "Child": {_RX.shortName}},
+    ),
+    # a range expression with is_a names the slots of that class, not of the slot's range
+    "range_expression_with_is_a": (
+        """\
+        classes:
+          Animal:
+            attributes:
+              name: {slot_uri: a:name, range: string}
+          Dog:
+            is_a: Animal
+            attributes:
+              bark: {slot_uri: b:bark, range: string}
+          Seal:
+            is_a: Animal
+            attributes:
+              bark: {slot_uri: c:bark, range: string}
+          Owner:
+            attributes:
+              pet:
+                slot_uri: ex:pet
+                range: Animal
+                range_expression:
+                  is_a: Dog
+                  slot_conditions: {bark: {required: true}}
+        """,
+        {"Owner": {_RX.pet, _RX["b/bark"]}},
+    ),
+    # a type designator's axiom is on the designator slot of the class, also where another class
+    # has an attribute of the same name
+    "type_designators_named_alike": (
+        """\
+        classes:
+          A:
+            attributes:
+              kind: {slot_uri: a:kind, range: string, designates_type: true}
+          B:
+            attributes:
+              kind: {slot_uri: b:kind, range: string, designates_type: true}
+        """,
+        {"A": {_RX["a/kind"]}, "B": {_RX["b/kind"]}},
+    ),
+}
+
+
+def _declared_properties(g: Graph) -> set:
+    return {s for kind in (OWL.ObjectProperty, OWL.DatatypeProperty) for s in g.subjects(RDF.type, kind)}
+
+
+def _restricted_properties(g: Graph, node: URIRef | BNode, seen: set | None = None) -> set:
+    """The properties of the restrictions in the class expressions reachable from *node*."""
+    seen = set() if seen is None else seen
+    if node in seen:
+        return set()
+    seen.add(node)
+    found = set(g.objects(node, OWL.onProperty))
+    for obj in g.objects(node, None):
+        if isinstance(obj, BNode):
+            found |= _restricted_properties(g, obj, seen)
+    return found
+
+
+def _class_expressions(g: Graph, cls: URIRef) -> set:
+    """The class and both sides of the general class axioms about it: those whose subclass
+    expression is an intersection with the class (rules) or whose superclass is the class
+    (classification rules)."""
+    nodes: set = {cls}
+    for sub, sup in g.subject_objects(RDFS.subClassOf):
+        if isinstance(sub, BNode):
+            operands = {member for lst in g.objects(sub, OWL.intersectionOf) for member in Collection(g, lst)}
+            if sup == cls or cls in operands:
+                nodes |= {sub, sup}
+    return nodes
+
+
+@pytest.mark.parametrize("case", sorted(_RESTRICTION_CASES))
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_restrictions_from_slot_usage_and_conditions_are_on_declared_properties(
+    case: str, use_native_uris: bool
+) -> None:
+    """A ``slot_usage`` or ``slot_conditions`` entry names a slot and carries no ``slot_uri``; its
+    restriction is on the property the named slot is declared as, as OWL 2 DL requires (§5.8.1)."""
+    body, _ = _RESTRICTION_CASES[case]
+    owl = OwlSchemaGenerator(
+        _RESTRICTION_SCHEMA + textwrap.dedent(body), use_native_uris=use_native_uris, metadata=False
+    ).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    restricted = set(g.objects(None, OWL.onProperty))
+    assert restricted
+    assert restricted <= _declared_properties(g)
+
+
+@pytest.mark.parametrize("case", sorted(_RESTRICTION_CASES))
+def test_restrictions_use_the_slot_uri_of_the_class_they_are_about(case: str) -> None:
+    """With ``use_native_uris=False`` each class's restrictions are on its own slots' ``slot_uri``."""
+    body, expected = _RESTRICTION_CASES[case]
+    owl = OwlSchemaGenerator(
+        _RESTRICTION_SCHEMA + textwrap.dedent(body), use_native_uris=False, metadata=False
+    ).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    for class_name, properties in expected.items():
+        found = set()
+        for node in _class_expressions(g, _RX[class_name]):
+            found |= _restricted_properties(g, node)
+        assert found == properties, class_name
+
+
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_restrictions_on_an_imported_slot_keep_the_property_of_its_schema(tmp_path, use_native_uris: bool) -> None:
+    """A slot's name-derived IRI is in the namespace of the schema that defines it, also where
+    another schema refines the slot in ``slot_usage`` or names it in ``slot_conditions``, in its
+    underscored form too."""
+    (tmp_path / "base.yaml").write_text(
+        textwrap.dedent(
+            """\
+            id: https://example.org/base
+            name: base
+            prefixes:
+              base: https://example.org/base/
+              skos: http://www.w3.org/2004/02/skos/core#
+              linkml: https://w3id.org/linkml/
+            default_prefix: base
+            imports:
+              - linkml:types
+            slots:
+              note: {range: string}
+              short_name: {slot_uri: skos:altLabel, range: string}
+              display name: {range: string}
+              kind: {range: string, designates_type: true}
+            classes:
+              Base:
+                slots: [note, short_name, display name, kind]
+            """
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "main.yaml").write_text(
+        textwrap.dedent(
+            """\
+            id: https://example.org/main
+            name: main
+            prefixes:
+              main: https://example.org/main/
+              linkml: https://w3id.org/linkml/
+            default_prefix: main
+            imports:
+              - linkml:types
+              - base
+            classes:
+              Child:
+                is_a: Base
+                slot_usage:
+                  note: {required: true}
+                  kind: {required: true}
+                unique_keys:
+                  note_key: {unique_key_slots: [note]}
+                any_of:
+                  - slot_conditions: {short_name: {required: true}}
+                  - slot_conditions: {display_name: {required: true}}
+            """
+        ),
+        encoding="utf-8",
+    )
+    owl = OwlSchemaGenerator(str(tmp_path / "main.yaml"), use_native_uris=use_native_uris, metadata=False).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    base = Namespace("https://example.org/base/")
+    short_name = base.short_name if use_native_uris else SKOS.altLabel
+    child = URIRef("https://example.org/main/Child")
+    assert _restricted_properties(g, child) == {base.note, short_name, base.display_name, base.kind}
+    # the slot_usage in main does not move the key or the type designator's axiom into main's namespace
+    assert [list(Collection(g, key)) for key in g.objects(child, OWL.hasKey)] == [[base.note]]
+    assert {g.value(sub, OWL.onProperty) for sub in g.subjects(RDFS.subClassOf, child) if isinstance(sub, BNode)} == {
+        base.kind
+    }
+    assert set(g.objects(None, OWL.onProperty)) <= _declared_properties(g)
+
+
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_kitchen_sink_restrictions_are_on_declared_properties(kitchen_sink_path, use_native_uris: bool) -> None:
+    """The kitchen sink refines inherited and imported slots in ``slot_usage``; their restrictions
+    stay on declared properties, as they are without this fix."""
+    g = Graph().parse(
+        data=OwlSchemaGenerator(str(kitchen_sink_path), use_native_uris=use_native_uris).serialize(), format="turtle"
+    )
+    assert set(g.objects(None, OWL.onProperty)) <= _declared_properties(g)
+
+
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_keys_are_the_properties_of_the_class_slots(use_native_uris: bool) -> None:
+    """``unique_key_slots`` name slots of the class; ``owl:hasKey`` lists the properties those slots are
+    declared as in that class, also where another class has an attribute of the same name."""
+    schema = _RESTRICTION_SCHEMA + textwrap.dedent(
+        """\
+        classes:
+          A:
+            attributes:
+              code: {slot_uri: a:code, range: string}
+            unique_keys:
+              code_key: {unique_key_slots: [code]}
+          B:
+            attributes:
+              code: {slot_uri: b:code, range: string}
+            unique_keys:
+              code_key: {unique_key_slots: [code]}
+        """
+    )
+    owl = OwlSchemaGenerator(schema, use_native_uris=use_native_uris, metadata=False).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    for name in ("A", "B"):
+        code = _RX.code if use_native_uris else _RX[f"{name.lower()}/code"]
+        assert [list(Collection(g, key)) for key in g.objects(_RX[name], OWL.hasKey)] == [[code]]
+        assert code in _declared_properties(g)
+
+
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_annotation_property_of_the_owner_cannot_be_a_condition(use_native_uris: bool) -> None:
+    """The annotation-property check reads the slot of the class the condition is about: ``label`` is
+    an annotation property in B, whatever a like-named attribute of another class is."""
+    schema = _RESTRICTION_SCHEMA + textwrap.dedent(
+        """\
+        classes:
+          A:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+          B:
+            attributes:
+              label: {slot_uri: c:label, range: string, implements: [owl:AnnotationProperty]}
+            any_of:
+              - slot_conditions: {label: {equals_string: p}}
+        """
+    )
+    with pytest.raises(ValueError, match="Annotation property 'label' cannot be a condition"):
+        OwlSchemaGenerator(schema, use_native_uris=use_native_uris, metadata=False).serialize()
+
+
+@pytest.mark.parametrize(
+    "use_native_uris,condition,refused",
+    [
+        (True, "title_text", True),
+        (False, "title_text", True),
+        # rdfs:label is an annotation property only where the slot is written with its slot_uri
+        (True, "display_name", False),
+        (False, "display_name", True),
+    ],
+)
+def test_annotation_property_named_in_its_underscored_form_cannot_be_a_condition(
+    use_native_uris: bool, condition: str, refused: bool
+) -> None:
+    """A condition that names an annotation property in its underscored form is refused, as one that
+    names it as written."""
+    schema = _RESTRICTION_SCHEMA + textwrap.dedent(
+        f"""\
+        slots:
+          display name: {{slot_uri: rdfs:label, range: string}}
+          title text: {{slot_uri: ex:titleText, range: string, implements: [owl:AnnotationProperty]}}
+        classes:
+          C:
+            slots: [display name, title text]
+            any_of:
+              - slot_conditions: {{{condition}: {{equals_string: p}}}}
+        """
+    )
+    generator = OwlSchemaGenerator(schema, use_native_uris=use_native_uris, metadata=False)
+    if refused:
+        with pytest.raises(ValueError, match="cannot be a condition of a class expression"):
+            generator.serialize()
+    else:
+        g = Graph().parse(data=generator.serialize(), format="turtle")
+        assert set(g.objects(None, OWL.onProperty)) <= _declared_properties(g)
+
+
+def test_annotation_property_of_another_class_does_not_block_a_condition() -> None:
+    """... and a top-level ``label`` that is ``rdfs:label`` does not make B's own attribute one."""
+    schema = _RESTRICTION_SCHEMA + textwrap.dedent(
+        """\
+        slots:
+          label: {slot_uri: rdfs:label, range: string}
+        classes:
+          A:
+            slots: [label]
+          B:
+            attributes:
+              label: {slot_uri: b:label, range: string}
+            any_of:
+              - slot_conditions: {label: {equals_string: p}}
+        """
+    )
+    owl = OwlSchemaGenerator(schema, use_native_uris=False, metadata=False).serialize()
+    g = Graph().parse(data=owl, format="turtle")
+    assert _restricted_properties(g, _RX.B) == {_RX["b/label"]}
+
+
+_CONDITION_RANGE_SCHEMA = _RESTRICTION_SCHEMA + "default_range: string\n"
+
+# Each case: a schema body, and per class the fillers of the restrictions on each property in the
+# class expressions about it. An entry without a range of its own has the range of the slot it names.
+_CONDITION_RANGE_CASES = {
+    "range_expression": (
+        """\
+        slots:
+          width: {range: float}
+          unit: {range: UnitEnum}
+          dimensions: {range: Dimensions}
+        enums:
+          UnitEnum:
+            permissible_values:
+              px:
+              mm:
+        classes:
+          Dimensions:
+            slots: [width, unit]
+          Image:
+            slots: [dimensions]
+            slot_usage:
+              dimensions:
+                range_expression:
+                  slot_conditions:
+                    width: {required: true}
+                    unit: {required: true}
+        """,
+        {"Image": {"width": {XSD.float}, "unit": {_RX.UnitEnum}}},
+    ),
+    "rule_conditions": (
+        """\
+        slots:
+          width: {range: float}
+          unit: {range: UnitEnum}
+        enums:
+          UnitEnum:
+            permissible_values:
+              px:
+              mm:
+        classes:
+          Dimensions:
+            slots: [width, unit]
+            rules:
+              - preconditions:
+                  slot_conditions: {width: {required: true}}
+                postconditions:
+                  slot_conditions: {unit: {required: true}}
+        """,
+        {"Dimensions": {"width": {XSD.float}, "unit": {_RX.UnitEnum}}},
+    ),
+    # the range of an inherited slot, as an ancestor's slot_usage refines it
+    "slot_usage_of_inherited_slots": (
+        """\
+        slots:
+          width: {range: float}
+          size: {range: decimal}
+        classes:
+          Base:
+            slots: [width, size]
+            slot_usage:
+              size: {range: integer}
+          Child:
+            is_a: Base
+            slot_usage:
+              width: {required: true}
+              size: {required: true}
+        """,
+        {"Child": {"width": {XSD.float}, "size": {XSD.integer}}},
+    ),
+    # a range expression names the slots of the class the slot ranges over, as that class refines them
+    "range_expression_over_a_class_that_refines_the_range": (
+        """\
+        slots:
+          size: {range: decimal}
+          box: {range: Box}
+        classes:
+          Box:
+            slots: [size]
+            slot_usage:
+              size: {range: integer}
+          Shelf:
+            slots: [box]
+            slot_usage:
+              box:
+                range_expression:
+                  slot_conditions: {size: {required: true}}
+        """,
+        {"Shelf": {"size": {XSD.integer}}},
+    ),
+    # the same attribute name in two classes: each condition has the range of its own class's attribute
+    "attributes_named_alike": (
+        """\
+        classes:
+          A:
+            attributes:
+              size: {range: integer}
+            any_of:
+              - slot_conditions: {size: {required: true}}
+          B:
+            attributes:
+              size: {range: float}
+            any_of:
+              - slot_conditions: {size: {required: true}}
+        """,
+        {"A": {"size": {XSD.integer}}, "B": {"size": {XSD.float}}},
+    ),
+    "slot_named_in_its_underscored_form": (
+        """\
+        slots:
+          max width: {range: float}
+        classes:
+          Base:
+            slots: [max width]
+          Child:
+            is_a: Base
+            slot_usage:
+              max_width: {required: true}
+        """,
+        {"Child": {"max_width": {XSD.float}}},
+    ),
+    # whether the filler is a class or a data range follows the slot the name stands for, also in its
+    # underscored form: values of uriorcurie are nodes, so the filler is owl:Thing, not the default_range
+    "node_typed_slot_named_in_its_underscored_form": (
+        """\
+        slots:
+          exact mappings: {range: uriorcurie, multivalued: true}
+        classes:
+          Unit:
+            slots: [exact mappings]
+            any_of:
+              - slot_conditions: {exact_mappings: {required: true}}
+        """,
+        {"Unit": {"exact_mappings": {OWL.Thing}}},
+    ),
+    # a slot without a range of its own has the range it inherits from its parent slot
+    "slot_that_inherits_its_range": (
+        """\
+        slots:
+          measure: {range: float}
+          width: {is_a: measure}
+        classes:
+          Dimensions:
+            slots: [width]
+            any_of:
+              - slot_conditions: {width: {required: true}}
+        """,
+        {"Dimensions": {"width": {XSD.float}}},
+    ),
+    # values of a type that are nodes (uri, uriorcurie) have no datatype, so a condition on homepage, which has
+    # no range of its own, has the default_range instead
+    "types_whose_values_are_nodes": (
+        """\
+        slots:
+          reference: {range: uriorcurie}
+          homepage: {is_a: reference}
+          website: {range: string}
+        classes:
+          Organization:
+            slots: [homepage, website]
+            slot_usage:
+              website: {range: uri, required: true}
+            any_of:
+              - slot_conditions: {homepage: {required: true}}
+        """,
+        # Organization narrows the data property website to IRIs, which no data property has, so
+        # the narrowing restricts nothing there (see test_values_that_a_property_cannot_have_are_not_restricted).
+        {"Organization": {"homepage": {XSD.string}, "website": set()}},
+    ),
+    "condition_with_a_range_of_its_own": (
+        """\
+        slots:
+          size: {range: decimal}
+        classes:
+          Box:
+            slots: [size]
+            any_of:
+              - slot_conditions: {size: {range: integer}}
+        """,
+        {"Box": {"size": {XSD.decimal, XSD.integer}}},
+    ),
+    "slot_without_a_range": (
+        """\
+        slots:
+          note: {}
+        classes:
+          Item:
+            slots: [note]
+            any_of:
+              - slot_conditions: {note: {required: true}}
+        """,
+        {"Item": {"note": {XSD.string}}},
+    ),
+}
+
+
+def _condition_range_graph(body: str, header: str = _CONDITION_RANGE_SCHEMA, **gen_kwargs) -> Graph:
+    owl = OwlSchemaGenerator(
+        header + textwrap.dedent(body),
+        metaclasses=False,
+        type_objects=False,
+        metadata=False,
+        **gen_kwargs,
+    ).serialize()
+    return Graph().parse(data=owl, format="turtle")
+
+
+def _fillers(g: Graph, node: URIRef | BNode, prop: URIRef, seen: set | None = None) -> set:
+    """The fillers of the restrictions on *prop* in the class expressions reachable from *node*."""
+    seen = set() if seen is None else seen
+    if node in seen:
+        return set()
+    seen.add(node)
+    found = set()
+    if (node, OWL.onProperty, prop) in g:
+        found |= set(g.objects(node, OWL.allValuesFrom)) | set(g.objects(node, OWL.someValuesFrom))
+    for obj in g.objects(node, None):
+        if isinstance(obj, BNode):
+            found |= _fillers(g, obj, prop, seen)
+    return found
+
+
+@pytest.mark.parametrize("case", sorted(_CONDITION_RANGE_CASES))
+@pytest.mark.parametrize("use_native_uris", [False, True])
+def test_conditions_without_a_range_of_their_own_have_the_range_of_the_slot_they_name(
+    case: str, use_native_uris: bool
+) -> None:
+    """A ``slot_usage`` or ``slot_conditions`` entry states only what it adds to the slot it names, so
+    without a range of its own its restriction has that slot's range in the class it is about, not the
+    schema's ``default_range``."""
+    body, expected = _CONDITION_RANGE_CASES[case]
+    g = _condition_range_graph(body, use_native_uris=use_native_uris)
+    for class_name, fillers in expected.items():
+        for slot_name, expected_fillers in fillers.items():
+            found = set()
+            for node in _class_expressions(g, _RX[class_name]):
+                found |= _fillers(g, node, _RX[slot_name])
+            assert found == expected_fillers, (class_name, slot_name)
+
+
+@pytest.mark.parametrize("case", sorted(_CONDITION_RANGE_CASES))
+def test_restriction_fillers_match_the_kind_of_their_property(case: str) -> None:
+    """A restriction on an object property, such as an enum-ranged slot, has no data range filler, and
+    one on a data property no class filler, as OWL 2 DL requires (§5.8.1)."""
+    body, _ = _CONDITION_RANGE_CASES[case]
+    g = _condition_range_graph(body)
+    for restriction in g.subjects(RDF.type, OWL.Restriction):
+        prop = g.value(restriction, OWL.onProperty)
+        for filler in (*g.objects(restriction, OWL.allValuesFrom), *g.objects(restriction, OWL.someValuesFrom)):
+            is_data_range = (filler, RDF.type, RDFS.Datatype) in g or str(filler).startswith(str(XSD))
+            is_class = (filler, RDF.type, OWL.Class) in g or filler == OWL.Thing
+            if (prop, RDF.type, OWL.ObjectProperty) in g:
+                assert not is_data_range, (prop, filler)
+            if (prop, RDF.type, OWL.DatatypeProperty) in g:
+                assert not is_class, (prop, filler)
+
+
+def test_condition_without_a_range_of_its_own_is_vacuous_where_it_repeats_the_global_range() -> None:
+    """With ``skip_vacuous_local_range_axioms`` such a condition gives no range restriction where the slot
+    it names has its global range, and keeps the range the class the condition is about refines."""
+    g = _condition_range_graph(
+        """\
+        slots:
+          width: {range: float}
+          size: {range: decimal}
+          dimensions: {range: Dimensions}
+        classes:
+          Dimensions:
+            slots: [width, size]
+            slot_usage:
+              size: {range: integer}
+          Image:
+            slots: [dimensions]
+            slot_usage:
+              dimensions:
+                range_expression:
+                  slot_conditions:
+                    width: {required: true}
+                    size: {required: true}
+        """,
+        skip_vacuous_local_range_axioms=True,
+    )
+    assert _fillers(g, _RX.Image, _RX.width) == set()
+    assert _fillers(g, _RX.Image, _RX.size) == {XSD.integer}
+
+
+def test_condition_is_vacuous_where_it_repeats_the_range_the_slot_inherits() -> None:
+    """With ``skip_vacuous_local_range_axioms`` a restriction to the range a slot inherits from its parent
+    slot is left out: the parent's ``rdfs:range`` declares it for the slot through ``rdfs:subPropertyOf``."""
+    g = _condition_range_graph(
+        """\
+        slots:
+          measure: {range: float}
+          width: {is_a: measure}
+          dimensions: {range: Dimensions}
+        classes:
+          Dimensions:
+            slots: [width]
+          Image:
+            slots: [dimensions]
+            slot_usage:
+              dimensions:
+                range_expression:
+                  slot_conditions:
+                    width: {required: true}
+        """,
+        skip_vacuous_local_range_axioms=True,
+    )
+    assert (_RX.width, RDFS.subPropertyOf, _RX.measure) in g
+    assert (_RX.measure, RDFS.range, XSD.float) in g
+    assert _fillers(g, _RX.Dimensions, _RX.width) == set()
+    assert _fillers(g, _RX.Image, _RX.width) == set()
+
+
+@pytest.mark.parametrize(
+    ("parent_range", "kind", "filler"),
+    [
+        ("string", OWL.DatatypeProperty, XSD.string),
+        ("uriorcurie", OWL.ObjectProperty, OWL.Thing),
+        ("StatusEnum", OWL.ObjectProperty, _RX.StatusEnum),
+    ],
+)
+def test_slot_without_a_range_is_declared_as_the_slot_it_inherits_its_range_from(
+    parent_range: str, kind: URIRef, filler: URIRef
+) -> None:
+    """Without a ``default_range``, gen-owl declares a slot that has no range of its own by the fillers of its
+    restrictions. With the range the slot inherits as their filler, it is the same kind of property as its parent."""
+    g = _condition_range_graph(
+        f"""\
+        slots:
+          parent: {{range: {parent_range}}}
+          child: {{is_a: parent}}
+        enums:
+          StatusEnum:
+            permissible_values:
+              active:
+        classes:
+          Item:
+            slots: [child]
+        """,
+        header=_RESTRICTION_SCHEMA,
+    )
+    assert set(g.objects(_RX.parent, RDF.type)) == set(g.objects(_RX.child, RDF.type)) == {kind}
+    assert _fillers(g, _RX.Item, _RX.child) == {filler}
+
+
+def test_conditions_filled_with_the_default_range_record_no_kind_of_property(caplog) -> None:
+    """With a ``default_range`` the kinds of a slot's fillers do not decide how the slot is declared. A condition
+    whose filler is the ``default_range``, as for a slot without a range or one whose values are nodes, records
+    no kind, as before, so the slot is not reported as used both with literals and with classes."""
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        _condition_range_graph(
+            """\
+            slots:
+              related_to: {}
+              exact mappings: {range: uriorcurie}
+            classes:
+              Person: {}
+              Relationship:
+                slots: [related_to]
+              FamilialRelationship:
+                is_a: Relationship
+                slot_usage:
+                  related_to: {range: Person}
+              Unit:
+                slots: [exact mappings]
+                any_of:
+                  - slot_conditions:
+                      exact_mappings: {required: true}
+            """
+        )
+    assert not any("Ambiguous type" in msg for msg in caplog.messages)
+
+
+def _pattern_schema(body: str) -> str:
+    return (
+        """
+id: https://example.org/p
+name: p
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ex: https://example.org/
+default_prefix: ex
+imports:
+  - linkml:types
+"""
+        + body
+    )
+
+
+def test_equals_string_keeps_a_pattern_and_is_negated_as_a_data_range() -> None:
+    """A pattern next to equals_string stays a facet, and none_of an equals_string excludes the one literal
+    (a complement of the restriction to a one-literal owl:oneOf), not the values a pattern finds."""
+    schema = _pattern_schema(
+        """
+types:
+  Code:
+    typeof: string
+    pattern: "^[a-z]+$"
+    equals_string: abc
+slots:
+  code:
+    range: Code
+  label:
+    range: string
+classes:
+  C:
+    slots: [code, label]
+    none_of:
+      - slot_conditions:
+          label:
+            equals_string: xyz
+"""
+    )
+    graph = OwlSchemaGenerator(schema, metaclasses=False, type_objects=False).as_graph()
+    assert set(graph.objects(None, XSD.pattern)) == {Literal(r"[a-z]+\n?")}
+    one_ofs = {tuple(Collection(graph, members)): node for node, members in graph.subject_objects(OWL.oneOf)}
+    assert set(one_ofs) == {(Literal("abc"),), (Literal("xyz"),)}
+    (restriction,) = graph.subjects(OWL.allValuesFrom, one_ofs[(Literal("xyz"),)])
+    assert (restriction, OWL.onProperty, URIRef("https://example.org/label")) in graph
+    assert (None, OWL.complementOf, restriction) in graph
+
+
+def test_structured_pattern_of_an_anonymous_expression_leaves_its_any_of_out(caplog) -> None:
+    """SchemaView resolves the structured pattern of a definition only. An any_of operand with one would
+    otherwise give no restriction, and the union would admit fewer values than LinkML's validators."""
+    schema = _pattern_schema(
+        """
+slots:
+  code:
+    range: string
+    any_of:
+      - structured_pattern:
+          syntax: "^a$"
+      - pattern: "^b$"
+classes:
+  C:
+    slots: [code]
+"""
+    )
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        graph = OwlSchemaGenerator(schema, metaclasses=False, type_objects=False).as_graph()
+    assert set(graph.objects(None, XSD.pattern)) == set()
+    assert any("structured pattern '^a$' of an anonymous expression is not resolved" in msg for msg in caplog.messages)
+    assert any(msg.startswith("The any_of of slot 'code' is left out") for msg in caplog.messages)
+
+
+def test_pattern_of_an_object_valued_slot_is_not_a_facet_of_its_range() -> None:
+    """The values of a class-ranged slot are individuals, which an xsd:pattern facet cannot restrict."""
+    schema = _pattern_schema(
+        """
+slots:
+  owner:
+    range: D
+    pattern: "^y"
+classes:
+  D: {}
+  C:
+    slots: [owner]
+"""
+    )
+    graph = OwlSchemaGenerator(schema, metaclasses=False, type_objects=False).as_graph()
+    assert set(graph.objects(None, XSD.pattern)) == set()
+    assert list(graph.objects(URIRef("https://example.org/owner"), RDFS.range)) == [URIRef("https://example.org/D")]
+
+
+def _unit_schema(permissible_values: list[PermissibleValue], **enum_kwargs) -> SchemaBuilder:
+    """Return a SchemaBuilder with a class Thing whose slot unit ranges over UnitEnum."""
+    sb = SchemaBuilder()
+    sb.add_enum("UnitEnum", permissible_values=permissible_values, **enum_kwargs)
+    sb.add_slot("unit", range="UnitEnum")
+    sb.add_class("Thing", slots=["unit"])
+    sb.add_defaults()
+    return sb
+
+
+@pytest.mark.parametrize("type_objects", [False, True])
+@pytest.mark.parametrize("declared_on", ["generator", "enum", "permissible_values"])
+def test_enum_of_literals_is_a_datatype(declared_on: str, type_objects: bool) -> None:
+    """An enum whose permissible values are all literals is a datatype, and its slots are data properties.
+
+    OWL 2 DL does not let an IRI be both a class and a datatype (§5.8.1), and the datatype
+    is defined as an enumeration of its literals (§9.4).
+    """
+    literal = ["rdfs:Literal"]
+    pvs = [PermissibleValue(text=t, implements=literal if declared_on == "permissible_values" else []) for t in "mk"]
+    sb = _unit_schema(pvs, implements=literal if declared_on == "enum" else [])
+    gen_kwargs = {"default_permissible_value_type": "rdfs:Literal"} if declared_on == "generator" else {}
+    g = _owl_graph(sb, type_objects=type_objects, **gen_kwargs)
+    assert set(g.objects(EX.UnitEnum, RDF.type)) == {RDFS.Datatype}
+    [data_range] = g.objects(EX.UnitEnum, OWL.equivalentClass)
+    assert isinstance(data_range, BNode)
+    assert (data_range, RDF.type, RDFS.Datatype) in g
+    assert set(Collection(g, g.value(data_range, OWL.oneOf))) == {Literal("m"), Literal("k")}
+    assert set(g.objects(EX.unit, RDF.type)) == {OWL.DatatypeProperty}
+
+
+@pytest.mark.parametrize(
+    "permissible_values",
+    [[], [PermissibleValue(text="m"), PermissibleValue(text="k", implements=["owl:NamedIndividual"])]],
+    ids=["no_values", "mixed_values"],
+)
+def test_enum_not_only_of_literals_stays_a_class(permissible_values: list[PermissibleValue]) -> None:
+    """Only an enum with permissible values, all of them literals, is a datatype."""
+    g = _owl_graph(_unit_schema(permissible_values, implements=["rdfs:Literal"]))
+    assert set(g.objects(EX.UnitEnum, RDF.type)) == {OWL.Class}
+    assert set(g.objects(EX.unit, RDF.type)) == {OWL.ObjectProperty}
+
+
+@pytest.mark.parametrize(
+    "parent",
+    [{"is_a": "LengthEnum"}, {"mixins": ["LengthEnum"]}, {"inherits": ["LengthEnum"]}],
+    ids=["is_a", "mixins", "inherits"],
+)
+def test_enum_of_literals_has_no_parents(caplog, parent: dict) -> None:
+    """OWL 2 has no subtype axiom for datatypes, so the parents of a datatype enum are not emitted."""
+    sb = _unit_schema([PermissibleValue(text="m")], **parent)
+    sb.add_enum("LengthEnum", permissible_values=["m", "km"])
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(
+            sb, default_permissible_value_type="rdfs:Literal", add_root_classes=True, enum_inherits_as_subclass_of=True
+        )
+    assert not set(g.objects(EX.UnitEnum, RDFS.subClassOf))
+    assert not set(g.objects(EX.LengthEnum, RDFS.subClassOf))
+    assert "Enum 'UnitEnum' is a datatype in OWL, so its parent enums are not emitted" in caplog.messages
+
+
+@pytest.mark.parametrize("mixins_as_expressions", [False, True])
+def test_class_enum_has_no_datatype_parents(caplog, mixins_as_expressions: bool) -> None:
+    """An enum that stays a class does not get a datatype enum as parent: no IRI is both (§5.8.1)."""
+    sb = SchemaBuilder()
+    sb.add_enum("LengthEnum", permissible_values=["m", "km"])
+    sb.add_enum("AnyUnit", inherits=["LengthEnum"])
+    sb.add_enum("SubLength", is_a="LengthEnum")
+    sb.add_enum("MixLength", mixins=["LengthEnum"])
+    sb.add_defaults()
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(
+            sb,
+            default_permissible_value_type="rdfs:Literal",
+            enum_inherits_as_subclass_of=True,
+            mixins_as_expressions=mixins_as_expressions,
+        )
+    assert set(g.objects(EX.LengthEnum, RDF.type)) == {RDFS.Datatype}
+    assert not set(g.subject_predicates(EX.LengthEnum))
+    for child in ("AnyUnit", "SubLength", "MixLength"):
+        assert set(g.objects(EX[child], RDF.type)) == {OWL.Class}
+        assert (
+            f"Enum {child!r} is a class in OWL and its parent 'LengthEnum' is a datatype, so that parent is not emitted"
+            in caplog.messages
+        )
+
+
+@pytest.mark.parametrize("default_range", [None, "string"])
+@pytest.mark.parametrize("type_objects", [False, True])
+@pytest.mark.parametrize("refined_in", ["subclass", "subclass_of_narrowing_parent", "class_expression"])
+def test_refined_slot_of_enum_of_literals_keeps_its_range(
+    refined_in: str, type_objects: bool, default_range: str | None
+) -> None:
+    """A slot of such an enum, refined without a range, is restricted to the enum, a data range.
+
+    A subclass ``slot_usage`` keeps the range its parent gives, the ``slot_conditions`` of a class
+    expression the range of the slot. The default range, or ``owl:Thing`` without one, is a class
+    with ``type_objects`` or without a default range, which a data property cannot have (§5.8.1).
+    """
+    sb = _unit_schema([PermissibleValue(text=t) for t in "mk"])
+    required = {"unit": {"required": True}}
+    if refined_in == "class_expression":
+        sb.add_class("Thing", slots=["unit"], any_of=[{"slot_conditions": required}], replace_if_present=True)
+    else:
+        if refined_in == "subclass_of_narrowing_parent":
+            sb.add_enum("AnyUnitEnum", permissible_values=["m", "k", "mm"])
+            sb.schema.slots["unit"].range = "AnyUnitEnum"
+            sb.add_class("Thing", slots=["unit"], slot_usage={"unit": {"range": "UnitEnum"}}, replace_if_present=True)
+        sb.add_class("Child", is_a="Thing", slot_usage=required)
+    sb.schema.default_range = default_range
+    g = _owl_graph(sb, default_permissible_value_type="rdfs:Literal", type_objects=type_objects)
+    restrictions = set(g.subjects(OWL.onProperty, EX.unit))
+    assert {g.value(r, OWL.allValuesFrom) for r in restrictions} - {None} == {EX.UnitEnum}
+    assert set(g.objects(EX.unit, RDF.type)) == {OWL.DatatypeProperty}
+
+
+def test_slot_of_enum_of_literals_or_a_class_stays_an_object_property() -> None:
+    """With type_objects, a slot that ranges over an enum of literals and a class stays an object property."""
+    sb = _unit_schema([PermissibleValue(text="m")])
+    sb.add_slot("unit_or_thing", any_of=[{"range": "UnitEnum"}, {"range": "Thing"}])
+    sb.add_class("Thing", slots=["unit", "unit_or_thing"], replace_if_present=True)
+    g = _owl_graph(sb, default_permissible_value_type="rdfs:Literal", type_objects=True)
+    assert set(g.objects(EX.unit, RDF.type)) == {OWL.DatatypeProperty}
+    assert set(g.objects(EX.unit_or_thing, RDF.type)) == {OWL.ObjectProperty}
+
+
+@pytest.mark.parametrize("type_objects", [False, True])
+def test_slot_of_enums_of_literals_and_types(type_objects: bool) -> None:
+    """A slot of an enum of literals and a type with literal values is a data property.
+
+    With type_objects, the type is a class, and the slots stay object properties. Without, the
+    enum as the range of ``unit_and_text`` would make it an object property, and ``unit_or_text``,
+    which has no range and no class uses, would be one by default. The values of ``uriorcurie``
+    are IRIs, so ``unit_or_iri`` stays one.
+    """
+    sb = _unit_schema([PermissibleValue(text="m")])
+    sb.add_slot("unit_and_text", range="UnitEnum", any_of=[{"range": "string"}])
+    sb.add_slot("unit_or_text", any_of=[{"range": "UnitEnum"}, {"range": "string"}])
+    sb.add_slot("unit_or_iri", any_of=[{"range": "UnitEnum"}, {"range": "uriorcurie"}])
+    sb.add_class("Thing", slots=["unit", "unit_and_text"], replace_if_present=True)
+    sb.schema.default_range = None
+    g = _owl_graph(sb, default_permissible_value_type="rdfs:Literal", type_objects=type_objects)
+    expected = {OWL.ObjectProperty} if type_objects else {OWL.DatatypeProperty}
+    assert set(g.objects(EX.unit_and_text, RDF.type)) == expected
+    assert set(g.objects(EX.unit_or_text, RDF.type)) == expected
+    assert set(g.objects(EX.unit_or_iri, RDF.type)) == {OWL.ObjectProperty}
+
+
+@pytest.mark.parametrize("type_objects", [False, True])
+@pytest.mark.parametrize(
+    "default_range,unit,some_unit",
+    [
+        ("UnitEnum", OWL.DatatypeProperty, OWL.DatatypeProperty),
+        ("Thing", OWL.ObjectProperty, OWL.ObjectProperty),
+        (None, OWL.ObjectProperty, OWL.DatatypeProperty),
+    ],
+    ids=["enum", "class", "none"],
+)
+def test_default_range_and_members_of_enums_of_literals(
+    default_range: str | None, unit: URIRef, some_unit: URIRef, type_objects: bool
+) -> None:
+    """The ranges of a slot include those of ``all_members`` and ``has_member``, and the default range.
+
+    A restriction on a slot gets the default range if neither its ``range`` nor its expressions
+    give one; ``has_member`` gives a restriction of its own, and ``range_expression`` a class
+    expression if it has slot conditions. A slot without any range keeps the kind it has
+    without enums of literals.
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("UnitEnum", permissible_values=["m", "k"])
+    sb.add_slot("unit")
+    sb.add_slot("all_units", multivalued=True, all_members={"range": "UnitEnum"})
+    sb.add_slot("some_unit", multivalued=True, has_member={"range": "UnitEnum"})
+    sb.add_slot("units_of_things", range="UnitEnum", multivalued=True, all_members={"range": "Thing"})
+    sb.add_slot("units_and_a_thing", range="UnitEnum", multivalued=True, has_member={"range": "Thing"})
+    with_units = {"slot_conditions": {"units_of_things": {"range": "UnitEnum"}}}
+    sb.add_slot("thing_with_units", range_expression={"any_of": [with_units]})
+    sb.add_slot(
+        "units_and_a_thing_with_units", range="UnitEnum", multivalued=True, has_member={"range_expression": with_units}
+    )
+    sb.add_slot("units_without_expression", range="UnitEnum", range_expression={})
+    sb.add_class("Thing", slots=["unit", "all_units", "some_unit", "units_of_things", "units_and_a_thing"])
+    sb.add_defaults()
+    sb.schema.default_range = default_range
+    g = _owl_graph(sb, default_permissible_value_type="rdfs:Literal", type_objects=type_objects)
+    assert set(g.objects(EX.unit, RDF.type)) == {unit}
+    assert set(g.objects(EX.all_units, RDF.type)) == {OWL.DatatypeProperty}
+    assert set(g.objects(EX.units_without_expression, RDF.type)) == {OWL.DatatypeProperty}
+    assert set(g.objects(EX.some_unit, RDF.type)) == {some_unit}
+    for slot in ("units_of_things", "units_and_a_thing", "thing_with_units", "units_and_a_thing_with_units"):
+        assert set(g.objects(EX[slot], RDF.type)) == {OWL.ObjectProperty}, slot
+    if default_range == "UnitEnum":
+        assert {g.value(r, OWL.allValuesFrom) for r in g.subjects(OWL.onProperty, EX.unit)} - {None} == {EX.UnitEnum}
+
+
+def test_slot_narrowed_to_an_enum_of_literals_is_a_data_property() -> None:
+    """A slot without a range that a class narrows to such an enum is a data property, as for a type."""
+    sb = SchemaBuilder()
+    sb.add_enum("UnitEnum", permissible_values=["m", "k"])
+    sb.add_slot("unit")
+    sb.add_class("Thing", slots=["unit"], slot_usage={"unit": {"range": "UnitEnum"}})
+    sb.add_defaults()
+    sb.schema.default_range = None
+    g = _owl_graph(sb, default_permissible_value_type="rdfs:Literal")
+    assert set(g.objects(EX.unit, RDF.type)) == {OWL.DatatypeProperty}
+
+
+def test_condition_on_an_undeclared_slot_keeps_the_default_range() -> None:
+    """A class expression can name a slot that is not declared, which has no enum to restrict it to."""
+    sb = _unit_schema([PermissibleValue(text="m")])
+    sb.add_class(
+        "Thing", slots=["unit"], any_of=[{"slot_conditions": {"other": {"required": True}}}], replace_if_present=True
+    )
+    g = _owl_graph(sb, default_permissible_value_type="rdfs:Literal")
+    assert {g.value(r, OWL.allValuesFrom) for r in g.subjects(OWL.onProperty, EX.other)} - {None} == {XSD.string}
+
+
+@pytest.mark.parametrize("default_range", [None, "string"])
+@pytest.mark.parametrize("type_objects", [False, True])
+def test_boolean_expressions_over_enums_of_literals_are_data_ranges(
+    type_objects: bool, default_range: str | None
+) -> None:
+    """``any_of`` over datatype enums is a union of data ranges (§7.2), ``none_of`` a complement (§7.3).
+
+    A slot whose ranges are all such enums is a data property in every mode, also if no class uses it.
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("UnitEnum", permissible_values=["m", "k"])
+    sb.add_enum("SizeEnum", permissible_values=["S", "L"])
+    sb.add_slot("unit_or_size", any_of=[{"range": "UnitEnum"}, {"range": "SizeEnum"}])
+    sb.add_slot("not_unit", none_of=[{"range": "UnitEnum"}])
+    sb.add_slot("unused", any_of=[{"range": "UnitEnum"}, {"range": "SizeEnum"}])
+    sb.add_class("Thing", slots=["unit_or_size", "not_unit"])
+    sb.add_defaults()
+    sb.schema.default_range = default_range
+    g = _owl_graph(sb, default_permissible_value_type="rdfs:Literal", type_objects=type_objects)
+    unions = set(g.subjects(OWL.unionOf, None))
+    assert unions
+    assert all((union, RDF.type, RDFS.Datatype) in g for union in unions)
+    assert set(g.subjects(OWL.datatypeComplementOf, EX.UnitEnum))
+    assert not set(g.subjects(OWL.complementOf, None))
+    for slot in ("unit_or_size", "not_unit", "unused"):
+        assert set(g.objects(EX[slot], RDF.type)) == {OWL.DatatypeProperty}
+
+
+_LITERAL_ENUM_SCHEMA = """
+id: https://example.org/units
+name: units
+prefixes:
+  linkml: https://w3id.org/linkml/
+  rdfs: http://www.w3.org/2000/01/rdf-schema#
+  ex: https://example.org/units/
+default_prefix: ex
+default_range: string
+imports:
+  - linkml:types
+enums:
+  UnitEnum:
+    implements:
+      - rdfs:Literal
+    permissible_values:
+      m:
+      cm:
+slots:
+  id:
+    identifier: true
+    range: uriorcurie
+  unit:
+    range: UnitEnum
+classes:
+  Measurement:
+    slots: [id, unit]
+"""
+
+
+@pytest.mark.parametrize("type_objects", [False, True])
+def test_dumped_value_of_enum_of_literals_is_in_its_datatype(type_objects: bool) -> None:
+    """The RDF dumper writes a permissible value without a meaning as a literal. In OWL, its slot
+    is a data property (OWL 2 §5.4), whose range is the enum's datatype, an enumeration that holds
+    this literal (§7.4), so the data that LinkML writes fits the ontology."""
+    module = compile_python(PythonGenerator(_LITERAL_ENUM_SCHEMA).serialize())
+    data = rdflib_dumper.as_rdf_graph(module.Measurement(id="ex:r1", unit="cm"), SchemaView(_LITERAL_ENUM_SCHEMA))
+    owl = Graph().parse(
+        data=OwlSchemaGenerator(_LITERAL_ENUM_SCHEMA, type_objects=type_objects, metaclasses=False).serialize(),
+        format="turtle",
+    )
+    ex = Namespace("https://example.org/units/")
+    [value] = data.objects(ex.r1, ex.unit)
+    assert value == Literal("cm")
+    assert set(owl.objects(ex.unit, RDF.type)) == {OWL.DatatypeProperty}
+    assert owl.value(ex.unit, RDFS.range) == ex.UnitEnum
+    [data_range] = owl.objects(ex.UnitEnum, OWL.equivalentClass)
+    assert value in set(Collection(owl, owl.value(data_range, OWL.oneOf)))
+
+
+def _all_values_from(g: Graph, slot: str) -> set:
+    """Return the fillers of the ``owl:allValuesFrom`` restrictions on *slot*."""
+    return {g.value(r, OWL.allValuesFrom) for r in g.subjects(OWL.onProperty, EX[slot])} - {None}
+
+
+def test_slot_of_classes_is_an_object_property_with_their_union_as_range() -> None:
+    """A slot whose ranges are all classes is an object property, also if the default range is a type.
+
+    Its range is the union of the classes (OWL 2 §8.1.2, §9.2.6). A subclass that refines it
+    without a range restricts it to ``owl:Thing``, as no datatype, such as the default range,
+    fills an object property restriction (§8.2.2). A refinement without a range of a slot of an
+    enum that is a class has the range of the slot it names, the enum.
+    """
+    sb = SchemaBuilder()
+    sb.add_class("Wheel")
+    sb.add_class("Door")
+    sb.add_enum("KindEnum", permissible_values=["scalar", "vector"])
+    sb.add_slot("part", multivalued=True, any_of=[{"range": "Wheel"}, {"range": "Door"}])
+    sb.add_slot("kind", range="KindEnum")
+    sb.add_class("Car", slots=["part", "kind"])
+    sb.add_class("Truck", is_a="Car", slot_usage={"part": {"required": True}, "kind": {"required": True}})
+    sb.add_defaults()
+    g = _owl_graph(sb)
+    assert set(g.objects(EX.part, RDF.type)) == {OWL.ObjectProperty}
+    fillers = _all_values_from(g, "part")
+    unions = set(g.objects(EX.part, RDFS.range)) | {f for f in fillers if isinstance(f, BNode)}
+    assert len(unions) == 2
+    for union in unions:
+        assert set(Collection(g, g.value(union, OWL.unionOf))) == {EX.Wheel, EX.Door}
+    assert fillers - unions == {OWL.Thing}
+    assert _all_values_from(g, "kind") == {EX.KindEnum}
+
+
+@pytest.mark.parametrize("default_range", [None, "string"])
+@pytest.mark.parametrize(
+    "ranges",
+    [["float", "Quantity"], ["UnitEnum", "Quantity"], ["UnitEnum", "KindEnum"]],
+    ids=["type_and_class", "enum_of_literals_and_class", "enum_of_literals_and_class_enum"],
+)
+def test_slot_of_literals_and_nodes_has_no_range(caplog, ranges: list[str], default_range: str | None) -> None:
+    """A slot that ranges over both literals and nodes, in its ``any_of`` or with its ``has_member``,
+    is an object property without a range, and gen-owl warns about it once, not in each class.
+
+    Neither an object nor a data property has both (OWL 2 §5.3, §5.4, §5.8.1), so the values of
+    the slot are not restricted, also where a subclass refines it without a range. A subclass that
+    narrows it to nodes restricts it, and its cardinalities stay.
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("UnitEnum", permissible_values=["m", "k"], implements=["rdfs:Literal"])
+    sb.add_enum("KindEnum", permissible_values=["scalar", "vector"])
+    sb.add_class("Quantity")
+    sb.add_slot("speed", any_of=[{"range": r} for r in ranges])
+    sb.add_slot("readings", range=ranges[0], multivalued=True, has_member={"range": ranges[1]})
+    sb.add_class("Vehicle", slots=["speed", "readings"])
+    sb.add_class("Car", is_a="Vehicle", slot_usage={"speed": {"required": True}})
+    sb.add_class("Train", is_a="Vehicle", slot_usage={"speed": {"range": ranges[1]}})
+    sb.add_defaults()
+    sb.schema.default_range = default_range
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(sb)
+    for slot in ("speed", "readings"):
+        assert set(g.objects(EX[slot], RDF.type)) == {OWL.ObjectProperty}, slot
+        assert not set(g.objects(EX[slot], RDFS.range)), slot
+        message = (
+            f"Slot {slot!r} ranges over both literals and nodes, which neither an object nor a data "
+            "property can have, so it has no range and its values are not restricted"
+        )
+        assert caplog.messages.count(message) == 1, slot
+    assert not [m for m in caplog.messages if m.startswith("In class")]
+    assert _all_values_from(g, "speed") == {EX[ranges[1]]}
+    assert not _all_values_from(g, "readings")
+    assert not set(g.subjects(OWL.someValuesFrom))
+    assert not {u for u in g.subjects(OWL.unionOf) if isinstance(u, BNode)}
+    assert Literal(1) in {g.value(r, OWL.minCardinality) for r in g.subjects(OWL.onProperty, EX.speed)}
+
+
+def test_branch_without_a_range_has_the_range_of_the_slot(caplog) -> None:
+    """A branch of ``any_of`` without a range, such as one with only a ``pattern``, has the range
+    of the expression it is in, or else of the slot, which a class that refines the slot takes
+    from the slot, or else the default range.
+
+    So a slot with a branch of an enum that is a class and a branch of only a pattern over the
+    default range, a type, ranges over literals and nodes, and has no range, also if the branch is
+    in another expression. A slot with such branches in an expression whose range is a class, or
+    that a class refines with them where its range is a class, ranges over nodes.
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("LicenseEnum", permissible_values=["MIT", "Apache-2.0"])
+    sb.add_class("Agent")
+    sb.add_class("Person", is_a="Agent")
+    sb.add_slot("license", any_of=[{"range": "LicenseEnum"}, {"pattern": "^LicenseRef-"}])
+    sb.add_slot("rights", any_of=[{"range": "Agent"}, {"any_of": [{"range": "LicenseEnum"}, {"pattern": "^x"}]}])
+    sb.add_slot("author", any_of=[{"range": "Agent", "any_of": [{"range": "Person"}, {"pattern": "^X"}]}])
+    sb.add_slot("holder", range="Agent")
+    sb.add_class("Package", slots=["license", "rights", "author", "holder"])
+    sb.add_class("Book", is_a="Package", slot_usage={"holder": {"any_of": [{"range": "Person"}, {"pattern": "^O"}]}})
+    sb.add_defaults()
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(sb)
+    for name in ("license", "rights"):
+        assert set(g.objects(EX[name], RDF.type)) == {OWL.ObjectProperty}
+        assert not set(g.objects(EX[name], RDFS.range))
+        assert not _all_values_from(g, name)
+    for name in ("author", "holder"):
+        assert set(g.objects(EX[name], RDF.type)) == {OWL.ObjectProperty}
+        assert not [message for message in caplog.messages if repr(name) in message]
+
+
+def test_class_expression_that_owl_cannot_state_is_left_out(caplog) -> None:
+    """A class expression with a condition on a slot that ranges over both literals and nodes,
+    which neither an object nor a data property can have, is left out where leaving out only the
+    condition could make an axiom stronger: the ``any_of`` or ``exactly_one_of`` that it is an
+    operand of, a rule with it in its preconditions or its postconditions, and a classification
+    rule with it.
+
+    Of ``all_of`` and ``none_of``, only that operand is left out, which makes the axiom weaker,
+    also where the condition is in an expression in the operand. A slot whose ``range_expression``
+    has such a condition, also that of its ``has_member``, of its ``all_members`` or of a branch
+    of its ``any_of``, has no range, and its values are not restricted.
+    """
+    sb = SchemaBuilder()
+    sb.add_class("Quantity")
+    sb.add_class("Base")
+    sb.add_class("Sub", is_a="Base")
+    sb.add_slot("speed", any_of=[{"range": "float"}, {"range": "Quantity"}])
+    sb.add_slot("part", range="Base")
+    fast = {"slot_conditions": {"speed": {"minimum_value": 3}}}
+    narrow = {"slot_conditions": {"part": {"range": "Sub"}}}
+    sb.add_slot("fast_part", range="Base", range_expression=fast)
+    sb.add_slot("fast_parts", range="Base", multivalued=True, has_member={"range_expression": fast})
+    sb.add_slot("fast_or_sub", any_of=[{"range": "Sub"}, {"range": "Base", "range_expression": fast}])
+    sb.add_slot("fast_list", range="Base", multivalued=True, all_members={"range_expression": fast})
+    sb.add_class("Vehicle", slots=["speed", "part"], any_of=[fast, narrow])
+    sb.add_class("Car", slots=["speed", "part"], none_of=[fast, narrow])
+    sb.add_class("Van", slots=["speed", "part"], exactly_one_of=[fast, narrow])
+    sb.add_class("Tram", slots=["speed", "part"], all_of=[{"any_of": [fast, narrow]}])
+    sb.add_class(
+        "Truck",
+        slots=["speed", "part"],
+        rules=[{"preconditions": fast, "postconditions": narrow}, {"preconditions": narrow, "postconditions": fast}],
+    )
+    sb.add_class(
+        "Bike", slots=["speed", "part"], classification_rules=[{"slot_conditions": {**fast["slot_conditions"]}}]
+    )
+    sb.add_class("Garage", slots=["fast_part", "fast_parts", "fast_or_sub", "fast_list"])
+    sb.add_defaults()
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(sb)
+    assert not set(g.subjects(XSD.minInclusive))
+    assert not set(g.subjects(OWL.someValuesFrom))
+    assert len(set(g.subjects(OWL.allValuesFrom, EX.Sub))) == 1
+    assert not set(g.objects(EX.Bike, OWL.equivalentClass))
+    reason = "slot 'speed' ranges over both literals and nodes, which neither an object nor a data property can have"
+    for name in ("fast_part", "fast_parts", "fast_or_sub", "fast_list"):
+        assert not set(g.objects(EX[name], RDFS.range)), name
+        assert not _all_values_from(g, name), name
+        message = (
+            f"Slot {name!r} ranges over a class expression in which {reason}, so it has no range and its values "
+            "are not restricted"
+        )
+        assert message in caplog.messages
+    for message in (
+        f"The any_of of class 'Vehicle' is not emitted, since in one of its operands {reason}",
+        f"An operand of the none_of of class 'Car' is not emitted, since in it {reason}",
+        f"The exactly_one_of of class 'Van' is not emitted, since in one of its operands {reason}",
+        f"An operand of the all_of of class 'Tram' is not emitted, since in it {reason}",
+        f"A rule of class 'Truck' is not emitted, since in it {reason}",
+        f"A classification rule of class 'Bike' is not emitted, since in it {reason}",
+    ):
+        assert message in caplog.messages
+
+
+@pytest.mark.parametrize("default_range", [None, "string"])
+def test_values_that_a_property_cannot_have_are_not_restricted(caplog, default_range: str | None) -> None:
+    """Where a slot ranges over values that its property cannot have, literals for an object
+    property or nodes for a data property (OWL 2 §5.3, §5.4), its values are not restricted,
+    with a warning: where a class narrows it, for an attribute, and for the range of a slot
+    that implements a property role, which has that role also without a range, with or
+    without a default range.
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("UnitEnum", permissible_values=["m", "k"], implements=["rdfs:Literal"])
+    sb.add_class("Quantity")
+    sb.add_slot("speed", any_of=[{"range": "float"}, {"range": "Quantity"}])
+    sb.add_slot("unit", any_of=[{"range": "UnitEnum"}, {"range": "Quantity"}])
+    sb.add_slot("label", range="string")
+    sb.add_slot("amount", range="Quantity", implements=["owl:DatatypeProperty"])
+    sb.add_slot("weight", implements=["owl:DatatypeProperty"])
+    sb.add_class("Vehicle", slots=["speed", "unit", "label", "amount", "weight"])
+    sb.add_class(
+        "Car",
+        is_a="Vehicle",
+        slot_usage={
+            "speed": {"range": "float"},
+            "unit": {"range": "UnitEnum"},
+            "label": {"range": "Quantity"},
+            "weight": {"range": "Quantity"},
+        },
+    )
+    sb.add_class("Sensor", attributes={"reading": {"any_of": [{"range": "float"}, {"range": "Quantity"}]}})
+    sb.add_defaults()
+    sb.schema.default_range = default_range
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(sb)
+    for name in ("speed", "unit", "amount", "reading"):
+        assert not _all_values_from(g, name), name
+    assert EX.Quantity not in _all_values_from(g, "weight")
+    assert _all_values_from(g, "label") == {XSD.string}
+    assert set(g.objects(EX.amount, RDF.type)) == {OWL.DatatypeProperty}
+    assert not set(g.objects(EX.amount, RDFS.range))
+    literals = "ranges over literals, but it is an object property, so its values there are not restricted"
+    nodes = "ranges over nodes, but it is a data property, so its values there are not restricted"
+    for message in (
+        f"In class 'Car', slot 'speed' {literals}",
+        f"In class 'Car', slot 'unit' {literals}",
+        f"In class 'Car', slot 'label' {nodes}",
+        f"In class 'Car', slot 'weight' {nodes}",
+        "In class 'Sensor', slot 'reading' ranges over both literals and nodes, which neither an object nor a data "
+        "property can have, so its values there are not restricted",
+        "Slot 'amount' ranges over nodes, but it is a data property, so it has no range and its values are not "
+        "restricted",
+    ):
+        assert caplog.messages.count(message) == 1, message
+
+
+def test_attribute_of_several_classes_has_the_kind_of_its_definitions(caplog) -> None:
+    """An attribute that several classes define has the kind of property that their definitions
+    give, not that of the slot without a range that SchemaView gives for its name alone, so a
+    subclass that narrows it to literals does not restrict it. Where its definitions, also that of
+    a slot of its name, give different kinds, it has no single kind, and each class restricts it
+    to its range.
+    """
+    sb = SchemaBuilder()
+    sb.add_class("Person")
+    sb.add_class("Dimensions")
+    sb.add_slot("size", range="float")
+    sb.add_class("Car", attributes={"owner": {"range": "Person"}, "size": {"range": "Dimensions"}})
+    sb.add_class("Boat", slots=["size"], attributes={"owner": {"range": "Person"}})
+    sb.add_class("Yacht", is_a="Boat", slot_usage={"owner": {"range": "string"}})
+    sb.add_defaults()
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(sb)
+    assert set(g.objects(EX.owner, RDF.type)) == {OWL.ObjectProperty}
+    expected = {
+        (EX.Car, EX.owner): {EX.Person},
+        (EX.Boat, EX.owner): {EX.Person},
+        (EX.Yacht, EX.owner): set(),
+        (EX.Car, EX.size): {EX.Dimensions},
+        (EX.Boat, EX.size): {XSD.float},
+    }
+    for (cls, prop), fillers in expected.items():
+        restrictions = [r for r in g.objects(cls, RDFS.subClassOf) if (r, OWL.onProperty, prop) in g]
+        assert {g.value(r, OWL.allValuesFrom) for r in restrictions} - {None} == fillers, (cls, prop)
+    assert [message for message in caplog.messages if "not restricted" in message] == [
+        "In class 'Yacht', slot 'owner' ranges over literals, but it is an object property, so its values there are "
+        "not restricted"
+    ]
+
+
+@pytest.mark.parametrize(
+    "slot",
+    [
+        {"any_of": [{"range": "float"}, {"range": "Typo"}]},
+        {"range": "float", "multivalued": True, "has_member": {"range": "Typo"}},
+    ],
+    ids=["any_of", "has_member"],
+)
+def test_unknown_range_is_an_error(slot: dict) -> None:
+    """A range that is no class, enum or type is an error, also beside a range of literals."""
+    sb = SchemaBuilder()
+    sb.add_slot("speed", **slot)
+    sb.add_class("Vehicle", slots=["speed"])
+    sb.add_defaults()
+    with pytest.raises(ValueError, match="Unknown range Typo"):
+        _owl_graph(sb)
+
+
+@pytest.mark.parametrize(
+    "ranges", [["integer", "boolean"], ["MissingValueEnum", "VitalStatusEnum"]], ids=["types", "enums_of_literals"]
+)
+def test_any_of_with_range_any_has_the_ranges_of_its_operands(caplog, ranges: list[str]) -> None:
+    """A slot whose range is ``linkml:Any`` and further constrained by ``any_of`` ranges over its
+    operands, so over data ranges it is a data property with their union as range (OWL 2 §7.2).
+
+    ``linkml:Any`` is the class URI of the range, whatever its name, and a slot of that range
+    alone is an object property.
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("MissingValueEnum", permissible_values=["INVALID", "NOT_PROVIDED"], implements=["rdfs:Literal"])
+    sb.add_enum("VitalStatusEnum", permissible_values=["LIVING", "DECEASED"], implements=["rdfs:Literal"])
+    sb.add_class("Anything", class_uri="linkml:Any")
+    sb.add_slot("status", range="Anything", any_of=[{"range": r} for r in ranges])
+    sb.add_slot("note", range="Anything")
+    sb.add_class("Person", slots=["status", "note"])
+    sb.add_defaults()
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(sb)
+    assert set(g.objects(EX.status, RDF.type)) == {OWL.DatatypeProperty}
+    for union in set(g.objects(EX.status, RDFS.range)) | _all_values_from(g, "status"):
+        assert (union, RDF.type, RDFS.Datatype) in g
+        assert len(list(Collection(g, g.value(union, OWL.unionOf)))) == 2
+    assert set(g.objects(EX.note, RDF.type)) == {OWL.ObjectProperty}
+    assert not [message for message in caplog.messages if "'status'" in message]
+
+
+def test_has_member_branch_without_a_range_has_the_range_of_the_entry(caplog) -> None:
+    """A branch of the ``has_member`` of a class's entry for a slot that gives no range has the
+    range of the entry, not that of the slot.
+    """
+    sb = SchemaBuilder()
+    sb.add_class("Anything", class_uri="linkml:Any")
+    sb.add_slot("scores", range="Anything", multivalued=True)
+    has_member = {"any_of": [{"minimum_value": 90}, {"maximum_value": 10}]}
+    sb.add_class("Exam", slots=["scores"], slot_usage={"scores": {"range": "integer", "has_member": has_member}})
+    sb.add_defaults()
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        _owl_graph(sb)
+    assert [message for message in caplog.messages if "'scores'" in message] == [
+        "In class 'Exam', slot 'scores' ranges over literals, but it is an object property, so its values there are "
+        "not restricted"
+    ]
+
+
+@pytest.mark.parametrize(
+    "narrowed,role",
+    [
+        (["KindEnum"], OWL.ObjectProperty),
+        (["KindEnum", "UnitEnum"], OWL.ObjectProperty),
+        (["integer"], OWL.DatatypeProperty),
+        (["uriorcurie"], OWL.ObjectProperty),
+    ],
+    ids=["class_enum", "class_enum_and_enum_of_literals", "type", "type_of_nodes"],
+)
+def test_slot_narrowed_by_classes_has_the_kind_of_their_ranges(caplog, narrowed: list[str], role: URIRef) -> None:
+    """A slot without a range has the kind of the ranges that the classes that use it narrow it
+    to: a data property for a type of literals, and an object property for a type of nodes or an
+    enum that is a class, also if another class narrows it to an enum of literals.
+
+    Its kind is known, as for a class, so it is not guessed, and neither an object nor a data
+    property has both literals and nodes as values (OWL 2 §5.3, §5.4).
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("KindEnum", permissible_values=["scalar", "vector"])
+    sb.add_enum("UnitEnum", permissible_values=["m", "k"], implements=["rdfs:Literal"])
+    sb.add_slot("unit")
+    for i, enum in enumerate(narrowed):
+        sb.add_class(f"Thing{i}", slots=["unit"], slot_usage={"unit": {"range": enum}})
+    sb.add_defaults()
+    sb.schema.default_range = None
+    with caplog.at_level(logging.WARNING, logger="linkml.generators.owlgen"):
+        g = _owl_graph(sb)
+    assert set(g.objects(EX.unit, RDF.type)) == {role}
+    assert "Guessing type for unit" not in caplog.messages
+
+
+def test_union_of_a_class_enum_and_a_type_object_is_a_class_expression() -> None:
+    """With ``type_objects``, a type is a class, so ``any_of`` over a type and an enum that is a
+    class, and ``exactly_one_of`` over types, are class expressions (OWL 2 §8.1), not data ranges
+    (§7.2, §7.3).
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("KindEnum", permissible_values=["scalar", "vector"])
+    sb.add_slot("kind", any_of=[{"range": "KindEnum"}, {"range": "string"}])
+    sb.add_slot("count_or_name", exactly_one_of=[{"range": "integer"}, {"range": "string"}])
+    sb.add_class("Thing", slots=["kind", "count_or_name"])
+    sb.add_defaults()
+    g = _owl_graph(sb, type_objects=True)
+    for name in ("kind", "count_or_name"):
+        assert set(g.objects(EX[name], RDF.type)) == {OWL.ObjectProperty}
+    unions = {union for union in g.subjects(OWL.unionOf) if isinstance(union, BNode)}
+    assert len(unions) == 4
+    assert not any((union, RDF.type, RDFS.Datatype) in g for union in unions)
+    assert set(g.subjects(OWL.complementOf)) and not set(g.subjects(OWL.datatypeComplementOf))
+
+
+def test_intersection_of_a_class_enum_and_a_constraint_is_not_a_data_range() -> None:
+    """An enum that is a class is a class expression (OWL 2 §8.1), as a class is, so its
+    intersection with the data range of a constraint on the slot, here ``equals_string_in``,
+    is not typed ``rdfs:Datatype`` (§7.1).
+    """
+    sb = SchemaBuilder()
+    sb.add_enum("KindEnum", permissible_values=["scalar", "vector"])
+    sb.add_slot("kind", range="KindEnum", equals_string_in=["scalar"])
+    sb.add_class("Thing", slots=["kind"])
+    sb.add_defaults()
+    g = _owl_graph(sb)
+    intersections = {
+        e for e in g.subjects(OWL.intersectionOf) if EX.KindEnum in Collection(g, g.value(e, OWL.intersectionOf))
+    }
+    assert intersections
+    assert not any((e, RDF.type, RDFS.Datatype) in g for e in intersections)
+
+
+@pytest.mark.parametrize("default_range", [None, "string"])
+def test_exactly_one_of_and_none_of_over_data_ranges_are_data_ranges(default_range: str | None) -> None:
+    """``exactly_one_of`` over data ranges is a union of intersections of each with the complement
+    of the others, and ``none_of`` a complement: all data ranges (OWL 2 §7.1–§7.3), also over the
+    facets of a type and as operands of another expression.
+    """
+    sb = SchemaBuilder()
+    sb.add_slot("count_or_name", exactly_one_of=[{"range": "integer"}, {"range": "string"}])
+    sb.add_slot(
+        "count_or_text", exactly_one_of=[{"range": "integer"}, {"any_of": [{"range": "string"}, {"range": "date"}]}]
+    )
+    sb.add_slot("code", range="string", exactly_one_of=[{"pattern": "^a"}, {"pattern": "^b"}])
+    sb.add_slot("size", range="integer", exactly_one_of=[{"maximum_value": 5}, {"minimum_value": 3}])
+    sb.add_slot("neither", range="string", any_of=[{"none_of": [{"pattern": "^a"}]}, {"none_of": [{"pattern": "b$"}]}])
+    slots = ["count_or_name", "count_or_text", "code", "size", "neither"]
+    sb.add_class("Thing", slots=slots)
+    sb.add_defaults()
+    sb.schema.default_range = default_range
+    g = _owl_graph(sb)
+    expressions = {e for p in (OWL.unionOf, OWL.intersectionOf, OWL.datatypeComplementOf) for e in g.subjects(p)}
+    assert set(g.subjects(OWL.unionOf))
+    assert all((e, RDF.type, RDFS.Datatype) in g for e in expressions)
+    assert not set(g.subjects(OWL.complementOf))
+    for slot in slots:
+        assert set(g.objects(EX[slot], RDF.type)) == {OWL.DatatypeProperty}, slot
